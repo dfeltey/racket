@@ -1,16 +1,23 @@
 #lang racket/base
+(require (for-syntax racket/base))
 (provide assert defined?)
 
-(define-syntax assert
-  (syntax-rules ()
+(define-syntax (assert stx)
+  (syntax-case stx ()
     ((assert v)
-     (let ([val v])
-       (or val (error (format "Assertion failed on ~v" val)))))
+     #`(let ([val v])
+         #,(syntax-property
+            (syntax/loc stx
+              (or val (error (format "Assertion failed on ~v" val))))
+            'TR-dynamic-check #t)))
     ((assert v pred)
-     (let ((val v))
-       (if ((#%expression pred) val)
-           val
-           (error (format "Assertion ~a failed on ~v" pred val)))))))
+     #`(let ((val v))
+         #,(syntax-property
+            (quasisyntax/loc stx
+              (if ((#%expression pred) val)
+                  val
+                  (error (format "Assertion ~a failed on ~v" pred val))))
+            'TR-dynamic-check #t)))))
 
 (define (defined? v)
   (not (equal? v (letrec ([x x]) x))))
