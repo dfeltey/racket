@@ -28,8 +28,52 @@
   (let* ([gen (oneof (list (rand-range 0 55295)
                            (rand-range 57344 1114111)))])
     (integer->char gen)))
+
+(define (gen-rational fuel)
+  (let ([numerator (rand 4294967087)]
+        [denominator (+ 1 (rand 4294967087))]
+        [sgn (expt -1 (rand 2))])
+    (/ (* sgn numerator) denominator)))
+
+(define (gen-inexact-real fuel) 
+  (let ([r (rand)]
+        [range 4294967087]
+        [sgn (expt -1 (rand 2))])
+    (* sgn r range)))
+        
 (define gen-hash 
   (hash
+   ;; generate number?
+   number?
+   (λ (fuel)
+     (rand-choice
+      [1/10 0]
+      [1/10 0.0]
+      [1/10 1]
+      [1/10 1.0]
+      [1/10 -1]
+      [1/10 -1.0]
+      [1/5 (gen-rational fuel)]
+      [else (gen-inexact-real fuel)]))
+     
+   ;; generate rational?
+   rational?
+   (λ (fuel)
+     (rand-choice
+      [1/5 0]
+      [1/5 1]
+      [1/5 -1]
+      [else (gen-rational fuel)]))
+   
+   ;; generate inexact-real?
+   inexact-real?
+   (λ (fuel)
+     (rand-choice
+      [1/5 0.0]
+      [1/5 1.0]
+      [1/5 -1.0]
+      [else (gen-inexact-real fuel)]))
+   
    ;; generate integer? 
    integer?
    (λ (fuel)

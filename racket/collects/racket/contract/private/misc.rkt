@@ -706,6 +706,10 @@
          [else (mk-rand-list (cons (generate/direct elem-ctc fuel)
                                    so-far))]))
      (mk-rand-list (list))))
+(define (non-empty-listof-generate elem-ctc)
+  (λ (fuel)
+    (cons (generate/direct elem-ctc fuel)
+          ((listof-generate elem-ctc) fuel))))
 
 (define (listof-exercise el-ctc)
   (λ (f n-tests size env)
@@ -792,7 +796,7 @@
 
 (define non-empty-listof-func (*-listof non-empty-list? 
                                         'non-empty-listof
-                                        (λ (ctc) (make-generate-ctc-fail))))
+                                        non-empty-listof-generate))
 (define/subexpression-pos-prop (non-empty-listof a) (non-empty-listof-func a))
 
 (define (blame-add-car-context blame) (blame-add-context blame "the car of"))
