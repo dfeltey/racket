@@ -197,7 +197,7 @@
     (for ([node (in-list module-nodes)])
       (define boundaries (node->boundaries node all-boundaries))
       (define self% (/ (for/sum ([b (in-list boundaries)]) (boundary-time b))
-                       total-contract-time))
+                       (exact->inexact total-contract-time))) ; to avoid (/ x 0)
       (define label
         (format
          "~a\n~ams~a"
