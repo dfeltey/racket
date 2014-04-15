@@ -11,7 +11,8 @@
          "generate.rkt"
          "arrow-higher-order.rkt"
          racket/stxparam
-         (prefix-in arrow: "arrow.rkt"))
+         (prefix-in arrow: "arrow.rkt")
+         (only-in racket/function normalize-arity arity=?))
 
 (provide ->2 ->*2
          (for-syntax ->2-handled?
@@ -717,27 +718,23 @@
                            (if (null? back)
                                (values front back)
                                (values (cons (car back) front) (cdr back))))])
-      (values (reverse rf) b)))
-  
-  
+      (values (reverse rf) b))) 
   (define min-arity (base->-min-arity ctc))
   (define doms (base->-doms ctc))
   (define kwd-infos (base->-kwd-infos ctc))
   (define rest-ctc (base->-rest ctc))
   (define rng-ctcs (base->-rngs ctc))
-  ;(printf "min-arity: ~a\n" min-arity)
+  ;; printing ranges to see what any, any/c look like in contracts
   ;(printf "doms: ~a\n" doms)
-  ;(printf "rest: ~a\n" rest-ctc)
-  ;(printf "keywords: ~a\n" (map kwd-info-kwd kwd-infos))
-  ;(printf "required?: ~a\n" (map kwd-info-mandatory? kwd-infos))
-  ;(printf "keyword-cts: ~a\n" (map kwd-info-ctc kwd-infos))
-  ;(printf "ranges: ~a\n'" rng-ctcs)
+  ;(printf "ranges: ~a\n" rng-ctcs)
+  
   
   ;; build proper function arity
-  (define arity (if rest-ctc  
-                    (arity-at-least min-arity)
-                    (build-list (add1 (- (length doms) min-arity))
-                                (lambda (n) (+ n min-arity)))))
+  (define arity (normalize-arity 
+                 (if rest-ctc  
+                     (arity-at-least min-arity)
+                     (build-list (add1 (- (length doms) min-arity))
+                                 (lambda (n) (+ n min-arity))))))
   ;; get the required kwd-infos 
   (define req-kwd-infos (filter kwd-info-mandatory? kwd-infos))
   
@@ -759,7 +756,8 @@
   
   ;; result of ->-generate
   (λ (fuel)
-
+    ;; TODO: rng-ctcs can be #f in the case of (-> ... any)
+    ;; and any/c cannot be generated right now 
     (define rngs-gens (map (λ (c) (generate/choose c (/ fuel 2))) rng-ctcs))
     (cond
       [(for/or ([rng-gen (in-list rngs-gens)])
@@ -822,18 +820,112 @@
         required-kws
         allowed-kws)])))
 
-;; ->-exercise as is is broken
-;; "args" should satisfy ctc, for -> contracts
-;; a procedure? check, plus some checks on arity and
-;; required/optional keywords are better first order checks
-;; then as a simple first approximation generate a random argument
-;; for each argument the function takes and apply it with 
-;; keyword-apply, then check that the returned values match the expected 
-;; contracts
-;; a better exercise function would check all combinations of optional
-;; positional and keyword arguments and rest args ...
+;; There are two possible approaches to exercising function contracts.
+;; 1. Generate values for all arguments (including all optional and rest)
+;;    then apply the function and check that the results are correct
+;; 2. Generate all required arguments then randomly generate
+;;    SOME, but not all of the optional keyword/positional arguments
+;;    and only generate rest if all optional arguments were generated
+;;
+;; For testing, option 2 is probably better than 1 if the tests are run 
+;; many times, a best (but difficult) third option is to exercise all the possible
+;; combinations...
+;;
+;; For now taking approach 1 to avoid some difficult in generating
+;; random subsequences or initial sections of a list.
+;;
+;; maybe shouldn't raise exceptions here... just display an error and 
+;; return #f ..?
 (define (->-exercise ctc) 
-  (λ (args fuel)
+  ;; returns a function that checks if it's argument satisfies ctc
+  (λ (arg fuel)
+    (unless (procedure? arg)
+      (raise-argument-error '->-exercise
+                            "procedure?"
+                            arg))
+    
+    (define min-arity (base->-min-arity ctc))
+    (define doms (base->-doms ctc))
+    (define kwd-infos (base->-kwd-infos ctc))
+    (define rest-ctc (base->-rest ctc))
+    (define rng-ctcs (base->-rngs ctc))
+    
+    ;; build contract arity
+    (define ctc-arity (normalize-arity
+                       (if rest-ctc  
+                           (arity-at-least min-arity)
+                           (build-list (add1 (- (length doms) min-arity))
+                                       (lambda (n) (+ n min-arity))))))
+    (define arg-arity (procedure-arity arg))
+    
+    ;; arity of ctc and arg should match
+    (unless (arity=? ctc-arity arg-arity)
+      (raise-arguments-error '->exercise
+                             "arity mismatch between contract and given"
+                             "expected arity" ctc-arity
+                             "given arity" arg-arity))
+    
+    ;; get the required kwd-infos 
+    (define req-kwd-infos (filter kwd-info-mandatory? kwd-infos))
+    
+    ;; define and sort the lists of keywords
+    (define ctc-required-kws (sort (map kwd-info-kwd req-kwd-infos) keyword<?))
+    (define ctc-allowed-kws (sort (map kwd-info-kwd kwd-infos) keyword<?))
+    
+    ;; get arg keywords
+    (define-values (arg-required-kws arg-allowed-kws) (procedure-keywords arg))
+    
+    ;; make sure arg and ctc accept the same optional and required keywords
+    (unless (and (equal? ctc-required-kws arg-required-kws)
+                 (equal? ctc-allowed-kws arg-allowed-kws))
+      (raise-arguments-error '->exercise 
+                             "keyword argument mismatch between contract and given"
+                             "expected required keywords" ctc-required-kws
+                             "given required keywords" arg-required-kws
+                             "expected allowed keywords" ctc-allowed-kws
+                             "given allowed keywords" arg-allowed-kws))
+    
+    ;; now generate random arguments to apply arg to
+    (define positional-args (map (λ (c) (contract-random-generate c (/ fuel 2))) doms))     
+    
+    (define kwd-args
+      (let* ([kwd-ctcs (map (lambda (ki) (cons (kwd-info-kwd ki) (kwd-info-ctc ki))) kwd-infos)]
+             [sorted-kwd-ctcs (sort kwd-ctcs (lambda (kc1 kc2) (keyword<? (car kc1) (car kc2))))])
+        (map (lambda (kc) (contract-random-generate (cdr kc) (/ fuel 2))) sorted-kwd-ctcs)))
+    
+    (define rest-args (if rest-ctc
+                          (contract-random-generate rest-ctc (/ fuel 2))
+                          null))
+    ;; bundle arguments in a list for keyword-apply
+    (define args-for-apply (append positional-args rest-args))
+    ;; call arg on generated arguments, store results in a list
+    
+    ;; this could possible throw a contract error or something else, should probably
+    ;; be wrapped in with-handlers
+    (define results
+      (call-with-values (lambda () (keyword-apply arg ctc-allowed-kws kwd-args args-for-apply))
+                        list))
+    ;; ignore checking if rng-ctcs was false, otherwise check length 
+    (cond
+      [(not rng-ctcs) #t] ; no checking, just return true
+      [(not (= (length rng-ctcs) 
+               (length results)))
+       (raise-arguments-error '->-exercise
+                              "received incorrect number of result values"
+                              "expected" (length rng-ctcs)
+                              "received" (length results)
+                              "results" results)]
+      [else 
+       (for ([result results]
+             [ctc rng-ctcs])
+         (unless ((contract-struct-exercise ctc) result (/ fuel 2))
+           (raise-result-error '->-exercise
+                               (format "~a" ctc)
+                               result)))
+       ;; this isn't quite right, need to fix dealing with exceptions ...
+       #t]))
+  
+  #;(λ (args fuel)
     (let* ([new-fuel (/ fuel 2)]
            [gen-if-fun (λ (c v)
                          ; If v is a function we need to gen the domain and call
