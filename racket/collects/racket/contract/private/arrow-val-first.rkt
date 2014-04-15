@@ -752,7 +752,7 @@
     (split doms min-arity))
   
   ;; get the max number of optional arguments
-  (define max-opt-arity (length opt-pos-ctcs))
+  (define max-opt-arity (length opt-pos-ctcs)) 
   
   ;; result of ->-generate
   (λ (fuel)
@@ -774,9 +774,9 @@
              (unless ((contract-struct-exercise (hash-ref kwd-ctc-hash kw)) kw-arg (/ fuel 2))
                (raise-arguments-error '->-generated-function 
                                       "contract violation"
-                                      "expected" (format "~a" (hash-ref kwd-ctc-hash kw))
+                                      "expected" (contract-name (hash-ref kwd-ctc-hash kw))
                                       "given" kw-arg
-                                      "in" (format "the ~a argument of\n ~a" kw ctc))))
+                                      "in" (format "the ~a argument of\n ~a" kw (contract-name ctc)))))
            
            ;; split pos+rest-args into required positional arguments and optional+rest arguments
            (define-values (req-pos-args opt+rest-args) (split pos+rest-args min-arity))
@@ -791,9 +791,9 @@
              (unless ((contract-struct-exercise pos-ctc) pos-arg (/ fuel 2))
                (raise-arguments-error '->generated-function
                                       "contract violation"
-                                      "expected" (format "~a" pos-ctc)
+                                      "expected" (contract-name pos-ctc)
                                       "given" pos-arg
-                                      "in" (format "argument ~a of\n ~a" (add1 i) ctc))))
+                                      "in" (format "argument ~a of ~a" (add1 i) (contract-name ctc)))))
            
            ;; check optional positional arguments
            (for ([opt-arg opt-pos-args]
@@ -802,9 +802,9 @@
              (unless ((contract-struct-exercise opt-ctc) opt-arg (/ fuel 2))
                (raise-arguments-error '->generated-function
                                       "contract violation"
-                                      "expected" (format "~a" opt-ctc)
+                                      "expected" (contract-name opt-ctc)
                                       "given" opt-arg
-                                      "in" (format "optional argument ~a of\n ~a" (add1 i) ctc))))
+                                      "in" (format "optional argument ~a of ~a" (add1 i) (contract-name ctc)))))
            
           
            ;; check rest args
@@ -812,9 +812,9 @@
            (unless (or (not rest-ctc) ((contract-struct-exercise rest-ctc) rest (/ fuel 2)))
              (raise-arguments-error '->generated-function
                                     "contract violation"
-                                    "expected" (format "~a" rest-ctc)
+                                    "expected" (contract-name rest-ctc)
                                     "given" rest
-                                    "in" (format "the rest argument of\n ~a" ctc)))
+                                    "in" (format "the rest argument of ~a"(contract-name ctc))))
            (apply values rngs-gens)))
         arity
         required-kws
