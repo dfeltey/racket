@@ -4320,6 +4320,7 @@ An example
                  null null override-names
                  null null null ; no augrides
                  null ; no inherits
+                 null ; no abstracts
                  
                  ; #f => init args by position only
                  ; sym => required arg
