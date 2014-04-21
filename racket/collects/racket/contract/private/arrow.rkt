@@ -607,7 +607,29 @@
        (not (base->-post that))))
 
 (define (->-generate ctc)
-  (let ([doms-l (length (base->-doms/c ctc))])
+  (define doms/c (base->-doms/c ctc))
+  (define optional-doms/c (base->-optional-doms/c ctc))
+  (define dom-rest/c (base->-dom-rest/c ctc))
+  (define mandatory-kwds/c (base->-mandatory-kwds/c ctc))
+  (define mandatory-kwds (base->-mandatory-kwds ctc))
+  (define optional-kwds/c (base->-optional-kwds/c ctc))
+  (define optional-kwds (base->-optional-kwds ctc))
+  (define rngs/c (base->-rngs/c ctc))
+  (define rng-any? (base->-rng-any? ctc))
+  (define mtd? (base->-mtd? ctc))
+  (define mctc? (base->-mctc? ctc))
+  (printf "~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n"
+          doms/c optional-doms/c dom-rest/c 
+          mandatory-kwds/c mandatory-kwds
+          optional-kwds/c optional-kwds
+          rngs/c rng-any?
+          mtd?
+          mctc?)
+  
+  
+  void
+  
+  #;(let ([doms-l (length (base->-doms/c ctc))])
     (λ (fuel)
        (let ([rngs-gens (map (λ (c) (generate/choose c (/ fuel 2)))
                              (base->-rngs/c ctc))])

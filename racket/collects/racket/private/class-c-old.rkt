@@ -1117,6 +1117,65 @@
                              (base-object/c-fields ctc)
                              (λ args (ret #f))))))
 
+
+;; Random Generation for Objects
+
+(define (object-generate ctc)
+  (local-require (only-in racket/contract contract-random-generate))
+  (define methods (base-object/c-methods ctc))
+  (define method-contracts (base-object/c-method-contracts ctc))
+  (define fields (base-object/c-fields ctc))
+  (define field-contracts (base-object/c-field-contracts ctc))
+  (printf "methods: ~a\nmethod-contracts: ~a\nfields: ~a\nfield-contracts: ~a\n" methods method-contracts fields field-contracts)
+  (λ (fuel)
+    (define field-vals
+      (map (λ (ctc) (contract-random-generate ctc (/ fuel 2))) field-contracts))
+    (define method-vals
+      (map (λ (ctc) (contract-random-generate ctc (/ fuel 2))) method-contracts))
+    (gen-object fields field-vals methods method-vals)))
+    
+    
+
+(define (gen-object fields field-vals methods method-vals)
+ (define %
+   (eval-syntax
+    (splice-class 
+     ((compose (field-adder fields field-vals)
+               (method-adder methods method-vals))
+      #'()))))
+  (new %))
+     
+(define (splice-mixin stx)
+  #`(mixin () () (super-new) #,@stx))
+
+(define (splice-class stx)
+  #`(class object% (super-new) #,@stx))
+
+(define ((make-add-field sym val) stx)
+  (define id (datum->syntax #f sym))
+    #`((field [#,id #,val]) #,@stx))
+
+(define ((make-add-method sym val) stx)
+  (define id (datum->syntax #f sym))
+  #`((public #,id)
+     (define #,id
+       (lambda args (apply #,val this args)))
+     #,@stx))
+
+(define (field-adder fields field-vals)
+  (make-adder-stx make-add-field fields field-vals))
+(define (method-adder methods method-vals)
+  (make-adder-stx make-add-method methods method-vals))
+
+(define ((make-adder-stx stx-builder syms vals) stx)
+  (foldl
+   (lambda (sym val stx)
+     ((stx-builder sym val) stx))
+   stx
+   syms
+   vals))
+;; end of object gen
+
 (define-struct base-object/c (methods method-contracts fields field-contracts)
   #:property prop:contract
   (build-contract-property 
@@ -1140,7 +1199,9 @@
                (handle-optional 'field 
                                 (base-object/c-fields ctc)
                                 (base-object/c-field-contracts ctc))))))
-   #:first-order object/c-first-order))
+   #:first-order object/c-first-order
+   #:generate object-generate))
+
 
 (define-syntax (object/c stx)
   (syntax-case stx ()

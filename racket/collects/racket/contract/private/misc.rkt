@@ -1206,7 +1206,9 @@
    #:val-first-projection (λ (ctc) (λ (blame) any/c-neg-party-fn))
    #:stronger (λ (this that) (any/c? that))
    #:name (λ (ctc) 'any/c)
-   #:first-order get-any?))
+   #:first-order get-any?
+   #:generate (λ (ctc) (λ (fuel) (struct any/c-gen ()) (any/c-gen)))
+   #:exercise (λ (ctc) (λ (arg fuel) #t))))
 
 (define/final-prop any/c (make-any/c))
 
