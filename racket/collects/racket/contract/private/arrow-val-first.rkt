@@ -905,6 +905,9 @@
     (define results
       (call-with-values (lambda () (keyword-apply arg ctc-allowed-kws kwd-args args-for-apply))
                         list))
+    
+    (define arg-list (list ctc-allowed-kws kwd-args args-for-apply))
+    
     ;; ignore checking if rng-ctcs was false, otherwise check length 
     (cond
       [(not rng-ctcs) #t] ; no checking, just return true
@@ -914,11 +917,13 @@
                               "received incorrect number of result values"
                               "expected" (length rng-ctcs)
                               "received" (length results)
-                              "results" results)]
+                              "results" results
+                              "arguments" arg-list)]
       [else 
        (for ([result results]
              [ctc rng-ctcs])
          (unless ((contract-struct-exercise ctc) result (/ fuel 2))
+           (printf "Received arguments: ~a\n" arg-list)
            (raise-result-error '->-exercise
                                (format "~a" ctc)
                                result)))

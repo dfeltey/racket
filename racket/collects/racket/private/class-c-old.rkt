@@ -1133,8 +1133,49 @@
     (define method-vals
       (map (λ (ctc) (contract-random-generate ctc (/ fuel 2))) method-contracts))
     (gen-object fields field-vals methods method-vals)))
+
+(define (object-exercise ctc)
+  (local-require (only-in racket/contract contract-random-generate))
+  (define methods (base-object/c-methods ctc))
+  (define method-contracts (base-object/c-method-contracts ctc))
+  (define fields (base-object/c-fields ctc))
+  (define field-contracts (base-object/c-field-contracts ctc))
+  (λ (obj fuel)
+    (unless (object? obj)
+      (raise-arguments-error 'object-exercise
+                             "contract violation: expected object?"))
+    (unless (equal? (sort (field-names obj) symbol<?) (sort fields symbol<?))
+      (raise-arguments-error 'object-exercise
+                                      "contract violation: fields do not match"
+                                      "expected" fields
+                                      "given" (field-names)))
     
     
+    (for ([fld fields]
+          [fc field-contracts])
+      (define ctc (coerce-contract 'object-exercise fc))
+      (define fld-val (dynamic-get-field fld obj))
+      (unless ((contract-struct-exercise ctc) fld-val (/ fuel 2))
+        ;; need to do better here too
+        #f))
+    ;; check methods
+    (for ([mthd methods]
+          [ctc method-contracts])
+      ;; THIS IS A TERRIBLE HACK
+      (define arity (procedure-arity (contract-random-generate ctc (/ fuel 2))))    
+      (define proc (procedure-reduce-arity
+                    (λ args (apply dynamic-send obj mthd args))
+                    arity))
+      ;; END TERRIBLE HACK
+      (unless ((contract-struct-exercise ctc) proc (/ fuel 2))
+        ;; need to do better than just return false here
+        ;; but will do for now
+        #f))
+      
+          
+    )    
+  
+  )
 
 (define (gen-object fields field-vals methods method-vals)
  (define %
@@ -1200,7 +1241,8 @@
                                 (base-object/c-fields ctc)
                                 (base-object/c-field-contracts ctc))))))
    #:first-order object/c-first-order
-   #:generate object-generate))
+   #:generate object-generate
+   #:exercise object-exercise))
 
 
 (define-syntax (object/c stx)

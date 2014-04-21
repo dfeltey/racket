@@ -698,8 +698,78 @@
           (apply values rngs-gens))
         arity)])))
 
-(define (->-exercise ctc) 
-  (λ (args fuel)
+(define (->-exercise ctc)
+  (local-require (only-in racket/function arity=?))
+  (λ (arg fuel)
+    (define doms/c (base->-doms/c ctc))
+    (define optional-doms/c (base->-optional-doms/c ctc))
+    (define dom-rest/c (base->-dom-rest/c ctc))
+    (define rngs/c (base->-rngs/c ctc))
+    (define rng-any? (base->-rng-any? ctc))
+    
+    ;; build contract arity
+    (define min-arity (length doms/c) )
+    (define opt-arity (length optional-doms/c))
+    (define ctc-arity (if dom-rest/c  
+                       (arity-at-least min-arity)
+                       (build-list (add1 (- (length doms/c) min-arity))
+                                   (lambda (n) (+ n min-arity)))))
+    (define arg-arity (procedure-arity arg))
+    
+    (unless (procedure? arg)
+      (raise-argument-error '->-exercise
+                            "procedure?"
+                            arg))
+    
+    ;; arity of ctc and arg should match
+    ;; IGNORE METHOD ARITY FOR NOW
+    #;(unless (arity=? ctc-arity arg-arity)
+      (raise-arguments-error '->exercise
+                             "arity mismatch between contract and given"
+                             "expected arity" ctc-arity
+                             "given arity" arg-arity))
+    
+     (define positional-args 
+       (map (λ (c) (contract-random-generate c (/ fuel 2)))
+            (append doms/c optional-doms/c)))
+    
+    (define rest-args (if dom-rest/c
+                          (contract-random-generate dom-rest/c (/ fuel 2))
+                          null))
+    
+    (define args-for-apply (append positional-args rest-args))
+    (define results
+      (call-with-values (lambda () (apply arg args-for-apply))
+                        list))
+    (cond
+      [(not rng-any?) #t] ; no checking, just return true
+      [(not (= (length rngs/c) 
+               (length results)))
+       (raise-arguments-error '->-exercise
+                              "received incorrect number of result values"
+                              "expected" (length rngs/c)
+                              "received" (length results)
+                              "results" results)]
+      [else 
+       (for ([result results]
+             [ctc rngs/c])
+         (unless ((contract-struct-exercise ctc) result (/ fuel 2))
+           (raise-result-error '->-exercise
+                               (format "~a" ctc)
+                               result)))
+       ;; this isn't quite right, need to fix dealing with exceptions ...
+       #t]))
+    
+    
+    
+    
+    
+    
+    
+    
+    
+  
+  #;(λ (args fuel)
      (let* ([new-fuel (/ fuel 2)]
             [gen-if-fun (λ (c v)
                            ; If v is a function we need to gen the domain and call
