@@ -607,6 +607,13 @@
        (not (base->-post that))))
 
 (define (->-generate ctc)
+  (local-require (only-in racket/list range))
+  (define (drop lst n)
+    (cond
+      [(null? lst) lst]
+      [else (drop (cdr lst) (sub1 n))]))
+  ;; For now only generate functions with optional and rest args
+  ;; no keywords
   (define doms/c (base->-doms/c ctc))
   (define optional-doms/c (base->-optional-doms/c ctc))
   (define dom-rest/c (base->-dom-rest/c ctc))
@@ -618,7 +625,7 @@
   (define rng-any? (base->-rng-any? ctc))
   (define mtd? (base->-mtd? ctc))
   (define mctc? (base->-mctc? ctc))
-  (printf "~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n"
+  #;(printf "~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n~a\n"
           doms/c optional-doms/c dom-rest/c 
           mandatory-kwds/c mandatory-kwds
           optional-kwds/c optional-kwds
@@ -626,24 +633,70 @@
           mtd?
           mctc?)
   
+  ;; generate correct arity
+  (define min-arity (+ (length doms/c) (if mtd? 1 0)))
+  (define opt-arity (length optional-doms/c))
+  (define arity
+    (if dom-rest/c
+        (arity-at-least min-arity)
+        ; need to normalize later
+        (map (λ (n) (+ n min-arity)) (range (add1 opt-arity)))))
   
-  void
-  
-  #;(let ([doms-l (length (base->-doms/c ctc))])
-    (λ (fuel)
-       (let ([rngs-gens (map (λ (c) (generate/choose c (/ fuel 2)))
-                             (base->-rngs/c ctc))])
-         (if (member #t (map generate-ctc-fail? rngs-gens))
-           (make-generate-ctc-fail)
-           (procedure-reduce-arity
-             (λ args
-                ; Make sure that the args match the contract
-                (begin (unless ((contract-struct-exercise ctc) args (/ fuel 2))
-                           (error '->-generate "Arg(s) ~a do(es) not match contract ~a\n" ctc))
-                       ; Stash the valid value
-                       ;(env-stash (generate-env) ctc args)
-                       (apply values rngs-gens)))
-             doms-l))))))
+  (λ (fuel)
+    ;; TODO: rngs/c can be #f in the case of (-> ... any)
+    ;; and any/c cannot be generated right now 
+    (define rngs-gens (map (λ (c) (generate/choose c (/ fuel 2))) rngs/c))
+    (cond
+      [(for/or ([rng-gen (in-list rngs-gens)])
+         (generate-ctc-fail? rng-gen))
+       (make-generate-ctc-fail)]
+      [else
+       
+       (procedure-reduce-arity
+        (λ this+args 
+          
+          ;; Don't check the object if it is a mtd call
+          (define args (if mtd? (cdr this+args) this+args))
+          
+          ;; check required arguments
+          (for ([pos-arg args]
+                 [pos-ctc doms/c]
+                 [i min-arity])
+             (unless ((contract-struct-exercise pos-ctc) pos-arg (/ fuel 2))
+               (raise-arguments-error '->generated-function
+                                      "contract violation"
+                                      "expected" (contract-name pos-ctc)
+                                      "given" pos-arg
+                                      "in" (format "argument ~a of ~a" (add1 i) (contract-name ctc)))))
+          
+          ;; check optional positional arguments
+          (define opt+rest (drop args min-arity))
+           (for ([opt-arg opt+rest]
+                 [opt-ctc optional-doms/c]
+                 [i opt-arity])
+             (unless ((contract-struct-exercise opt-ctc) opt-arg (/ fuel 2))
+               (raise-arguments-error '->generated-function
+                                      "contract violation"
+                                      "expected" (contract-name opt-ctc)
+                                      "given" opt-arg
+                                      "in" (format "optional argument ~a of ~a" (add1 i) (contract-name ctc)))))
+          
+          ;; check rest args
+          (define rest (drop opt+rest opt-arity))
+          ;; This is broken right now, but only because exercising for lists has not been implemented
+           (unless (or (not dom-rest/c) ((contract-struct-exercise dom-rest/c) rest (/ fuel 2)))
+             (raise-arguments-error '->generated-function
+                                    "contract violation"
+                                    "expected" (contract-name dom-rest/c)
+                                    "given" rest
+                                    "in" (format "the rest argument of ~a"(contract-name ctc))))
+          
+          
+          
+          
+          
+          (apply values rngs-gens))
+        arity)])))
 
 (define (->-exercise ctc) 
   (λ (args fuel)
