@@ -1170,12 +1170,7 @@
       (unless ((contract-struct-exercise ctc) proc (/ fuel 2))
         ;; need to do better than just return false here
         ;; but will do for now
-        #f))
-      
-          
-    )    
-  
-  )
+        #f))))
 
 (define (gen-object fields field-vals methods method-vals)
  (define %
@@ -1194,8 +1189,20 @@
 
 (define ((make-add-field sym val) stx)
   (define id (datum->syntax #f sym))
-    #`((field [#,id #,val]) #,@stx))
+    #`((field [#,id #,(protect val)]) #,@stx))
 
+;; need to protect at least symbols and lists
+;; when insterted into syntax
+;; vectors may also be an issue in the future
+;;
+;; This is the strongest reason for needing a functional
+;; way to generate classes
+(define (protect val)
+  (cond
+    [(symbol? val) #`(quote #,val)]
+    [(list? val) #`(list #,@(map protect val))]
+    [else val]))
+    
 (define ((make-add-method sym val) stx)
   (define id (datum->syntax #f sym))
   #`((public #,id)

@@ -710,10 +710,16 @@
     (mk-rand-list (list))))
 
 (define (listof-exercise el-ctc)
-  (λ (f n-tests size env)
+  (λ (arg fuel) ; want to ensure that arg is a list ...
+    (and (list? arg)
+         (andmap 
+          (λ (elt) ((contract-struct-exercise el-ctc) elt (/ fuel 2)))
+          arg)))
+  ;Below is old, and doesn't conform to the current use of exercise ...
+  #;(λ (f n-tests size env)
     #t))
 
-(define (*-listof predicate? name generate)
+(define (*-listof predicate? name generate #:exercise (exercise (λ (ctc) (λ (arg fuel) #f))))
   (λ (input)
     (let* ([ctc (coerce-contract name input)]
            [ctc-name (build-compound-type-name name ctc)]
@@ -736,14 +742,16 @@
           #:first-order fo-check
           #:projection (listof-*-ho-check (λ (p v) (for-each p v) v))
           #:val-first-projection (listof-*-val-first-flat-proj predicate? ctc)
-          #:generate (generate ctc))]
+          #:generate (generate ctc)
+          #:exercise (exercise ctc))]
         [(chaperone-contract? ctc)
          (make-chaperone-contract
           #:name ctc-name
           #:first-order fo-check
           #:projection (listof-*-ho-check (λ (p v) (map p v)))
           #:val-first-projection (listof-*-val-first-ho-proj predicate? ctc)
-          #:generate (generate ctc))]
+          #:generate (generate ctc)
+          #:exercise (exercise ctc))]
         [else
          (make-contract
           #:name ctc-name
@@ -788,7 +796,7 @@
 (define (blame-add-listof-*-context blame) (blame-add-context blame "an element of"))
 (define (non-empty-list? x) (and (pair? x) (list? x)))
 
-(define listof-func (*-listof list? 'listof listof-generate))
+(define listof-func (*-listof list? 'listof listof-generate #:exercise listof-exercise))
 (define/subexpression-pos-prop (listof x) (listof-func x))
 
 (define non-empty-listof-func (*-listof non-empty-list? 
