@@ -360,11 +360,11 @@
     ((prefix pid sub-spec)
      (process-import/export #'sub-spec res bind?
                             (lambda (id)
-                              (do-prefix (add-prefix id) #'pid))))
+                              (add-prefix (do-prefix id #'pid)))))
     ((rename sub-spec (internal external) ...)
      (let* ((sig-res
              (do-rename (process-import/export #'sub-spec res bind? add-prefix)
-                        #'(internal ...)
+                        (datum->syntax #f (add-prefixes add-prefix #'(internal ...)))
                         (datum->syntax #f (add-prefixes add-prefix #'(external ...)))))
             (dup (check-duplicate-identifier (sig-int-names sig-res))))
        (when dup
