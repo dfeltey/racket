@@ -6,12 +6,15 @@
          racket/undefined
          (only-in (combine-in racket/private/promise)
                   promise?
-                  prop:force promise-forcer))
+                  prop:force promise-forcer)
+         racket/class)
 
 (define (base-val? e)
   (or (number? e) (string? e) (char? e) (symbol? e)
       (null? e) (regexp? e) (eq? undefined e) (path? e)
       (regexp? e) (keyword? e) (bytes? e) (boolean? e) (void? e)
+      ;; TEMP
+      (object? e) 
       ;; Base values because you can only store flonums/fixnums in these
       ;; and not any higher-order values. This isn't sound if we ever
       ;; introduce bounded polymorphism for Flvector/Fxvector.
@@ -110,6 +113,7 @@
            (λ (promise)
              (values (λ (val) (any-wrap/traverse neg-party val))
                      promise)))))]
+      [(? object?) v]
       [_ (fail neg-party v)]))
   (λ (v) (λ (neg-party) (any-wrap/traverse neg-party v))))
 
