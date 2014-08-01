@@ -22,6 +22,7 @@
          "parse-classes.rkt"
          (for-label
            (except-in racket/base case-lambda)
+           racket/unit
            "../base-env/colon.rkt"
            "../base-env/base-types-extra.rkt"
            ;; match on the `case-lambda` binding in the TR primitives
@@ -81,6 +82,10 @@
 (define-literal-syntax-class #:for-label cons)
 (define-literal-syntax-class #:for-label Class)
 (define-literal-syntax-class #:for-label Object)
+(define-literal-syntax-class #:for-label Unit)
+(define-literal-syntax-class #:for-label import)
+(define-literal-syntax-class #:for-label export)
+(define-literal-syntax-class #:for-label init-depend)
 (define-literal-syntax-class #:for-label Refinement)
 (define-literal-syntax-class #:for-label Instance)
 (define-literal-syntax-class #:for-label List)
@@ -356,6 +361,15 @@
                                  "given" v)
                     (make-Instance (Un)))
              (make-Instance v)))]
+      [(:Unit^ (:import^ import:id ...)
+               (:export^ export:id ...)
+               (:init-depend^ init-depend:id ...)
+               result)
+       (define id->sig (lambda (id) (make-Signature id #f null)))
+       (make-Unit (map id->sig (syntax->list #'(import ...)))
+                  (map id->sig (syntax->list #'(export ...)))
+                  (map id->sig (syntax->list #'(init-depend ...)))
+                  (parse-type #'result))]
       [(:List^ ts ...)
        (parse-list-type stx)]
       [(:List*^ ts ... t)

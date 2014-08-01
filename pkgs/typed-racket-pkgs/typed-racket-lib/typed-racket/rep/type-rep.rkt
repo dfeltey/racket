@@ -542,6 +542,27 @@
 ;; cls : Class
 (def-type Instance ([cls Type/c]) [#:key 'instance])
 
+;; interp :
+;; name is the id of the signature
+;; extends is the id of an extended signature of #f
+;; mapping maps variables in a singature to their types
+;; This is not a type because signature are not values
+(def-type Signature ([name identifier?]
+                     [extends (or/c identifier? #f)]
+                     [mapping list?])
+  [#:frees (lambda (f) null)])
+
+;; interp. imports is the list of imported signatures
+;;         exports is the list of exported signatures
+;;         init-depends is the list of init-depend signatures
+;;         result is the type of the body of the unit
+(def-type Unit ([imports (listof Signature?)]
+                [exports (listof Signature?)]
+                [init-depends (listof Signature?)]
+                [result Type/c])
+  ;; TODO: is this correct?
+  [#:frees (lambda (f) (f result))])
+
 ;; sequences
 ;; includes lists, vectors, etc
 ;; tys : sequence produces this set of values at each step
