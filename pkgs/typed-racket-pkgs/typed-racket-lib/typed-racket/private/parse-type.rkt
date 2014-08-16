@@ -363,7 +363,7 @@
              (make-Instance v)))]
       [(:Unit^ (:import^ import:id ...)
                (:export^ export:id ...)
-               (:init-depend^ init-depend:id ...)
+               (~optional (:init-depend^ init-depend:id ...) #:defaults ([(init-depend 1) null]))
                result)
        (define id->sig (lambda (id) (make-Signature id #f null)))
        (make-Unit (map id->sig (syntax->list #'(import ...)))
