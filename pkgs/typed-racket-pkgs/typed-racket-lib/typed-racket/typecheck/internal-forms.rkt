@@ -17,11 +17,13 @@
   typed-require/struct
   predicate-assertion
   type-declaration
+  typed-define-signature
   typecheck-failure
 
   type-alias?
   typed-struct?
-  typed-struct/exec?)
+  typed-struct/exec?
+  typed-define-signature?)
 
 ;; Forms
 (define-syntax-rule (internal-forms set-name nms ...)
@@ -39,7 +41,8 @@
  assert-predicate-internal
  declare-refinement-internal
  :-internal
- typecheck-fail-internal)
+ typecheck-fail-internal
+ define-signature-internal)
 
 
 
@@ -113,7 +116,9 @@
   [predicate-assertion
     (assert-predicate-internal type predicate)]
   [type-declaration
-    (:-internal id:identifier type)])
+    (:-internal id:identifier type)]
+  [typed-define-signature
+   (define-signature-internal name super (binding ...))])
 
 ;; Define separately outside of `define-internal-classes` since this form
 ;; is meant to appear in expression positions, so it doesn't make sense to use

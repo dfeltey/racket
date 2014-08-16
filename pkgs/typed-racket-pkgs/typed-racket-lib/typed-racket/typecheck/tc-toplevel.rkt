@@ -9,7 +9,7 @@
          (private parse-type type-annotation type-contract syntax-properties)
          (env global-env init-envs type-name-env type-alias-env
               lexical-env env-req mvar-env scoped-tvar-env
-              type-alias-helper)
+              signature-env type-alias-helper)
          (utils tc-utils)
          (typecheck provide-handling def-binding tc-structs
                     typechecker internal-forms)
@@ -275,7 +275,7 @@
 (define (type-check forms0)
   (define forms (syntax->list forms0))
   (do-time "before form splitting")
-  (define-values (type-aliases struct-defs stx-defs0 val-defs0 provs reqs)
+  (define-values (type-aliases struct-defs stx-defs0 val-defs0 provs reqs signature-defs)
     (filter-multiple
      forms
      type-alias? 
@@ -283,7 +283,8 @@
      parse-syntax-def
      parse-def
      provide?
-     define/fixup-contract?))
+     define/fixup-contract?
+     typed-define-signature?))
   (do-time "Form splitting done")
 
   (define-values (type-alias-names type-alias-map)
