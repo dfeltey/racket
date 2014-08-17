@@ -548,7 +548,7 @@
 ;; mapping maps variables in a singature to their types
 ;; This is not a type because signature are not values
 (def-type Signature ([name identifier?]
-                     [extends (or/c identifier? #f)]
+                     [extends (or/c Signature? #f)]
                      [mapping list?])
   [#:frees (lambda (f) null)])
 

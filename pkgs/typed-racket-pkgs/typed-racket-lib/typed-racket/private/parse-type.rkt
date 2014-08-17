@@ -11,7 +11,8 @@
          syntax/stx (prefix-in c: (contract-req))
          syntax/parse unstable/sequence
          (env tvar-env type-name-env type-alias-env mvar-env
-              lexical-env index-env row-constraint-env)
+              lexical-env index-env row-constraint-env
+              signature-env)
          (only-in racket/list flatten)
          racket/dict
          racket/promise
@@ -365,7 +366,8 @@
                (:export^ export:id ...)
                (~optional (:init-depend^ init-depend:id ...) #:defaults ([(init-depend 1) null]))
                result)
-       (define id->sig (lambda (id) (make-Signature id #f null)))
+       ;; TODO: error handling when the signature is not in the environment
+       (define id->sig (lambda (id) (lookup-signature id)))
        (make-Unit (map id->sig (syntax->list #'(import ...)))
                   (map id->sig (syntax->list #'(export ...)))
                   (map id->sig (syntax->list #'(init-depend ...)))

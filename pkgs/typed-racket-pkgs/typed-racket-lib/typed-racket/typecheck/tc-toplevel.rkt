@@ -9,7 +9,7 @@
          (private parse-type type-annotation type-contract syntax-properties)
          (env global-env init-envs type-name-env type-alias-env
               lexical-env env-req mvar-env scoped-tvar-env
-              signature-env type-alias-helper)
+              signature-env type-alias-helper signature-helper)
          (utils tc-utils)
          (typecheck provide-handling def-binding tc-structs
                     typechecker internal-forms)
@@ -289,6 +289,11 @@
 
   (define-values (type-alias-names type-alias-map)
     (get-type-alias-info type-aliases))
+
+  ;; Add signatures to the signature environment
+  (for ([sig-form signature-defs])
+    (define-values (name sig) (parse-signature sig-form))
+    (register-signature! name sig))
 
   ;; Add the struct names to the type table, but not with a type
   (let ((names (map name-of-struct struct-defs))
