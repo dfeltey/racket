@@ -6,6 +6,7 @@
          (utils tc-utils early-return)
          (types utils resolve base-abbrev match-expanders
                 numeric-tower substitute current-seen)
+         (env signature-helper)
          (for-syntax racket/base syntax/parse unstable/sequence))
 
 (lazy-require
@@ -655,6 +656,13 @@
                (equal-clause? methods methods*)
                (equal-clause? augments augments*)
                (sub init-rest init-rest*))]
+         ;; subtyping for Units
+         [((Unit: imports exports init-depends t) (Unit: imports* exports* init-depends* t*))
+          (and (check-sub-signatures? imports* imports)
+               (check-sub-signatures? exports exports*)
+               ;; check the init-depends should be unnecessary?
+               ;; Racket should check they are valid??
+               (subtype* A0 t t*))]
          ;; otherwise, not a subtype
          [(_ _) #f])))
      (when (null? A)
