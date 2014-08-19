@@ -7,10 +7,12 @@
          (env signature-env)
          (rep type-rep)
         ; (private parse-type)
-         (typecheck internal-forms)
+        ; (typecheck internal-forms)
          syntax/parse
          racket/list
-         (only-in racket/set subset?))
+         (only-in racket/set subset?)
+         (for-template racket/base
+                       (typecheck internal-forms)))
 
 (provide parse-signature
          check-sub-signatures?)
@@ -20,9 +22,7 @@
 (define (parse-signature form)
   (syntax-parse form
     #:literal-sets (kernel-literals)
-    ;; should these be literals or datum-literals?
-    #:literals ()
-    #:datum-literals (values define-signature-internal)
+    #:literals (values define-signature-internal)
     [(define-values ()
        (begin (quote-syntax (define-signature-internal name super (binding ...)))
               (#%plain-app values)))

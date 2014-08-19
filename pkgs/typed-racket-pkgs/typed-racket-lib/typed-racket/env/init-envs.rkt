@@ -122,6 +122,9 @@
               (set-box! cache-box
                         (dict-set (unbox cache-box) v (list name class-type))))
             (if cache-box name class-type)])]
+    [(Signature: name extends mapping)
+     ;; FIXME: mapping is wrong
+     `(make-Signature (quote-syntax ,name) ,(sub extends) '())]
     [(arr: dom rng rest drest kws)
      `(make-arr ,(sub dom) ,(sub rng) ,(sub rest) ,(sub drest) ,(sub kws))]
     [(TypeFilter: t p)
