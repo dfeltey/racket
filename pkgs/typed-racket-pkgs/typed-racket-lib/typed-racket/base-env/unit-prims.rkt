@@ -40,7 +40,23 @@
     (pattern (init-depend sig:id ...)
              #:attr form '(#'(init-depend sig ...)))
     (pattern (~seq)
-             #:attr form '())))
+             #:attr form '()))
+  
+  ;; local expansion for unit body expressions
+  ;; based on expand-expressions in class-prims
+  (define (expand-unit-expressions stxs ctx def-ctx)
+    (define (unit-expand stx)
+      (local-expand stx ctx stop-forms def-ctx))
+    (let loop ([stxs stxs])
+      (cond [(null? stxs) null]
+            [else
+             (define stx (unit-expand (car stxs)))
+             (syntax-parse stx 
+               #:literals (begin define-syntaxes define-values)
+               [(begin . _)
+                (loop (append (flatten-begin stx)))]
+               )])
+      )))
 
 (define-syntax (define-signature stx)
   (syntax-parse stx
