@@ -61,4 +61,5 @@
      (quasisyntax/loc stx
        (untyped-unit (import import-sig ...)
                      (export export-sig ...)
-                     #,@(attribute init-depends.form)))]))
+                     #,@(attribute init-depends.form)
+                     e ...))]))
