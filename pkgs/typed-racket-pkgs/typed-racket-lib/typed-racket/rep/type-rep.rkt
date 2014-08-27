@@ -549,7 +549,8 @@
 ;; This is not a type because signature are not values
 (def-type Signature ([name identifier?]
                      [extends (or/c Signature? #f)]
-                     [mapping list?])
+                     [mapping (listof (list/c symbol? any/c #;Type/c
+                                              ))])
   [#:frees (lambda (f) null)])
 
 ;; interp. imports is the list of imported signatures

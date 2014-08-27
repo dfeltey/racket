@@ -5,7 +5,8 @@
 (provide define-signature)
 
 (require (for-syntax syntax/parse
-                     racket/base)
+                     racket/base
+                     syntax/context)
          (only-in racket/unit 
                   [define-signature untyped-defined-signature] 
                   [unit untyped-unit]
@@ -54,9 +55,16 @@
              (syntax-parse stx 
                #:literals (begin define-syntaxes define-values)
                [(begin . _)
-                (loop (append (flatten-begin stx)))]
-               )])
-      )))
+                (loop (append (flatten-begin stx) (cdr stxs)))]
+               [(define-syntaxes (name:id ...) rhs:expr)
+                (syntax-local-bind-syntaxes
+                 (syntax->list #'(name ...)) #'rhs def-ctx)
+                (cons stx (loop (cdr stxs)))]
+               [(define-values (name:id ...) rhs:exp)
+                (syntax-local-bind-syntaxes
+                 (syntax->list #'(name ...) #f def-ctx)
+                 (cons stx (loop (cdr stxs))))
+                [_ (cons stx (loop (cdr stxs)))]])]))))
 
 (define-syntax (define-signature stx)
   (syntax-parse stx
@@ -74,6 +82,8 @@
            (export export-sig:id ...)
            init-depends:init-depend-form
            e:expr ...)
+     (define unit-ctx (generate-expand-context))
+     
      (quasisyntax/loc stx
        (untyped-unit (import import-sig ...)
                      (export export-sig ...)

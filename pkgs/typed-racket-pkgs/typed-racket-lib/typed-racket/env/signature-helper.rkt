@@ -3,11 +3,9 @@
 ;; This module provides helper functions for typed signatures
 
 (require "../utils/utils.rkt"
-        ; (utils tc-utils)
          (env signature-env)
          (rep type-rep)
         ; (private parse-type)
-        ; (typecheck internal-forms)
          syntax/parse
          racket/list
          (only-in racket/set subset?)
@@ -27,8 +25,16 @@
        (begin (quote-syntax (define-signature-internal name super (binding ...)))
               (#%plain-app values)))
       (define extends (and (syntax->datum #'super) (lookup-signature #'super)))
-      (define mapping (syntax->list #'(binding ...)))
+      (define mapping (map parse-signature-binding (syntax->list #'(binding ...))))
       (values #'name (make-Signature #'name extends mapping))]))
+
+;; parse-signature-binding : Syntax -> (list/c symbol? Type/c)
+;; parses the binding forms inside of a define signature into the 
+;; form used by the Signature type representation
+(define (parse-signature-binding binding-stx)
+  (syntax-parse binding-stx
+    [[name:id type]
+     (list (syntax->datum #'name) #'type)]))
 
 ;; check-subsignatures? : (listof Signature) (listof Signature) -> boolean?
 ;; checks that the first list of signatures is a valid "subtype"/extensions
