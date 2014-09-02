@@ -5,8 +5,7 @@
          (rep type-rep filter-rep object-rep rep-utils)
          (utils tc-utils early-return)
          (types utils resolve base-abbrev match-expanders
-                numeric-tower substitute current-seen)
-         (env signature-helper)
+                numeric-tower substitute current-seen signatures)
          (for-syntax racket/base syntax/parse unstable/sequence))
 
 (lazy-require

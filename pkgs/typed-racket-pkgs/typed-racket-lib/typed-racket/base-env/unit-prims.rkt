@@ -6,7 +6,10 @@
 
 (require (for-syntax syntax/parse
                      racket/base
-                     syntax/context)
+                     syntax/context
+                     syntax/flatten-begin
+                     syntax/kerncase
+                     "../private/syntax-properties.rkt")
          (only-in racket/unit 
                   [define-signature untyped-defined-signature] 
                   [unit untyped-unit]
@@ -43,11 +46,13 @@
     (pattern (~seq)
              #:attr form '()))
   
+  (define-syntax-class unit-clause)
+
   ;; local expansion for unit body expressions
   ;; based on expand-expressions in class-prims
   (define (expand-unit-expressions stxs ctx def-ctx)
     (define (unit-expand stx)
-      (local-expand stx ctx stop-forms def-ctx))
+      (local-expand stx ctx kernel-form-identifier-list def-ctx))
     (let loop ([stxs stxs])
       (cond [(null? stxs) null]
             [else
@@ -60,7 +65,7 @@
                 (syntax-local-bind-syntaxes
                  (syntax->list #'(name ...)) #'rhs def-ctx)
                 (cons stx (loop (cdr stxs)))]
-               [(define-values (name:id ...) rhs:exp)
+               [(define-values (name:id ...) rhs:expr)
                 (syntax-local-bind-syntaxes
                  (syntax->list #'(name ...) #f def-ctx)
                  (cons stx (loop (cdr stxs))))]
@@ -84,9 +89,18 @@
            init-depends:init-depend-form
            e:expr ...)
      (define unit-ctx (generate-expand-context))
-     
-     (quasisyntax/loc stx
-       (untyped-unit (import import-sig ...)
-                     (export export-sig ...)
-                     #,@(attribute init-depends.form)
-                     e ...))]))
+     (define def-ctx (syntax-local-make-definition-context))
+     (define expanded-stx (expand-unit-expressions (syntax->list #'(e ...)) unit-ctx def-ctx))
+     (define imported-sig-ids (syntax->list #'(import-sig ...)))
+     (define exported-sig-ids (syntax->list #'(export-sig ...)))
+     (syntax-parse expanded-stx
+       [_
+        (ignore
+         (tr:unit
+          (quasisyntax/loc stx
+            (let-values ()
+              ;; ??
+              (untyped-unit (import import-sig ...)
+                            (export export-sig ...)
+                            #,@(attribute init-depends.form)
+                            e ...)))))])]))
