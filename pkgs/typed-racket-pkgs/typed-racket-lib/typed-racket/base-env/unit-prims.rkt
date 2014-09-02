@@ -63,8 +63,9 @@
                [(define-values (name:id ...) rhs:exp)
                 (syntax-local-bind-syntaxes
                  (syntax->list #'(name ...) #f def-ctx)
-                 (cons stx (loop (cdr stxs))))
-                [_ (cons stx (loop (cdr stxs)))]])]))))
+                 (cons stx (loop (cdr stxs))))]
+                [_ (cons stx (loop (cdr stxs)))])]))))
+
 
 (define-syntax (define-signature stx)
   (syntax-parse stx
