@@ -49,7 +49,9 @@
     (free-id-table-set! pre-sig-env id sig))
 
   (define (lookup-sig id)
-    (free-id-table-ref pre-sig-env id #f))
+    (if (identifier? id)
+        (free-id-table-ref pre-sig-env id #f)
+        #f))
 
   (define (sig->bindings sig-id)
     (define sig (lookup-sig sig-id))
@@ -78,7 +80,7 @@
              #:attr form #'(extends super))
     (pattern (~seq)
              #:with internal-form #'#f
-             #:with extends-id #f
+             #:with extends-id '()
              #:attr form '()))
 
   (define-splicing-syntax-class init-depend-form
@@ -147,7 +149,7 @@
   (syntax-parse stx
     [(_ sig-name:id super-form:extends-form (form:def-sig-form ...))
      (define name #'sig-name)
-     (define extends (lookup-sig #'super-form))
+     (define extends (lookup-sig #'super-form.extends-id))
      (define mapping (map parse-binding (syntax->list #'(form ...))))
      (define sig-elt (sig name extends mapping))
      (register-pre-sig-env! name sig-elt)
