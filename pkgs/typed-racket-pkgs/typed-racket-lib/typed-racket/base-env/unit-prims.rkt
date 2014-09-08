@@ -147,7 +147,7 @@
   (syntax-parse stx
     [(_ sig-name:id super-form:extends-form (form:def-sig-form ...))
      (define name #'sig-name)
-     (define extends (lookup-pre-sig-env #'super-form))
+     (define extends (lookup-sig #'super-form))
      (define mapping (map parse-binding (syntax->list #'(form ...))))
      (define sig-elt (sig name extends mapping))
      (register-pre-sig-env! name sig-elt)
