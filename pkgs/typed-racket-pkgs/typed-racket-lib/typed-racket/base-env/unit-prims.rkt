@@ -17,6 +17,7 @@
                      ; (env signature-helper)
                       syntax/id-table
                       racket/dict
+                      racket/unit-exptime
                       )
           (only-in racket/unit 
                    [define-signature untyped-define-signature] 
@@ -131,7 +132,12 @@
       [(define-values (id ...) . rst)
        
        ]))
-  
+  (define (get-signature-ids sig-id)
+    (define-values (_0 val-ids _2 _3)
+      ;; TODO: give better argument for error-stx
+      (signature-members sig-id sig-id))
+    val-ids)
+
   ;; same trick as for classes to recover names
   (define (make-locals-table import-names export-names)
     (tr:unit:local-table-property
@@ -169,10 +175,8 @@
      (define unit-ctx (generate-expand-context))
      (define def-ctx (syntax-local-make-definition-context))
      (define expanded-stx (expand-unit-expressions (syntax->list #'(e ...)) unit-ctx def-ctx))
-     (define imported-sig-ids (syntax->list #'(import-sig ...)))
-     (define exported-sig-ids (syntax->list #'(export-sig ...)))
-     (define import-names (map binding-id (apply append (map sig->bindings imported-sig-ids))))
-     (define export-names (map binding-id (apply append (map sig->bindings exported-sig-ids))))
+     (define import-names (apply append (map get-signature-ids  (syntax->list #'(import-sig ...)))))
+     (define export-names (apply append (map get-signature-ids  (syntax->list #'(export-sig ...)))))
      (syntax-parse expanded-stx
        [(e:unit-expr ...)
         (internal-definition-context-seal def-ctx)
