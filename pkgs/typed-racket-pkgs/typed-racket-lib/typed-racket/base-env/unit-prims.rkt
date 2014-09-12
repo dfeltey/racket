@@ -18,7 +18,7 @@
                       syntax/id-table
                       racket/dict
                       racket/unit-exptime
-                      )
+                      syntax/strip-context)
           (only-in racket/unit 
                    [define-signature untyped-define-signature] 
                    [unit untyped-unit]
@@ -101,29 +101,33 @@
     (syntax-parse stx
       [form:def-sig-form
        (apply binding (syntax->list #'form.internal-form))]))
+  
+  (define (remove-identifiers-from-definition-context ids def-ctx)
+    (map (lambda (id) (identifier-remove-from-definition-context id def-ctx)) ids))
 
   ;; local expansion for unit body expressions
   ;; based on expand-expressions in class-prims
   (define (expand-unit-expressions stxs ctx def-ctx)
     (define (unit-expand stx)
-      (local-expand stx ctx (kernel-form-identifier-list) def-ctx))
+      (local-expand stx ctx (append  (kernel-form-identifier-list) (list (quote-syntax :))) def-ctx))
     (let loop ([stxs stxs])
       (cond [(null? stxs) null]
             [else
+             (define old-stx (car stxs))
              (define stx (unit-expand (car stxs)))
-             (syntax-parse stx 
+             (syntax-parse stx
                #:literals (begin define-syntaxes define-values)
                [(begin . _)
                 (loop (append (flatten-begin stx) (cdr stxs)))]
                [(define-syntaxes (name:id ...) rhs:expr)
                 (syntax-local-bind-syntaxes
                  (syntax->list #'(name ...)) #'rhs def-ctx)
-                (cons stx (loop (cdr stxs)))]
+                (cons (replace-context old-stx stx) (loop (cdr stxs)))]
                [(define-values (name:id ...) rhs:expr)
                 (syntax-local-bind-syntaxes
-                 (syntax->list #'(name ...)) #f def-ctx) 
-                (cons stx (loop (cdr stxs)))]
-                [_ (cons stx (loop (cdr stxs)))])])))
+                 (syntax->list #'(name ...)) #f def-ctx)
+                (cons (replace-context old-stx stx) (loop (cdr stxs)))]
+               [_ (cons (replace-context old-stx stx) (loop (cdr stxs)))])])))
   
   #;
   (define (annotate-unit-body-expr e)
@@ -132,23 +136,44 @@
       [(define-values (id ...) . rst)
        
        ]))
-  (define (get-signature-ids sig-id)
-    (define-values (_0 val-ids _2 _3)
+  
+  ;; extract vars from a signature with the correct syntax marks
+  ;; I have no idea why this works, or is necessary
+  ;; TODO: this is probably not general enough and will need to be modified
+  ;; to deal with prefix/rename when those are implemented for TR units
+  (define (get-signature-vars sig-id)
+    (define-values (_0 vars _2 _3)
       ;; TODO: give better argument for error-stx
       (signature-members sig-id sig-id))
-    val-ids)
+    (map 
+     (lambda (id)
+       (syntax-local-introduce
+        (syntax-local-get-shadower
+         ((lambda (id-inner) 
+            (syntax-local-introduce 
+             ((syntax-local-make-delta-introducer sig-id) id-inner))) id))))
+     vars))
+  
+  (define (get-signatures-vars stx)
+    (define sig-ids (syntax->list stx))
+    (apply append (map get-signature-vars sig-ids)))
 
   ;; same trick as for classes to recover names
   (define (make-locals-table import-names export-names)
     (tr:unit:local-table-property
      #`(let-values ([(#,@import-names)
-                     (values #,@(map (lambda (stx) #`(lambda () #,stx (set! #,stx 0)))
+                     (values #,@(map (lambda (stx) #`(lambda () (#,stx)))
                                      import-names))]
                     [(#,@export-names)
-                     (values #,@(map (lambda (stx) #`(lambda () #,stx (set! #,stx 0)))
+                     (values #,@(map (lambda (stx) #`(lambda () (#,stx)))
                                      export-names))])
          (void))
-     #t)))
+     #t))
+  
+  (define (filter-names bad-names good-names)
+    (filter (lambda (n) (member n bad-names free-identifier=?)) good-names)))
+
+
 
 
 (define-syntax (define-signature stx)
@@ -175,12 +200,10 @@
      (define unit-ctx (generate-expand-context))
      (define def-ctx (syntax-local-make-definition-context))
      (define expanded-stx (expand-unit-expressions (syntax->list #'(e ...)) unit-ctx def-ctx))
-     (define import-names (apply append (map get-signature-ids  (syntax->list #'(import-sig ...)))))
-     (define export-names (apply append (map get-signature-ids  (syntax->list #'(export-sig ...)))))
+     (internal-definition-context-seal def-ctx)
      (syntax-parse expanded-stx
-       [(e:unit-expr ...)
-        (internal-definition-context-seal def-ctx)
-        ;(define annotated-exprs (map annotate-unit-body-expr (syntax->list #'(e ...))))
+       [(e-exp:unit-expr ...)
+        ;;(define annotated-exprs (map annotate-unit-body-expr (syntax->list #'(e ...))))
         (let ()
           (printf "expanding ...")
           (ignore
@@ -191,5 +214,5 @@
                 (untyped-unit (import import-sig ...)
                               (export export-sig ...)
                               #,@(attribute init-depends.form)
-                              #,(make-locals-table import-names export-names)
-                              e.val ...))))))])]))
+                              #,(make-locals-table (get-signatures-vars #'(import-sig ...)) (get-signatures-vars #'(export-sig ...)))
+                              e-exp ...))))))])]))
