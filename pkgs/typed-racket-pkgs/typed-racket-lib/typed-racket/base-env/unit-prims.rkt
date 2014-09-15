@@ -5,9 +5,11 @@
 (provide define-signature unit)
 
 (require  "../utils/utils.rkt"
+          "colon.rkt"
           (for-syntax syntax/parse
                       racket/base
                       racket/list
+                      racket/syntax
                       syntax/context
                       syntax/flatten-begin
                       syntax/kerncase
@@ -109,25 +111,36 @@
   ;; based on expand-expressions in class-prims
   (define (expand-unit-expressions stxs ctx def-ctx)
     (define (unit-expand stx)
-      (local-expand stx ctx (append  (kernel-form-identifier-list) (list (quote-syntax :))) def-ctx))
-    (let loop ([stxs stxs])
-      (cond [(null? stxs) null]
+      (local-expand stx ctx (append  (kernel-form-identifier-list) (list 
+                                                                    ;(quote-syntax :)
+                                                                    )) def-ctx))
+    (let loop ([stxs stxs]
+               [names '()])
+      (cond [(null? stxs) (values null names)]
             [else
-             (define old-stx (car stxs))
              (define stx (unit-expand (car stxs)))
              (syntax-parse stx
                #:literals (begin define-syntaxes define-values)
                [(begin . _)
-                (loop (append (flatten-begin stx) (cdr stxs)))]
+                (loop (append (flatten-begin stx) (cdr stxs)) names)]
                [(define-syntaxes (name:id ...) rhs:expr)
                 (syntax-local-bind-syntaxes
                  (syntax->list #'(name ...)) #'rhs def-ctx)
-                (cons (replace-context old-stx stx) (loop (cdr stxs)))]
+                (define-values (estxs enames) (loop (cdr stxs) names))
+                ;;(cons stx (loop (cdr stxs)))
+                (values (cons stx estxs) enames)]
                [(define-values (name:id ...) rhs:expr)
                 (syntax-local-bind-syntaxes
                  (syntax->list #'(name ...)) #f def-ctx)
-                (cons (replace-context old-stx stx) (loop (cdr stxs)))]
-               [_ (cons (replace-context old-stx stx) (loop (cdr stxs)))])])))
+                (define-values (estxs enames) (loop (cdr stxs) (append (syntax->list #'(name ...)) names)))
+                ;;(cons stx (loop (cdr stxs)))
+                (values (cons stx estxs) enames)]
+               [_ 
+                (define-values (estxs enames) (loop (cdr stxs) names))
+                ;;(cons stx (loop (cdr stxs) names))
+                (values (cons stx estxs) enames)])])))
+  
+  
   
   #;
   (define (annotate-unit-body-expr e)
@@ -141,7 +154,7 @@
   ;; I have no idea why this works, or is necessary
   ;; TODO: this is probably not general enough and will need to be modified
   ;; to deal with prefix/rename when those are implemented for TR units
-  (define (get-signature-vars sig-id)
+  (define (get-signature-vars sig-id ctx-stx)
     (define-values (_0 vars _2 _3)
       ;; TODO: give better argument for error-stx
       (signature-members sig-id sig-id))
@@ -154,19 +167,24 @@
              ((syntax-local-make-delta-introducer sig-id) id-inner))) id))))
      vars))
   
-  (define (get-signatures-vars stx)
+  (define (get-signatures-vars stx ctx-stx)
     (define sig-ids (syntax->list stx))
-    (apply append (map get-signature-vars sig-ids)))
+    (apply append (map (lambda (sig-id) (get-signature-vars sig-id ctx-stx)) sig-ids)))
 
   ;; same trick as for classes to recover names
-  (define (make-locals-table import-names export-names)
+  (define (make-locals-table import-names export-names def-names)
     (tr:unit:local-table-property
      #`(let-values ([(#,@import-names)
                      (values #,@(map (lambda (stx) #`(lambda () (#,stx)))
                                      import-names))]
                     [(#,@export-names)
                      (values #,@(map (lambda (stx) #`(lambda () (#,stx)))
-                                     export-names))])
+                                     export-names))]
+                    ;; this is not the right way to handle the defined names
+                    ;; since they will overlap with the export names
+                    [(#,@def-names)
+                     (values #,@(map (lambda (stx) #`(lambda () (#,stx)))
+                                     def-names))])
          (void))
      #t))
   
@@ -199,7 +217,7 @@
            e:unit-expr ...)
      (define unit-ctx (generate-expand-context))
      (define def-ctx (syntax-local-make-definition-context))
-     (define expanded-stx (expand-unit-expressions (syntax->list #'(e ...)) unit-ctx def-ctx))
+     (define-values (expanded-stx def-names) (expand-unit-expressions (syntax->list #'(e ...)) unit-ctx def-ctx))
      (internal-definition-context-seal def-ctx)
      (syntax-parse expanded-stx
        [(e-exp:unit-expr ...)
@@ -208,11 +226,20 @@
           (printf "expanding ...")
           (ignore
            (tr:unit
-            (quasisyntax/loc stx
-              (let-values ()
-                ;; ??
-                (untyped-unit (import import-sig ...)
-                              (export export-sig ...)
-                              #,@(attribute init-depends.form)
-                              #,(make-locals-table (get-signatures-vars #'(import-sig ...)) (get-signatures-vars #'(export-sig ...)))
-                              e-exp ...))))))])]))
+            (with-syntax ([(new-import-sig ...) 
+                           (map (lambda (sig-id) (internal-definition-context-apply def-ctx sig-id))
+                                (syntax->list #'(import-sig ...)))]
+                          [(new-export-sig ...) 
+                           (map (lambda (sig-id) (internal-definition-context-apply def-ctx sig-id))
+                                (syntax->list #'(export-sig ...)))]) 
+              (quasisyntax/loc stx
+                (let-values ()
+                  ;; ??
+                  (untyped-unit (import new-import-sig ...)
+                                (export new-export-sig ...)
+                                #,@(attribute init-depends.form)
+                                
+                                #,(make-locals-table (get-signatures-vars #'(import-sig ...) stx) 
+                                                     (get-signatures-vars #'(export-sig ...) stx)
+                                                     def-names)
+                                e-exp ...)))))))])]))
