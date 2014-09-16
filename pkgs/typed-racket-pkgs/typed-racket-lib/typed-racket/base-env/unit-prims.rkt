@@ -2,7 +2,8 @@
 
 ;; Primitive forms for units/signatures
 
-(provide define-signature unit)
+(provide define-signature unit unit-tags)
+
 
 (require  "../utils/utils.rkt"
           "colon.rkt"
@@ -154,7 +155,7 @@
   ;; I have no idea why this works, or is necessary
   ;; TODO: this is probably not general enough and will need to be modified
   ;; to deal with prefix/rename when those are implemented for TR units
-  (define (get-signature-vars sig-id ctx-stx)
+  (define (get-signature-vars sig-id)
     (define-values (_0 vars _2 _3)
       ;; TODO: give better argument for error-stx
       (signature-members sig-id sig-id))
@@ -167,29 +168,18 @@
              ((syntax-local-make-delta-introducer sig-id) id-inner))) id))))
      vars))
   
-  (define (get-signatures-vars stx ctx-stx)
+  (define (get-signatures-vars stx)
     (define sig-ids (syntax->list stx))
-    (apply append (map (lambda (sig-id) (get-signature-vars sig-id ctx-stx)) sig-ids)))
+    (apply append (map (lambda (sig-id) (get-signature-vars sig-id)) sig-ids)))
 
   ;; same trick as for classes to recover names
-  (define (make-locals-table import-names export-names def-names)
+  (define (make-locals-table names)
     (tr:unit:local-table-property
-     #`(let-values ([(#,@import-names)
+     #`(let-values ([(#,@names)
                      (values #,@(map (lambda (stx) #`(lambda () (#,stx)))
-                                     import-names))]
-                    [(#,@export-names)
-                     (values #,@(map (lambda (stx) #`(lambda () (#,stx)))
-                                     export-names))]
-                    ;; this is not the right way to handle the defined names
-                    ;; since they will overlap with the export names
-                    [(#,@def-names)
-                     (values #,@(map (lambda (stx) #`(lambda () (#,stx)))
-                                     def-names))])
+                                     names))])
          (void))
-     #t))
-  
-  (define (filter-names bad-names good-names)
-    (filter (lambda (n) (member n bad-names free-identifier=?)) good-names)))
+     #t)))
 
 
 
@@ -207,6 +197,56 @@
         (begin
           #,(internal #'(define-signature-internal sig-name super-form.internal-form (form.internal-form ...)))
           (untyped-define-signature sig-name #,@(attribute super-form.form) (form.erased ...)))))]))
+
+
+
+
+(define-syntax (add-tags stx)
+  (syntax-parse stx
+    [(add-tags e)
+     (define e-stx (local-expand #'e
+                                 (syntax-local-context)
+                                 (kernel-form-identifier-list)))
+     (syntax-parse e-stx
+        #:literals (begin define-syntaxes define-values :)
+        [(begin b ...) #'(add-tags b ...)]
+        [(define-syntaxes (name:id ...) rhs:expr)
+         e-stx]
+        [(define-values (name:id ...) rhs:expr)
+         (define names (syntax->list #'(name ...)))
+         (define def-stx
+           #`(define-values (name ...)
+               #,(tr:unit:body-expr-or-annotation-property #'rhs 'ann/defn)))
+         (if (null? names)
+             def-stx
+             #`(begin
+                 #,def-stx
+                 #,(make-locals-table names)))]
+        [_
+         (tr:unit:body-expr-or-annotation-property e-stx 'expr)])]
+    [(add-tags e ...)
+     #'(begin
+         (add-tags e) ...)]))
+
+(define-syntax (unit-tags stx)
+  (syntax-parse stx
+    #:literals (import export)
+    [(unit (import import-sig:id ...)
+           (export export-sig:id ...)
+           init-depends:init-depend-form
+           e:unit-expr ...)
+     (let ()
+       (printf "expanding unit-tags ...\n")
+       (ignore
+        (tr:unit
+         (quasisyntax/loc stx
+             (let-values ()
+               (untyped-unit (import import-sig ...)
+                             (export export-sig ...)
+                             #,@(attribute init-depends.form)
+                             #,(make-locals-table (get-signatures-vars #'(import-sig ...)))
+                             (add-tags e ...)))))))]))
+
 
 (define-syntax (unit stx)
   (syntax-parse stx
@@ -239,6 +279,7 @@
                                 (export new-export-sig ...)
                                 #,@(attribute init-depends.form)
                                 
+                                #;
                                 #,(make-locals-table (get-signatures-vars #'(import-sig ...) stx) 
                                                      (get-signatures-vars #'(export-sig ...) stx)
                                                      def-names)
