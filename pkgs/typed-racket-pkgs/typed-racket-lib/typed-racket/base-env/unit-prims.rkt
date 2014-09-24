@@ -2,11 +2,12 @@
 
 ;; Primitive forms for units/signatures
 
-(provide define-signature unit unit-tags)
+(provide define-signature unit)
 
 
 (require  "../utils/utils.rkt"
           "colon.rkt"
+          "../private/unit-literals.rkt"
           (for-syntax syntax/parse
                       racket/base
                       racket/list
@@ -34,39 +35,6 @@
           (for-template (rep type-rep)))
 
 (begin-for-syntax
-  ;; a binding is a (binding identifier? syntax?)
-  ;; id is the name of the variable being bound
-  ;; type is the syntax of the type associated with the variable
-  (struct binding (id type))
-
-  ;; a sig is a (sig identifier? (or/c identifer? #f) (listof (list/c identifier? syntax?))
-  ;; name is the identifier representing the signature
-  ;; extends is either the id of an extended signature or #f if the signature is not an extension
-  ;; mapping is the list of bindings introduced in this signatures definition
-  (struct sig (name extends mapping) #:transparent)
-  
-  ;; need an environment that updates when define-signature expands, and can
-  ;; be queried when the unit macro expands
-  (define pre-sig-env (make-free-id-table))
-
-  (define (register-pre-sig-env! id sig)
-    (free-id-table-set! pre-sig-env id sig))
-
-  (define (lookup-sig id)
-    (if (identifier? id)
-        (free-id-table-ref pre-sig-env id #f)
-        #f))
-
-  (define (sig->bindings sig-id)
-    (define sig (lookup-sig sig-id))
-    (let loop ([sig (sig-extends sig)]
-               [mapping (sig-mapping sig)]
-               [bindings null])
-      (if sig
-          (loop (sig-extends sig) (sig-mapping sig) (append bindings mapping))
-          (append bindings mapping))))
-
-
   (define-literal-set colon #:for-label (:))
 
   ;; TODO: extend for other sig forms
@@ -90,66 +58,16 @@
   (define-splicing-syntax-class init-depend-form
     #:literals (init-depend)
     (pattern (init-depend sig:id ...)
-             #:attr form '(#'(init-depend sig ...)))
+             #:attr form (list #'(init-depend sig ...))
+             #:with names #'(sig ...))
     (pattern (~seq)
-             #:attr form '()))
+             #:attr form '()
+             #:with names #'()))
   
   (define-syntax-class unit-expr
     (pattern e
              #:with val #'e))
 
-  ;; parse-binding : syntax -> binding?
-  ;; parses a  def-sig form and returns the binding representation
-  (define (parse-binding stx)
-    (syntax-parse stx
-      [form:def-sig-form
-       (apply binding (syntax->list #'form.internal-form))]))
-  
-  (define (remove-identifiers-from-definition-context ids def-ctx)
-    (map (lambda (id) (identifier-remove-from-definition-context id def-ctx)) ids))
-
-  ;; local expansion for unit body expressions
-  ;; based on expand-expressions in class-prims
-  (define (expand-unit-expressions stxs ctx def-ctx)
-    (define (unit-expand stx)
-      (local-expand stx ctx (append  (kernel-form-identifier-list) (list 
-                                                                    ;(quote-syntax :)
-                                                                    )) def-ctx))
-    (let loop ([stxs stxs]
-               [names '()])
-      (cond [(null? stxs) (values null names)]
-            [else
-             (define stx (unit-expand (car stxs)))
-             (syntax-parse stx
-               #:literals (begin define-syntaxes define-values)
-               [(begin . _)
-                (loop (append (flatten-begin stx) (cdr stxs)) names)]
-               [(define-syntaxes (name:id ...) rhs:expr)
-                (syntax-local-bind-syntaxes
-                 (syntax->list #'(name ...)) #'rhs def-ctx)
-                (define-values (estxs enames) (loop (cdr stxs) names))
-                ;;(cons stx (loop (cdr stxs)))
-                (values (cons stx estxs) enames)]
-               [(define-values (name:id ...) rhs:expr)
-                (syntax-local-bind-syntaxes
-                 (syntax->list #'(name ...)) #f def-ctx)
-                (define-values (estxs enames) (loop (cdr stxs) (append (syntax->list #'(name ...)) names)))
-                ;;(cons stx (loop (cdr stxs)))
-                (values (cons stx estxs) enames)]
-               [_ 
-                (define-values (estxs enames) (loop (cdr stxs) names))
-                ;;(cons stx (loop (cdr stxs) names))
-                (values (cons stx estxs) enames)])])))
-  
-  
-  
-  #;
-  (define (annotate-unit-body-expr e)
-    (syntax-parse e
-      #:literals (define-values define-syntaxes)
-      [(define-values (id ...) . rst)
-       
-       ]))
   
   ;; extract vars from a signature with the correct syntax marks
   ;; I have no idea why this works, or is necessary
@@ -159,12 +77,13 @@
     (define-values (_0 vars _2 _3)
       ;; TODO: give better argument for error-stx
       (signature-members sig-id sig-id))
-    (map 
+
+    (map
      (lambda (id)
        (syntax-local-introduce
         (syntax-local-get-shadower
-         ((lambda (id-inner) 
-            (syntax-local-introduce 
+         ((lambda (id-inner)
+            (syntax-local-introduce
              ((syntax-local-make-delta-introducer sig-id) id-inner))) id))))
      vars))
   
@@ -174,24 +93,46 @@
 
   ;; same trick as for classes to recover names
   (define (make-locals-table names)
+    (with-syntax ([(name ...) names])
+      (tr:unit:local-table-property
+       #'(let-values ((()
+                       (list (cons (quote-syntax name) (lambda () name)) ...)))
+           (void))
+       #t))
+    
+    #;
     (tr:unit:local-table-property
      #`(let-values ([(#,@names)
                      (values #,@(map (lambda (stx) #`(lambda () (#,stx)))
                                      names))])
          (void))
-     #t)))
-
-
-
+     #t))
+ 
+  (define (make-annotated-table names)
+    (with-syntax ([(name ...) 
+                   (map
+                    (lambda (id)
+                      (syntax-property id 'sig-id id))
+                    names)])
+      #`(let-values ((()
+                      (begin 
+                        (list name ...)
+                        (values))))
+          (void))))
+  
+  
+  (define (make-unit-signature-table imports
+                                     exports
+                                     init-depends)
+    
+    #`(unit-internal 
+       (#:imports #,@imports)
+       (#:exports #,@exports)
+       (#:init-depends #,@init-depends))))
 
 (define-syntax (define-signature stx)
   (syntax-parse stx
     [(_ sig-name:id super-form:extends-form (form:def-sig-form ...))
-     (define name #'sig-name)
-     (define extends (lookup-sig #'super-form.extends-id))
-     (define mapping (map parse-binding (syntax->list #'(form ...))))
-     (define sig-elt (sig name extends mapping))
-     (register-pre-sig-env! name sig-elt)
      (ignore
       (quasisyntax/loc stx
         (begin
@@ -199,24 +140,36 @@
           (untyped-define-signature sig-name #,@(attribute super-form.form) (form.erased ...)))))]))
 
 
-
-
+;; Could the local table mapping be represented as 
+;; (let-values ((() (list id ...)) void)
+;; with syntax-properties attached to each id that say the var it mapped from??
 (define-syntax (add-tags stx)
   (syntax-parse stx
     [(add-tags e)
      (define e-stx (local-expand #'e
                                  (syntax-local-context)
-                                 (kernel-form-identifier-list)))
+                                 (append (kernel-form-identifier-list)
+                                         (list (quote-syntax :)))))
      (syntax-parse e-stx
         #:literals (begin define-syntaxes define-values :)
         [(begin b ...) #'(add-tags b ...)]
         [(define-syntaxes (name:id ...) rhs:expr)
          e-stx]
+        [(: var:id type)
+         #`(let-values ([()
+                         #,(tr:unit:body-expr-or-annotation-property
+                            #`(quote-syntax (var type)) 'ann)])
+             (void))]
         [(define-values (name:id ...) rhs:expr)
          (define names (syntax->list #'(name ...)))
          (define def-stx
            #`(define-values (name ...)
-               #,(tr:unit:body-expr-or-annotation-property #'rhs 'ann/defn)))
+               #,(tr:unit:body-expr-or-annotation-property #'rhs
+                                                           (syntax->list #'(name ...)))))
+         ;; I think this should work it looks like the renamings are probably free-identifier=?
+         ;; this way only need to deal with the names for the imports
+         def-stx
+         #;
          (if (null? names)
              def-stx
              #`(begin
@@ -228,26 +181,6 @@
      #'(begin
          (add-tags e) ...)]))
 
-(define-syntax (unit-tags stx)
-  (syntax-parse stx
-    #:literals (import export)
-    [(unit (import import-sig:id ...)
-           (export export-sig:id ...)
-           init-depends:init-depend-form
-           e:unit-expr ...)
-     (let ()
-       (printf "expanding unit-tags ...\n")
-       (ignore
-        (tr:unit
-         (quasisyntax/loc stx
-             (let-values ()
-               (untyped-unit (import import-sig ...)
-                             (export export-sig ...)
-                             #,@(attribute init-depends.form)
-                             #,(make-locals-table (get-signatures-vars #'(import-sig ...)))
-                             (add-tags e ...)))))))]))
-
-
 (define-syntax (unit stx)
   (syntax-parse stx
     #:literals (import export)
@@ -255,32 +188,23 @@
            (export export-sig:id ...)
            init-depends:init-depend-form
            e:unit-expr ...)
-     (define unit-ctx (generate-expand-context))
-     (define def-ctx (syntax-local-make-definition-context))
-     (define-values (expanded-stx def-names) (expand-unit-expressions (syntax->list #'(e ...)) unit-ctx def-ctx))
-     (internal-definition-context-seal def-ctx)
-     (syntax-parse expanded-stx
-       [(e-exp:unit-expr ...)
-        ;;(define annotated-exprs (map annotate-unit-body-expr (syntax->list #'(e ...))))
-        (let ()
-          (printf "expanding ...")
-          (ignore
-           (tr:unit
-            (with-syntax ([(new-import-sig ...) 
-                           (map (lambda (sig-id) (internal-definition-context-apply def-ctx sig-id))
-                                (syntax->list #'(import-sig ...)))]
-                          [(new-export-sig ...) 
-                           (map (lambda (sig-id) (internal-definition-context-apply def-ctx sig-id))
-                                (syntax->list #'(export-sig ...)))]) 
-              (quasisyntax/loc stx
-                (let-values ()
-                  ;; ??
-                  (untyped-unit (import new-import-sig ...)
-                                (export new-export-sig ...)
-                                #,@(attribute init-depends.form)
-                                
-                                #;
-                                #,(make-locals-table (get-signatures-vars #'(import-sig ...) stx) 
-                                                     (get-signatures-vars #'(export-sig ...) stx)
-                                                     def-names)
-                                e-exp ...)))))))])]))
+     (let ()
+       (ignore
+        (tr:unit
+         (quasisyntax/loc stx
+           (let-values ()
+             #,(internal (make-unit-signature-table (syntax->list #`(import-sig ...))
+                                                    (syntax->list #`(export-sig ...))
+                                                    (syntax->list #`init-depends.names)))
+             (untyped-unit  (import import-sig ...)
+                            (export export-sig ...)
+                            #,@(attribute init-depends.form)
+                            #,(make-annotated-table (get-signatures-vars #'(import-sig ...)))
+                            #,(make-locals-table
+                               (get-signatures-vars #'(import-sig ...))
+                               #;
+                               (map
+                               (lambda (id) (datum->syntax stx
+                               (syntax->datum id)))
+                               (get-signatures-vars #'(import-sig ...))))
+                            (add-tags e ...)))))))]))

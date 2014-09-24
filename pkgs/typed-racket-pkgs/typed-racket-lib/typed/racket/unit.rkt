@@ -7,6 +7,4 @@
 
 (provide define-signature
          unit
-         ;; remove this later
-         unit-tags
          (all-from-out racket/unit))

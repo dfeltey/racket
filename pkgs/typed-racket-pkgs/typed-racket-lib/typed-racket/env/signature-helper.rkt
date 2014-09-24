@@ -12,7 +12,7 @@
          (for-template racket/base
                        (typecheck internal-forms)))
 
-(provide parse-signature signature->bindings)
+(provide parse-signature signature->bindings signatures->bindings)
 
 ;; parse-signature : Syntax -> identifier? Signature
 ;; parses the internal signature form to build a signature
@@ -33,18 +33,24 @@
 (define (parse-signature-binding binding-stx)
   (syntax-parse binding-stx
     [[name:id type]
-     (list #'name #'type)]))
+     (cons #'name #'type)]))
 
-;; signature->bindings : Signature -> (listof (list/c identifier? syntax?))
+;; signature->bindings : identifier? -> (listof (cons/c identifier? syntax?))
 ;; GIVEN: a signature name
 ;; RETURNS: the list of variables bound by that signature
 (define (signature->bindings sig-id)
   (define sig (lookup-signature sig-id))
-  (printf "call signature->bindings\n sig is ~a\n" sig)
   (let loop ([sig (Signature-extends sig)]
              [mapping (Signature-mapping sig)]
              [bindings null])
     (if sig
         (loop (Signature-extends sig) (Signature-mapping sig) (append bindings mapping))
         (append bindings mapping))))
+
+;; (listof identifier?) -> (listof (cons/c identifier? syntax?))
+;; GIVEN: a list of signature names
+;; RETURNS: the list of all bindings from those signatures
+;; TODO: handle required renamings/prefix/only/except
+(define (signatures->bindings ids)
+  (apply append (map signature->bindings ids)))
 

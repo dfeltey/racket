@@ -205,7 +205,8 @@
       ;; need to special case this to avoid errors at top-level
       [stx:tr:class^
        (tc-expr #'stx)]
-
+      [stx:tr:unit^
+       (tc-expr #'stx)]
       ;; these forms we have been instructed to ignore
       [stx:ignore^
        'no-type]
