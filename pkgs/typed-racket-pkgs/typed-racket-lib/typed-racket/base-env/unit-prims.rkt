@@ -140,10 +140,65 @@
           (untyped-define-signature sig-name #,@(attribute super-form.form) (form.erased ...)))))]))
 
 
+
+
+;; helpful definitions for later typechecking
+(define-values-for-syntax (access-table add-table)
+  (let* ([key (gensym)]
+         [get-table (lambda (stx) (syntax-property stx key))]
+         [set-table (lambda (stx table) (syntax-property stx key table))])
+    (values get-table set-table)))
+
+
+(define-syntax (add-tags stx)
+  (define table (or (access-table stx) null))
+  (printf "TABLE START: ~a\n" table)
+  (printf "stx: ~a\n" stx)
+  (syntax-parse stx
+    [(add-tags) #'(begin)]
+    [(add-tags f r ...)
+     (define e-stx (local-expand #'f
+                                 (syntax-local-context)
+                                 (append (kernel-form-identifier-list)
+                                         (list (quote-syntax :)))))
+     (syntax-parse e-stx
+       #:literals (begin define-syntaxes define-values :)
+       [(begin b ...) 
+        (add-table #'(add-tags b ... r ...) table)]
+       [(: name:id type)
+        (printf "OLD TABLE: ~a\n" table)
+        (printf "(cons (cons #'name #'type) table): ~a\n" (append  (list  (cons #'name #'type)) 
+                                                                   table))
+        (define new-table (cons (cons #'name #'type) table))
+        (printf "NEW TABLE: ~a\n" new-table)
+        #`(begin
+            (: name type)
+            #,(add-table #'(add-tags r ...) new-table))]
+       [(define-syntaxes (name:id ...) rhs:expr)
+        #`(begin 
+            (define-syntaxes (name ...) rhs)
+            #,(add-table #'(add-tags r ...) table))]
+       [(define-values (name:id ...) rhs:expr)
+        (define (ref key)
+          (let ([val (assoc key table free-identifier=?)])
+            (or val (cons key #f))))
+        (printf "TABLE: ~a\n" table)
+        #`(begin
+            (define-values (name ...)
+              #,(tr:unit:body-expr-or-annotation-property
+                 #'rhs (map ref (syntax->list #'(name ...)))))
+            #,(add-table #'(add-tags r ...) table))]
+       [_
+        #`(begin
+            #,(tr:unit:body-expr-or-annotation-property e-stx 'expr)
+            #,(add-table #'(add-tags r ...) table))])]))
+
+
+
 ;; Could the local table mapping be represented as 
 ;; (let-values ((() (list id ...)) void)
 ;; with syntax-properties attached to each id that say the var it mapped from??
-(define-syntax (add-tags stx)
+(define-syntax (add-tags-old stx)
   (syntax-parse stx
     [(add-tags e)
      (define e-stx (local-expand #'e
@@ -208,4 +263,4 @@
                                (lambda (id) (datum->syntax stx
                                (syntax->datum id)))
                                (get-signatures-vars #'(import-sig ...))))
-                            (add-tags e ...)))))))]))
+                            #,(add-table #'(add-tags e ...) null)))))))]))

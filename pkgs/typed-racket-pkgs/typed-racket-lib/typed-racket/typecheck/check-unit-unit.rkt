@@ -121,6 +121,9 @@
 
 ;; Syntax Option>Type> -> Type
 (define (parse-and-check form expected)
+  -Void)
+#;
+(define (parse-and-check form expected)
   (syntax-parse form
     [u:unit-expansion
      (define body-stx #'u.body-stx)
