@@ -37,11 +37,14 @@
 ;; due to how the unit macro transforms internal definitions
 (define-syntax-class unit-body-annotation
   #:literal-sets (kernel-literals)
-  #:literals (values :-internal)
+  #:literals (values :-internal cons)
   (pattern (begin
              (quote-syntax
               (:-internal var:id expr))
              (#%plain-app values))
+           #:with name #'var
+           #:with type #'expr)
+  (pattern (#%plain-app cons var:id (quote-syntax expr))
            #:with name #'var
            #:with type #'expr))
 
@@ -132,12 +135,15 @@
      (define exprs+annotations 
        (trawl-for-property body-stx tr:unit:body-expr-or-annotation-property))
      
-     (define-values (anns exprs+defns) 
+     (define-values (bad-anns exprs+defns)
        (split-annotations exprs+annotations))
-     
+
+     (define anns
+       (ann->dict (trawl-for-property body-stx tr:unit:annotation-property)))
+
      (define local-table-stx
        (first (trawl-for-property body-stx tr:unit:local-table-property)))
-     
+
      (define local-names-stxs
        (trawl-for-property body-stx (lambda (stx) (syntax-property stx 'sig-id))))
      (define local-name-mapping (parse-local-names local-names-stxs))
@@ -147,6 +153,7 @@
                     [types '()])
                    ([(k v) (in-dict local-dict)])
            (values (cons k names) (cons (-> (parse-type v)) types)))))
+
      (define body-type
        (with-lexical-env/extend 
            (append local-names (map car anns)) (append local-types (map cdr anns)) 
@@ -169,9 +176,11 @@
                                          prop-val))
                       
                       
+                      (printf "anns: ~a\n" anns)
                       
                       (printf "(bound-identifier=? (car prop-val) (car (car anns))): ~a\n"
                               (bound-identifier=? (car prop-val) (car (car anns)) #f))
+                      #|
                       ;(printf "prop-val: ~a\n" prop-val)
                       ;(printf "anns: ~a\n" anns)
                       ;(printf "(car prop-val): ~a\n" (car prop-val))
@@ -193,7 +202,7 @@
                       (define pvc (car prop-val))
                       (printf "id-bind ac ~a\n" (identifier-binding ac))
                       (printf "id-bind pvc ~a\n" (identifier-binding pvc))
-                      
+                      |#
                       
                       
                       (check-below results (ret var-types))
@@ -205,6 +214,11 @@
      (make-Unit imports exports init-depends unit-type)
      ]))
 
+(define (ann->dict stxs)
+  (for/list ([stx stxs])
+    (syntax-parse stx
+      [:unit-body-annotation
+       (cons #'name (parse-type #'type))])))
 
 (define (parse-local-names stxs)
   (for/list ([stx stxs])
@@ -292,7 +306,8 @@
     [(#%expression e)
      (recur-on-all #'e)]
     [(() e)
-     (recur-on-all #'e)]
+     (printf "(() e) e = ~a\n" #'e)
+     (recur-on-all #'(e))]
     [_ '()]))
 
 

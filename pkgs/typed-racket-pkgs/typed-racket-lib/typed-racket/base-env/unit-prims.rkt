@@ -157,9 +157,10 @@
          e-stx]
         [(: var:id type)
          #`(let-values ([()
-                         #,(tr:unit:body-expr-or-annotation-property
-                            #`(quote-syntax (var type)) 'ann)])
-             (void))]
+                         #,(tr:unit:annotation-property
+                            #`(cons var (quote-syntax type)) 'ann)])
+             (: var type)
+             (void))]              ; maybe this should be (: var type) ???
         [(define-values (name:id ...) rhs:expr)
          (define names (syntax->list #'(name ...)))
          (define def-stx
