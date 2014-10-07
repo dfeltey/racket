@@ -119,10 +119,7 @@
      (ret (parse-and-check form unit-type))]
     [_ (ret (parse-and-check form #f))]))
 
-;; Syntax Option>Type> -> Type
-(define (parse-and-check form expected)
-  -Void)
-#;
+;; Syntax Option<Type> -> Type
 (define (parse-and-check form expected)
   (syntax-parse form
     [u:unit-expansion
@@ -135,18 +132,19 @@
      (define import-mapping (signatures->bindings imports-stx))
      (define export-mapping (signatures->bindings exports-stx))
           
-     (define exprs+annotations 
-       (trawl-for-property body-stx tr:unit:body-expr-or-annotation-property))
-     
+     (define exprs+defns 
+       (trawl-for-property body-stx tr:unit:body-expr-or-defn-property))
+     (printf "Body: ~a\n" exprs+defns)
+     #;
      (define-values (bad-anns exprs+defns)
        (split-annotations exprs+annotations))
-
+     #;
      (define anns
        (ann->dict (trawl-for-property body-stx tr:unit:annotation-property)))
-
+     
      (define local-table-stx
        (first (trawl-for-property body-stx tr:unit:local-table-property)))
-
+     
      (define local-names-stxs
        (trawl-for-property body-stx (lambda (stx) (syntax-property stx 'sig-id))))
      (define local-name-mapping (parse-local-names local-names-stxs))
@@ -156,12 +154,14 @@
                     [types '()])
                    ([(k v) (in-dict local-dict)])
            (values (cons k names) (cons (-> (parse-type v)) types)))))
-
+     
+     (define body-type #f)
+     #;
      (define body-type
        (with-lexical-env/extend 
            (append local-names (map car anns)) (append local-types (map cdr anns)) 
            (for/last ([stx (in-list (reverse exprs+defns))])
-             (define prop-val (tr:unit:body-expr-or-annotation-property stx))
+             (define prop-val (tr:unit:body-expr-or-defn-property stx))
              (define results (tc-expr stx))
              (define types (tc-results-ts results))
              
@@ -234,7 +234,7 @@
 ;; GIVEN: a list of syntax representing definition expressions and
 ;;        annotation expressions found within a unit
 ;; WHERE: each element in the list of syntax has the 
-;;        tr:unit:body-expr-or-annotation syntax-property
+;;        tr:unit:body-expr-or-defn syntax-property
 ;; RETURNS: two lists, the first contains all the annotations from 
 ;;          the unit body, and the second only the expressions
 ;;          the returned lists are in reverse order of their position
@@ -243,7 +243,7 @@
   (for/fold ([anns '()]
              [exprs '()])
             ([stx (in-list stxs)])
-    (define prop-val (tr:unit:body-expr-or-annotation-property stx))
+    (define prop-val (tr:unit:body-expr-or-defn-property stx))
     (if (list? prop-val)
         (syntax-parse stx
           [e:unit-body-annotation
@@ -309,7 +309,6 @@
     [(#%expression e)
      (recur-on-all #'e)]
     [(() e)
-     (printf "(() e) e = ~a\n" #'e)
      (recur-on-all #'(e))]
     [_ '()]))
 

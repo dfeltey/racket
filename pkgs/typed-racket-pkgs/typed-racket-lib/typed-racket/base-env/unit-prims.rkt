@@ -22,7 +22,8 @@
                       syntax/id-table
                       racket/dict
                       racket/unit-exptime
-                      syntax/strip-context)
+                      syntax/strip-context
+                      (utils tc-utils))
           (only-in racket/unit 
                    [define-signature untyped-define-signature] 
                    [unit untyped-unit]
@@ -149,93 +150,59 @@
          [set-table (lambda (stx table) (syntax-property stx key table))])
     (values get-table set-table)))
 
+(define-for-syntax (type-table-ref table id)
+  (assoc id table free-identifier=?))
 
+;; LIMITATION: Type annotations must appear before the 
+;;             variable they reference is defined
+;; NOTE: I think the above limitation is fixed, by adding the 
+;; annotation property to every piece of syntax encountered by
+;; the add-tags macro in a place that the unit macro will
+;; leave intact
+;; then it just requires getting the table from the last body expr
+;; that had the annotation property
 (define-syntax (add-tags stx)
-  (define table (or (access-table stx) null))
-  (printf "TABLE START: ~a\n" table)
-  (printf "stx: ~a\n" stx)
+  (define table (or (tr:unit:annotation-property stx) null))
+  (define (unit-expand stx)
+    (local-expand stx 
+                  (syntax-local-context) 
+                  (append (kernel-form-identifier-list)
+                          (list (quote-syntax :)))))
   (syntax-parse stx
     [(add-tags) #'(begin)]
     [(add-tags f r ...)
-     (define e-stx (local-expand #'f
-                                 (syntax-local-context)
-                                 (append (kernel-form-identifier-list)
-                                         (list (quote-syntax :)))))
+     (define e-stx (unit-expand #'f))
      (syntax-parse e-stx
        #:literals (begin define-syntaxes define-values :)
        [(begin b ...) 
-        (add-table #'(add-tags b ... r ...) table)]
+        #'(add-tags b ... r ...)]
        [(: name:id type)
-        (printf "OLD TABLE: ~a\n" table)
-        (printf "(cons (cons #'name #'type) table): ~a\n" (append  (list  (cons #'name #'type)) 
-                                                                   table))
-        (define new-table (cons (cons #'name #'type) table))
-        (printf "NEW TABLE: ~a\n" new-table)
+        (when (type-table-ref table #'name)
+          (tc-error/delayed #:stx #'name 
+                            "Duplicate type annotation of ~a for ~a, previous was ~a"
+                            (syntax-e #'type)
+                            (syntax-e #'name)
+                            (syntax-e (cdr (type-table-ref table #'name)))))
         #`(begin
             (: name type)
-            #,(add-table #'(add-tags r ...) new-table))]
+            #,(tr:unit:annotation-property #'(add-tags r ...) (cons #'name #'type)))]
        [(define-syntaxes (name:id ...) rhs:expr)
         #`(begin 
             (define-syntaxes (name ...) rhs)
-            #,(add-table #'(add-tags r ...) table))]
+            (add-tags r ...))]
        [(define-values (name:id ...) rhs:expr)
-        (define (ref key)
-          (let ([val (assoc key table free-identifier=?)])
-            (or val (cons key #f))))
-        (printf "TABLE: ~a\n" table)
         #`(begin
             (define-values (name ...)
-              #,(tr:unit:body-expr-or-annotation-property
-                 #'rhs (map ref (syntax->list #'(name ...)))))
-            #,(add-table #'(add-tags r ...) table))]
+              #,(tr:unit:annotation-property 
+                 (tr:unit:body-expr-or-defn-property
+                  #'rhs 
+                  (syntax->list #'(name ...)))
+                 table))
+            (add-tags r ...))]
        [_
         #`(begin
-            #,(tr:unit:body-expr-or-annotation-property e-stx 'expr)
-            #,(add-table #'(add-tags r ...) table))])]))
-
-
-
-;; Could the local table mapping be represented as 
-;; (let-values ((() (list id ...)) void)
-;; with syntax-properties attached to each id that say the var it mapped from??
-(define-syntax (add-tags-old stx)
-  (syntax-parse stx
-    [(add-tags e)
-     (define e-stx (local-expand #'e
-                                 (syntax-local-context)
-                                 (append (kernel-form-identifier-list)
-                                         (list (quote-syntax :)))))
-     (syntax-parse e-stx
-        #:literals (begin define-syntaxes define-values :)
-        [(begin b ...) #'(add-tags b ...)]
-        [(define-syntaxes (name:id ...) rhs:expr)
-         e-stx]
-        [(: var:id type)
-         #`(let-values ([()
-                         #,(tr:unit:annotation-property
-                            #`(cons var (quote-syntax type)) 'ann)])
-             (: var type)
-             (void))]              ; maybe this should be (: var type) ???
-        [(define-values (name:id ...) rhs:expr)
-         (define names (syntax->list #'(name ...)))
-         (define def-stx
-           #`(define-values (name ...)
-               #,(tr:unit:body-expr-or-annotation-property #'rhs
-                                                           (syntax->list #'(name ...)))))
-         ;; I think this should work it looks like the renamings are probably free-identifier=?
-         ;; this way only need to deal with the names for the imports
-         def-stx
-         #;
-         (if (null? names)
-             def-stx
-             #`(begin
-                 #,def-stx
-                 #,(make-locals-table names)))]
-        [_
-         (tr:unit:body-expr-or-annotation-property e-stx 'expr)])]
-    [(add-tags e ...)
-     #'(begin
-         (add-tags e) ...)]))
+            #,(tr:unit:body-expr-or-defn-property e-stx 'expr)
+            (add-tags r ...))])]))
 
 (define-syntax (unit stx)
   (syntax-parse stx
@@ -263,4 +230,4 @@
                                (lambda (id) (datum->syntax stx
                                (syntax->datum id)))
                                (get-signatures-vars #'(import-sig ...))))
-                            #,(add-table #'(add-tags e ...) null)))))))]))
+                            #,(tr:unit:annotation-property #'(add-tags e ...) null)))))))]))
