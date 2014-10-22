@@ -37,74 +37,120 @@
 ;; due to how the unit macro transforms internal definitions
 (define-syntax-class unit-body-annotation
   #:literal-sets (kernel-literals)
-  #:literals (values :-internal cons)
+  #:literals (void values :-internal cons)
+  (pattern
+   (#%expression
+    (begin 
+      (#%plain-app void)
+      (begin
+        (quote-syntax
+         (:-internal var:id t))
+        (#%plain-app values))))
+   #:attr name #'var
+   #:attr type (parse-type #'t))
+  ;; these 2 can probably be deleted
+  #;
   (pattern (begin
              (quote-syntax
               (:-internal var:id expr))
              (#%plain-app values))
            #:with name #'var
            #:with type #'expr)
+  #;
   (pattern (#%plain-app cons var:id (quote-syntax expr))
            #:with name #'var
            #:with type #'expr))
 
-(define-syntax-class unit-local-table
-  #:literal-sets (kernel-literals)
-  #:literals (values list cons)
-  (pattern 
-   (let-values (((ext-id:id ...)
-                 (#%plain-app
-                  values
-                  (#%plain-lambda () (#%plain-app (#%plain-app local-id:id))) ...))
-                ...)
-     (#%plain-app void))
-   #:with external-names #'(ext-id ... ...)
-   #:with internal-names #'(local-id ... ...))
-  (pattern 
-   (let-values ((()
-                 (#%plain-app 
-                  list
-                  (#%plain-app
-                   cons
-                   (quote-syntax var:id)
-                   (#%plain-lambda () (#%plain-app local-name:id))) ...)))
-     (#%plain-app void))
-   #:with external-names #'(var ...)
-   #:with internal-names #'(local-name ...)))
+(struct sig-info (name externals internals) #:transparent)
+;; A Sig-Info is a (sig-info identifier? (listof identifier?) (listof identifier?))
+;; name is the identifier corresponding to the signature this sig-info represents
+;; externals is the list of external names for variables in the signature
+;; internals is the list of internal names for variables in the signature
 
-(define-syntax-class internal-unit-data
+(define-syntax-class unit-int-rep
   #:literal-sets (kernel-literals)
-  #:literals (unit-internal values)
-  (pattern (begin (quote-syntax
-                   (unit-internal
-                    (#:imports import-sig:id ...)
-                    (#:exports export-sig:id ...)
-                    (#:init-depends init-dep-sig:id ...)))                  
-                  (#%plain-app values))
-           #:with imports #'(import-sig ...)
-           #:with exports #'(export-sig ...)
-           #:with init-depends #'(init-dep-sig ...)))
+  (pattern (#%plain-app int-var:id)
+           #:with id #'int-var)
+  (pattern int-var:id
+           #:with id #'int-var))
+
+(define-syntax-class index-row
+  #:literal-sets (kernel-literals)
+  #:literals (list cons)
+  (pattern 
+   (#%plain-app list (quote-syntax sig-id:id) 
+                (#%plain-app consx (quote-syntax var-ext:id) 
+                             (#%plain-lambda () var-int:unit-int-rep)) ...)
+   
+   #:with name #'sig-id
+   #:attr info (sig-info #'sig-id 
+                         (syntax->list #'(var-ext ...)) 
+                         (syntax->list #'(var-int.id ...)))))
+
+(define (get-info stx)
+  (syntax-parse stx
+    [ir:index-row
+     (attribute ir.info)]))
+
+(define-syntax-class signature-index-table
+  #:literal-sets (kernel-literals)
+  #:literals (void list cons)
+  (pattern
+   (let-values ([() (#%plain-app void import:index-row ...)]
+                [() (#%plain-app void export:index-row ...)]
+                [() (#%plain-app void (quote-syntax init-depend:id) ...)])
+     (#%plain-app void))
+   #:attr imports (map get-info (syntax->list #'(import ...)))
+   #:attr exports (map get-info (syntax->list #'(export ...)))
+   #:attr init-depends (syntax->list #'(init-depend ...))))
+
+(define (parse-index-table stx)
+  (syntax-parse stx
+    [t:signature-index-table
+     (values (attribute t.imports)
+             (attribute t.exports)
+             (attribute t.init-depends))]))
 
 (define-syntax-class unit-expansion
   #:literals (let-values letrec-syntaxes+values #%plain-app quote)
-  #:attributes (imports
-                exports
-                init-depends
+  #:attributes (;imports
+                ;exports
+                ;init-depends
                 body-stx)
-  (pattern (let-values ()
-             (letrec-syntaxes+values 
-              ()
-              ((()
-                :internal-unit-data))
-              (#%plain-app
-               make-unit:id
-               name:expr 
-               import-vector:expr
-               export-vector:expr
-               list-dep:expr
-               unit-body:expr)))
+  (pattern (#%plain-app
+            make-unit:id
+            name:expr 
+            import-vector:expr
+            export-vector:expr
+            list-dep:expr
+            unit-body:expr)
            #:with body-stx #'unit-body))
 
+;; Sig-Info -> (listof (pairof identifier? Type))
+;; GIVEN: signature information
+;; RETURNS: a mapping from internal names to types
+(define (make-local-type-mapping si)
+  (define sig (sig-info-name si))
+  (define internal-names (sig-info-internals si))
+  (define sig-types 
+    (map (lambda (s) ((compose parse-type cdr) s)) (signature->bindings sig)))
+  (map cons internal-names sig-types))
+
+(define (arrowize-mapping mapping)
+  (for/list ([(k v) (in-dict mapping)])
+    (cons k (-> v))))
+
+;; combine this and the above function later
+(define (make-external-type-mapping si)
+  (define sig (sig-info-name si))
+  (define external-names (sig-info-externals si))
+  (define sig-types 
+    (map (lambda (s) ((compose parse-type cdr) s)) (signature->bindings sig)))
+  (map cons external-names sig-types))
+
+(define (lookup-type name mapping)
+  (let ([v (assoc name mapping free-identifier=?)])
+    (and v (cdr v))))
 
 
 ;; Syntax Option<TCResults> -> TCResults
@@ -119,7 +165,83 @@
      (ret (parse-and-check form unit-type))]
     [_ (ret (parse-and-check form #f))]))
 
+(define (parse-and-check form expected)
+  (syntax-parse form
+    [u:unit-expansion
+     (define body-stx #'u.body-stx)
+     (define unit-index-table 
+       (first (trawl-for-property body-stx tr:unit:index-table-property)))
+     (define-values (imports-info exports-info init-depends)
+       (parse-index-table unit-index-table))
+     (printf "imports-info: ~a\n" imports-info)
+     (printf "exports-info: ~a\n" exports-info)
+     (printf "init-depends: ~a\n" init-depends)
+     (define local-sig-type-map
+       (apply append (map make-local-type-mapping imports-info)))
+     (define signature-annotations
+       (arrowize-mapping local-sig-type-map))
+     (printf "signature-annotations: ~a\n" signature-annotations)
+     
+     (define external-sig-type-map
+       (apply append (map make-external-type-mapping imports-info)))
+     
+     (printf "local-sig-type-map: ~a\n" local-sig-type-map)
+     (define forms (trawl-for-property body-stx tr:unit:body-exp-def-type-property))
+     (printf "forms: ~a\n" forms)
+     
+     (define annotations (filter unit-type-annotation? forms))
+     (define forms-to-check (filter-not unit-type-annotation? forms))
+     (printf "annotations: ~a\n" annotations)
+     (define signature-names (apply append (map sig-info-externals imports-info)))
+     (define annotation-map
+       (for/fold ([mapping '()])
+                 ([form (in-list annotations)])
+         (syntax-parse form
+           [ann:unit-body-annotation
+            (define name (attribute ann.name))
+            (define type (attribute ann.type))
+            (printf "name: ~a\n" name)
+            (printf "type: ~a\n" type)
+            (cond
+             [(or (member name (map car mapping) free-identifier=?)
+                  (member name signature-names free-identifier=?))
+              (tc-error/delayed #:stx name 
+                                "Duplicate type annotation of ~a for ~a, previous was ~a"
+                                type 
+                                (syntax-e name) 
+                                ;; FIXME: need to get the type from the mapping
+                                ;; or from the signature depening on where the id
+                                ;; came from
+                                (or (lookup-type name mapping)
+                                    (lookup-type name external-sig-type-map)))
+              mapping]
+             [else (cons (cons name type) mapping)])])))
+     (define all-annotations (append annotation-map signature-annotations))
+     (define body-type
+       (with-lexical-env/extend 
+           (map car all-annotations) (map cdr all-annotations)
+           (for/last ([stx (in-list forms)])
+             
+               
+               
+               )))
+     
+     
+     (printf "parsing ok!\n")
+     
+     (void)
+     ])
+  (make-Unit null null null -Void)
+  )
+
+(define (unit-type-annotation? stx)
+  (syntax-parse stx
+    [s:unit-body-annotation #t]
+    [_ #f]))
+
+
 ;; Syntax Option<Type> -> Type
+#;
 (define (parse-and-check form expected)
   (syntax-parse form
     [u:unit-expansion
@@ -134,20 +256,60 @@
           
      (define exprs+defns 
        (trawl-for-property body-stx tr:unit:body-expr-or-defn-property))
-     (printf "Body: ~a\n" exprs+defns)
+     
+     (define defns (filter list?
+                           (map tr:unit:body-expr-or-defn-property exprs+defns)))
+     
+     (printf "defns: ~a\n" defns)
      #;
      (define-values (bad-anns exprs+defns)
        (split-annotations exprs+annotations))
-     #;
-     (define anns
-       (ann->dict (trawl-for-property body-stx tr:unit:annotation-property)))
      
      (define local-table-stx
        (first (trawl-for-property body-stx tr:unit:local-table-property)))
-     
      (define local-names-stxs
        (trawl-for-property body-stx (lambda (stx) (syntax-property stx 'sig-id))))
      (define local-name-mapping (parse-local-names local-names-stxs))
+     
+     (define anns
+       (map tr:unit:annotation-property
+            (trawl-for-property body-stx tr:unit:annotation-property)))
+     
+     (define body-annotations (if (empty? anns) empty (last anns)))
+     
+     (define b-type (car (first body-annotations)))
+     (define b-def (first (first defns)))
+     (printf "b-type: ~a\nb-def: ~a\n" b-type b-type)
+     (printf "(free-identifier=? b-type b-def) => ~a\n" (free-identifier=? b-type b-def))
+     
+     
+     
+     
+     (printf "anns: ~a\n" anns)
+     
+     ;; check that no annotation for unit variables are defined
+     (define import-names (map (lambda (stx) (syntax-property stx 'sig-id)) local-names-stxs))
+     (printf "local-names: ~a\n" import-names)
+     ;; 
+     
+     (printf "body-annotations ~a\n" body-annotations)
+     ;(define a-body (car (first body-annotations)))
+     ;(define a-sig (first import-names))
+     ;(printf "a-body: ~a\n" a-body)
+     ;(printf "a-sig: ~a\n" a-sig)
+     
+     #;
+     (for ([name import-names])
+       (define ref (assoc name body-annotations free-identifier=?))
+       (when ref
+         (tc-error/delayed #:stx (car ref)
+                           "Duplicate type annotation of ~a for ~a, previous was ~a"
+                           (syntax-e (cdr ref))
+                           (syntax-e (car ref))
+                           'PLACEHOLDER)))
+     
+     
+ 
      (define-values (local-names local-types)
        (let ([local-dict (compose-mappings local-name-mapping import-mapping)])
          (for/fold ([names '()]
@@ -239,6 +401,7 @@
 ;;          the unit body, and the second only the expressions
 ;;          the returned lists are in reverse order of their position
 ;;          from the unit body
+#;
 (define (split-annotations stxs)
   (for/fold ([anns '()]
              [exprs '()])
@@ -253,13 +416,6 @@
            (values anns (cons stx exprs))])
         (values anns (cons stx exprs)))))
 
-;; assuming the stx is actually a valid local table
-(define (parse-local-table-mapping stx)
-  (syntax-parse stx
-    [e:unit-local-table
-     (define external-names (syntax->list #'e.external-names))
-     (define internal-names (syntax->list #'e.internal-names))
-     (map cons internal-names external-names)]))
 
 (define (ref dict id)
   (let ([val (assoc id dict free-identifier=?)])

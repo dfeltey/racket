@@ -38,14 +38,15 @@
 ;; signature->bindings : identifier? -> (listof (cons/c identifier? syntax?))
 ;; GIVEN: a signature name
 ;; RETURNS: the list of variables bound by that signature
+;;          inherited bindings come first
 (define (signature->bindings sig-id)
   (define sig (lookup-signature sig-id))
   (let loop ([sig (Signature-extends sig)]
              [mapping (Signature-mapping sig)]
              [bindings null])
     (if sig
-        (loop (Signature-extends sig) (Signature-mapping sig) (append bindings mapping))
-        (append bindings mapping))))
+        (loop (Signature-extends sig) (Signature-mapping sig) (append mapping bindings))
+        (append mapping bindings))))
 
 ;; (listof identifier?) -> (listof (cons/c identifier? syntax?))
 ;; GIVEN: a list of signature names
@@ -53,4 +54,6 @@
 ;; TODO: handle required renamings/prefix/only/except
 (define (signatures->bindings ids)
   (apply append (map signature->bindings ids)))
+
+
 

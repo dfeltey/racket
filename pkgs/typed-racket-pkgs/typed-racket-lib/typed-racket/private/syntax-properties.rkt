@@ -78,8 +78,13 @@
   (tr:class:method tr:class:method)
   (tr:unit tr:unit #:mark)
   (tr:unit:sig-id tr:unit:sig-id)
+  ;; maybe remove this one
   (tr:unit:local-table tr:unit:local-table)
-  (tr:unit:body-expr-or-defn tr:unit:body-expr-or-defn)
+  ;; or rename this one (new table idea)
+  (tr:unit:index-table tr:unit:index-table)
+  (tr:unit:body-exp-def-type tr:unit:body-exp-def-type)
   (tr:unit:annotation tr:unit:annotation)
+  (tr:unit:sig-vars tr:unit:sig-vars)
+  (tr:unit:annotated tr:unit:annotated)
   )
 
