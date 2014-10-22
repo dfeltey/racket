@@ -47,19 +47,18 @@
          (:-internal var:id t))
         (#%plain-app values))))
    #:attr name #'var
-   #:attr type (parse-type #'t))
-  ;; these 2 can probably be deleted
-  #;
-  (pattern (begin
-             (quote-syntax
-              (:-internal var:id expr))
-             (#%plain-app values))
-           #:with name #'var
-           #:with type #'expr)
-  #;
-  (pattern (#%plain-app cons var:id (quote-syntax expr))
-           #:with name #'var
-           #:with type #'expr))
+   #:attr type (parse-type #'t)))
+
+(define-syntax-class unit-body-definition
+  #:literal-sets (kernel-literals)
+  #:literals (void)
+  (pattern
+   (#%expression
+    (begin
+      (#%plain-app void var:id ...)
+      e))
+   #:attr vars (syntax->list #'(var ...))
+   #:with body #'e))
 
 (struct sig-info (name externals internals) #:transparent)
 ;; A Sig-Info is a (sig-info identifier? (listof identifier?) (listof identifier?))
@@ -185,6 +184,11 @@
      (define external-sig-type-map
        (apply append (map make-external-type-mapping imports-info)))
      
+     (define export-internal-type-map
+       (apply append (map make-local-type-mapping exports-info)))
+     
+     (printf "export-annotations: ~a\n" export-internal-type-map)
+     
      (printf "local-sig-type-map: ~a\n" local-sig-type-map)
      (define forms (trawl-for-property body-stx tr:unit:body-exp-def-type-property))
      (printf "forms: ~a\n" forms)
@@ -223,13 +227,25 @@
            (for/last ([stx (in-list forms)])
              (define prop-val (tr:unit:body-exp-def-type-property stx))
              (cond
-              [(equal? prop-val 'def/type) 
+              [(equal? prop-val 'def/type)
+               (cond 
+                [(unit-type-annotation? stx) #f]
+                [else
+                 (define-values (vars body) (process-definition stx))
+                 (define body-result (tc-expr body))
+                 (define body-types (tc-results-ts body-result))
+                 (printf "body-def: ~a\n" body-types)
+                 
+                 
+                 #f
+                 ])
                ;; TODO: handle annotations/definitions
                #f]
               [else 
                (define results (tc-expr stx))
                (define types (tc-results-ts results))
-               (printf "typed: ~a\n" types)]))))
+               (define invoke-type (-values types))
+               (printf "types: ~a\n" invoke-type)]))))
      
      
      (printf "parsing ok!\n")
@@ -243,6 +259,15 @@
   (syntax-parse stx
     [s:unit-body-annotation #t]
     [_ #f]))
+
+;; Syntax -> (values (listof identifier?) Syntax)
+;; GIVEN: syntax representing a unit body definition
+;; RETURNS: the variables defined by the definition
+;;          and the syntax of the definition's body
+(define (process-definition stx)
+  (syntax-parse stx
+    [d:unit-body-definition
+     (values (attribute d.vars) #'d.body)]))
 
 
 ;; Syntax Option<Type> -> Type
