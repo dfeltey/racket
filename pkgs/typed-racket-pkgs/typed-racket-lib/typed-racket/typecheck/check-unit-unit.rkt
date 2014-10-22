@@ -221,7 +221,19 @@
        (with-lexical-env/extend 
            (map car all-annotations) (map cdr all-annotations)
            (for/last ([stx (in-list forms)])
+<<<<<<< Updated upstream
              
+=======
+             (define prop-val (tr:unit:body-exp-def-type-property stx))
+             (cond
+              [(equal? prop-val 'def/type) 
+               ;; TODO: handle annotations/definitions
+               #f]
+              [else 
+               (define results (tc-expr stx))
+               (define types (tc-results-ts results))
+               (printf "typed: ~a\n" types)])
+>>>>>>> Stashed changes
                
                
                )))
