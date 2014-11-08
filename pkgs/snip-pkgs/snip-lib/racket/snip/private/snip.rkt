@@ -145,7 +145,7 @@
   (def/public (get-admin) s-admin)
 
   (def/public (set-admin [(make-or-false snip-admin%) a])
-    (unless (and (not (object=? a s-admin))
+    (unless (and (not (or (and (object? s-admin) (object? a) (object=? a s-admin)) (eq? a s-admin)))
                  (has-flag? s-flags OWNED)
                  (or a 
                      (not (has-flag? s-flags CAN-DISOWN))))
