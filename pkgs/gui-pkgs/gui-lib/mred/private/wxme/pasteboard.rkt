@@ -237,7 +237,10 @@
                              ;; find snip:
                              (let ([snip (find-snip x y)])
                                (and snip
-                                    (object=? snip s-caret-snip)
+                                    (or (and (object? snip)
+                                             (object? s-caret-snip)
+                                             (object=? snip s-caret-snip))
+                                        (eq? snip s-caret-snip))
                                     (let-boxes ([x 0.0] [y 0.0])
                                         (get-snip-location snip x y)
                                       (let ([c (send snip adjust-cursor dc (- x scrollx) (- y scrolly) 
@@ -1098,11 +1101,17 @@
       ;; lock during set-admin! [???]
       (send snip set-admin a)
 
-      (if (not (object=? (send snip get-admin) a))
+      (if (not (or  (and (object? (send snip get-admin))
+                         (object? a)
+                         (object=? (send snip get-admin) a))
+                    (eq? (send snip get-admin) a)))
           ;; something went wrong
           (cond
            [(and (not a)
-                 (object=? (snip->admin snip) orig-admin))
+                 (or  (and (object? (snip->admin snip)) 
+                           (object? (orig-admin))
+                           (object=? (snip->admin snip) orig-admin)) 
+                      (eq? (snip->admin snip) orig-admin)))
             ;; force admin to null
             (set-snip-admin! snip #f)
             snip]

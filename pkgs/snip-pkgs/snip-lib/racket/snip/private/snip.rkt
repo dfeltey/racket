@@ -1265,7 +1265,8 @@
     (* i IMAGE-PIXELS-PER-SCROLL))
 
   (def/override (set-admin [(make-or-false snip-admin%) a])
-    (when (not (object=? a s-admin))
+    (when (not (or (and (object? a) (object? s-admin) (object=? a s-admin))
+                   (eq? a s-admin)))
       (super set-admin a))
     (when (and s-admin is-relative-path? filename)
       (load-file filename filetype #t))))
