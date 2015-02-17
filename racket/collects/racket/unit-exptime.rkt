@@ -5,7 +5,8 @@
 
 (provide unit-static-signatures
          unit-static-init-dependencies
-         signature-members)
+         signature-members
+         unit-static-runtime-id)
 
 (define (unit-static-signatures name err-stx)
   (parameterize ((error-syntax err-stx))
@@ -17,6 +18,11 @@
   (parameterize ((error-syntax err-stx))
     (let ((ui (lookup-def-unit name)))
       (unit-info-deps ui))))
+
+(define (unit-static-runtime-id name err-stx)
+  (parameterize ([error-syntax err-stx])
+    (let ([ui (lookup-def-unit name)])
+      (unit-info-unit-id ui))))
 
 (define (signature-members name err-stx)
   (parameterize ((error-syntax err-stx))
