@@ -71,7 +71,7 @@
 
 (define-for-syntax (unit/c/core name stx)
   (syntax-parse stx
-    [(:import-clause/c :export-clause/c)
+    [(:import-clause/c :export-clause/c (~optional :body-clause/c #:defaults ([b #'any/c])))
      (begin
        (define-values (isig tagged-import-sigs import-tagged-infos 
                             import-tagged-sigids import-sigs)
@@ -81,6 +81,8 @@
                             export-tagged-sigids export-sigs)
          (process-unit-export #'(e.s ...)))
        
+       (define body-contract #'b)
+
        (define contract-table
          (make-bound-identifier-mapping))
        
@@ -168,12 +170,14 @@
                    (λ ()
                      (let-values ([(unit-fn export-table) ((unit-go unit-tmp))])
                        (values (lambda (import-table)
-                                 (unit-fn #,(contract-imports
-                                             #'import-table
-                                             import-tagged-infos
-                                             import-sigs
-                                             contract-table
-                                             #'blame)))
+                                 (((contract-projection #,body-contract)
+                                   (blame-add-context blame "the body of"))
+                                  (unit-fn #,(contract-imports
+                                              #'import-table
+                                              import-tagged-infos
+                                              import-sigs
+                                              contract-table
+                                              #'blame))))
                                #,(contract-exports 
                                   #'export-table
                                   export-tagged-infos
