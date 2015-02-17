@@ -2,7 +2,7 @@
 (require (for-syntax racket/base))
 
 (provide only except prefix rename tag
-         import export init-depend link
+         import export body init-depend link
          extends contracted)
 
 (define-syntax-rule (define-syntax-for-error name message)
@@ -27,6 +27,8 @@
 (define-syntax-for-error import
   "misuse of unit keyword")
 (define-syntax-for-error export
+  "misuse of unit keyword")
+(define-syntax-for-error body
   "misuse of unit keyword")
 (define-syntax-for-error init-depend
   "misuse of unit keyword")

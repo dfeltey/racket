@@ -5,8 +5,8 @@
          "unit-keywords.rkt"
          (for-template "unit-keywords.rkt"))
 
-(provide import-clause/contract export-clause/contract dep-clause
-         import-clause/c export-clause/c)
+(provide import-clause/contract export-clause/contract body-clause/contract dep-clause
+         import-clause/c export-clause/c body-clause/c)
 
 (define-syntax-class sig-id
   #:attributes ()
@@ -56,6 +56,10 @@
   #:auto-nested-attributes
   #:transparent
   (pattern (export e:unit/c-clause ...)))
+(define-syntax-class body-clause/c #:literals (body)
+  #:auto-nested-attributes
+  #:transparent
+  (pattern (body b:expr)))
 
 (define-syntax-class unit/contract-clause
   #:auto-nested-attributes
@@ -76,3 +80,7 @@
   #:auto-nested-attributes
   #:transparent
   (pattern (init-depend s:tagged-sig-id ...)))
+(define-syntax-class body-clause/contract #:literals (body)
+  #:auto-nested-attributes
+  #:transparent
+  (pattern (body b:expr)))
