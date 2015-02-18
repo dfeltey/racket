@@ -893,6 +893,7 @@
   (define-values/invoke-unit c@ (import) (export s^))
   (new-make-t))
 
+
 (let ()
   (define-signature s^ ((contracted [n number?])))
   (define-unit s0@
@@ -905,12 +906,28 @@
     (export s^)
     (define n 1))
 
+  (define-unit/contract a0@
+    (import)
+    (export)
+    #:invoke/contract (-> integer? integer?)
+    (lambda (n) (add1 n)))
+
+  (define-unit/contract a1@
+    (import)
+    (export)
+    (init-depend)
+    #:invoke/contract (-> integer? integer?)
+    (lambda (n) "bad"))
+
+  ((invoke-unit a0@) 1)
+  (test-contract-error "(unit a1@)" "a1@" "not an integer" ((invoke-unit a1@) 1))
+
   (define-unit t@
     (import s^)
     (export)
     (if (zero? n) "zero" n))
 
-  (define c@/c (unit/c (import) (export) (body number?)))
+  (define c@/c (unit/c (import) (export) #:invoke/contract number?))
   (define/contract c0@ c@/c
     (compound-unit (import) (export) (link [((S : s^)) s0@] [() t@ S])))
   (define/contract c1@ c@/c

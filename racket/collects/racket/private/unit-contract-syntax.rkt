@@ -56,10 +56,10 @@
   #:auto-nested-attributes
   #:transparent
   (pattern (export e:unit/c-clause ...)))
-(define-syntax-class body-clause/c #:literals (body)
+(define-splicing-syntax-class body-clause/c
   #:auto-nested-attributes
   #:transparent
-  (pattern (body b:expr)))
+  (pattern (~seq #:invoke/contract b:expr)))
 
 (define-syntax-class unit/contract-clause
   #:auto-nested-attributes
@@ -80,7 +80,7 @@
   #:auto-nested-attributes
   #:transparent
   (pattern (init-depend s:tagged-sig-id ...)))
-(define-syntax-class body-clause/contract #:literals (body)
+(define-splicing-syntax-class body-clause/contract
   #:auto-nested-attributes
   #:transparent
-  (pattern (body b:expr)))
+  (pattern (~seq #:invoke/contract b:expr)))

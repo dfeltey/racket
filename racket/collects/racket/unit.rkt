@@ -1925,7 +1925,7 @@
                                      (syntax/loc stx
                                        ((import (import-tagged-sig-id [i.x i.c] ...) ...)
                                         (export (export-tagged-sig-id [e.x e.c] ...) ...)
-                                        (body b))))])
+                                        #:invoke/contract b)))])
                        (values 
                         (syntax/loc stx
                           (contract unit-contract new-unit '(unit name) (current-contract-region) (quote name) (quote-srcloc name)))
@@ -1933,15 +1933,15 @@
                 [(ic:import-clause/contract ec:export-clause/contract dep:dep-clause . bexps)
                  (build-unit/contract
                   (syntax/loc stx
-                    (ic ec dep (body any/c) . bexps)))]
+                    (ic ec dep #:invoke/contract any/c . bexps)))]
                 [(ic:import-clause/contract ec:export-clause/contract bc:body-clause/contract . bexps)
                  (build-unit/contract
-                  (syntax/loc stx
-                    (ic ec (init-depend) bc . bexps)))]
+                  (quasisyntax/loc stx
+                    (ic ec (init-depend) #,@(syntax->list #'bc) . bexps)))]
                 [(ic:import-clause/contract ec:export-clause/contract . bexps)
                  (build-unit/contract
                   (syntax/loc stx
-                    (ic ec (init-depend) (body any/c) . bexps)))]))
+                    (ic ec (init-depend) #:invoke/contract any/c . bexps)))]))
 
 (define-syntax/err-param (define-unit/contract stx)
   (build-define-unit/contracted stx (λ (stx)
