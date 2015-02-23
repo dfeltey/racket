@@ -1925,7 +1925,7 @@
                                      (syntax/loc stx
                                        ((import (import-tagged-sig-id [i.x i.c] ...) ...)
                                         (export (export-tagged-sig-id [e.x e.c] ...) ...)
-                                        #:invoke/contract b)))])
+                                        b)))])
                        (values 
                         (syntax/loc stx
                           (contract unit-contract new-unit '(unit name) (current-contract-region) (quote name) (quote-srcloc name)))

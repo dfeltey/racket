@@ -927,7 +927,7 @@
     (export)
     (if (zero? n) "zero" n))
 
-  (define c@/c (unit/c (import) (export) #:invoke/contract number?))
+  (define c@/c (unit/c (import) (export) number?))
   (define/contract c0@ c@/c
     (compound-unit (import) (export) (link [((S : s^)) s0@] [() t@ S])))
   (define/contract c1@ c@/c

@@ -56,10 +56,10 @@
   #:auto-nested-attributes
   #:transparent
   (pattern (export e:unit/c-clause ...)))
-(define-splicing-syntax-class body-clause/c
+(define-syntax-class body-clause/c
   #:auto-nested-attributes
   #:transparent
-  (pattern (~seq #:invoke/contract b:expr)))
+  (pattern b:expr))
 
 (define-syntax-class unit/contract-clause
   #:auto-nested-attributes
