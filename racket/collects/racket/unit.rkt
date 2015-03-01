@@ -1935,7 +1935,7 @@
                         isigs esigs deps))))]
                 [(ic:import-clause/contract ec:export-clause/contract dep:dep-clause . bexps)
                  (build-unit/contract
-                  (syntax/loc stx
+                  (quasisyntax/loc stx
                     (ic ec dep #:invoke/contract #,no-invoke-contract . bexps)))]
                 [(ic:import-clause/contract ec:export-clause/contract bc:body-clause/contract . bexps)
                  (build-unit/contract

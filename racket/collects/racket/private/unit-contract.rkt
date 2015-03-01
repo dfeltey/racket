@@ -108,7 +108,7 @@
        
        (check-duplicate-subs export-tagged-infos esig)
        
-       (check-unit-ie-sigs import-sigs export-sigs)
+       ;(check-unit-ie-sigs import-sigs export-sigs)
        
        (for-each process-sig
                  isig
