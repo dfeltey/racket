@@ -61,9 +61,11 @@
   #:auto-nested-attributes
   #:transparent
   (pattern (~seq)
+           #:attr name #'()
            #:attr apply-invoke-ctcs
            (lambda (id blame) id))
   (pattern (values ctc:expr ...)
+           #:attr name #'('(values ctc ...))
            #:attr apply-invoke-ctcs
            ;; blame here is really syntax representing a blame object
            (lambda (id blame)
@@ -84,6 +86,7 @@
                            (list ctc ...)
                            args))))))
   (pattern b:expr
+           #:attr name #'('b)
            #:attr apply-invoke-ctcs
            (lambda (id blame)
              #`(((contract-projection b)

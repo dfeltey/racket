@@ -1928,6 +1928,7 @@
                                      (quasisyntax/loc stx
                                        ((import (import-tagged-sig-id [i.x i.c] ...) ...)
                                         (export (export-tagged-sig-id [e.x e.c] ...) ...)
+                                        dep
                                         #,@splicing-body-contract)))])
                        (values 
                         (syntax/loc stx
