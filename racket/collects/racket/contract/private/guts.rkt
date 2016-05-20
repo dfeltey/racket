@@ -28,7 +28,9 @@
          contract-first-order-passes?
          
          prop:contracted prop:blame
-         impersonator-prop:contracted impersonator-prop:blame
+         impersonator-prop:contracted
+         impersonator-prop:blame
+         impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped
          has-contract? value-contract
          has-blame? value-blame
          
@@ -208,6 +210,11 @@
                 has-impersonator-prop:blame? 
                 get-impersonator-prop:blame)
   (make-impersonator-property 'impersonator-prop:blame))
+
+(define-values (impersonator-prop:unwrapped
+                has-impersonator-prop:unwrapped?
+                get-impersonator-prop:unwrapped)
+  (make-impersonator-property 'impersonator-prop:unwrapped))
 
 (define (contract-first-order c)
   (contract-struct-first-order

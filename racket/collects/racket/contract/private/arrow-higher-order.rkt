@@ -10,6 +10,7 @@
          "guts.rkt"
          "list.rkt"
          (prefix-in arrow: "arrow-common.rkt")
+         "arrow-space-efficient.rkt"
          (only-in racket/unsafe/ops
                   unsafe-chaperone-procedure
                   unsafe-impersonate-procedure))
@@ -612,21 +613,36 @@
         (if use-unsafe-chaperone-procedure?
             (if is-impersonator? unsafe-impersonate-procedure unsafe-chaperone-procedure)
             (if is-impersonator? impersonate-procedure chaperone-procedure)))
+      (define full-blame (blame-add-missing-party orig-blame neg-party))
       (cond
+        [(and (has-contract? val) ; about to double-wrap
+              ;; are we adding a contract supported by multi-wrapper?
+              (contract-has-space-efficient-support? ctc)
+              ;; same for the original contract
+              (contract-has-space-efficient-support? (value-contract val))
+              ;; and the value can support it
+              (value-has-space-efficient-support?    val chaperone?))
+         ;; avoid the double-wrapping
+         (space-efficient-guard ctc
+                                val
+                                full-blame
+                                chaperone?)]
         [chap/imp-func
          (if (or post? (not rngs))
              (chaperone-or-impersonate-procedure
               val
               chap/imp-func
               impersonator-prop:contracted ctc
-              impersonator-prop:blame (blame-add-missing-party orig-blame neg-party))
+              impersonator-prop:blame full-blame
+              impersonator-prop:unwrapped val)
              (chaperone-or-impersonate-procedure
               val
               chap/imp-func
               impersonator-prop:contracted ctc
-              impersonator-prop:blame (blame-add-missing-party orig-blame neg-party)
+              impersonator-prop:blame full-blame
               impersonator-prop:application-mark
-              (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))))]
+              (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))
+              impersonator-prop:unwrapped val))]
         [else val]))
     (cond
       [late-neg?

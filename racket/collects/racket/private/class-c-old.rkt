@@ -10,6 +10,7 @@
          "../contract/combinator.rkt"
          (only-in "../contract/private/arrow-val-first.rkt" ->-internal ->*-internal)
          (only-in "../contract/private/case-arrow.rkt" case->-internal)
+         (only-in "../contract/private/guts.rkt" impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped)
          (only-in "../contract/private/arr-d.rkt" ->d-internal))
 
 (provide make-class/c class/c-late-neg-proj
@@ -1686,11 +1687,31 @@
             [c (in-list method-contracts)])
         (when c
           (unless (just-check-existence? c)
-            (define i (hash-ref method-ht m))
-            (define p ((contract-late-neg-projection c)
-                       (blame-add-context blame (format "the ~a method in" m)
-                                          #:important m)))
-            (vector-set! meths i (make-method (p (vector-ref meths i) neg-party) m))))))
+            (define blame* (blame-add-missing-party
+                            (blame-add-context blame (format "the ~a method in" m)
+                                               #:important m)
+                            neg-party))
+            (define i      (hash-ref method-ht m))
+            (define p      ((contract-late-neg-projection c) blame*))
+            (define orig   (vector-ref meths i))
+            ;; Potential optimization: instead of calling `make-method` here,
+            ;; we could leave entries in the method tables as functions.
+            ;; The conversion to methods is (IIUC) only useful for arity error
+            ;; messages, which contracts will "override" anyway.
+            ;; The one exception is `unconstrained-domain->`, which doesn't do
+            ;; any arity checking. That one will have to do method conversions
+            ;; when necessary.
+            (define post-proj (p orig #f))
+            (vector-set! meths i
+                         ((if (chaperone-contract? c) chaperone-procedure impersonate-procedure)
+                          (make-method post-proj m)
+                          #f
+                          ;; propagate impersonator properties, for space-efficient wrappers
+                          impersonator-prop:contracted (value-contract post-proj)
+                          impersonator-prop:blame      (value-blame    post-proj)
+                          impersonator-prop:unwrapped  (if (has-impersonator-prop:unwrapped? post-proj)
+                                                           (get-impersonator-prop:unwrapped  post-proj)
+                                                           orig)))))))
     
     ;; Handle external field contracts
     (unless (null? fields)

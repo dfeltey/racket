@@ -9,6 +9,7 @@
          test/neg-blame
          test/well-formed
          test ctest ctest/rewrite
+         test-true test-false
          
          current-contract-namespace
          make-basic-contract-namespace
@@ -236,6 +237,10 @@
            ',result
            eval
            ',new-expression))))))
+
+;; convenient shortcuts
+(define (test-true name expression)  (test/spec-passed/result name expression #t))
+(define (test-false name expression) (test/spec-passed/result name expression #f))
 
 ;; rewrites `provide/contract' to use `contract-out'
 (define (rewrite-out orig-exp)
