@@ -628,6 +628,7 @@
                                 full-blame
                                 chaperone?)]
         [chap/imp-func
+         (log-n-wrappers "arrow-higher-order" val)
          (if (or post? (not rngs))
              (chaperone-or-impersonate-procedure
               val

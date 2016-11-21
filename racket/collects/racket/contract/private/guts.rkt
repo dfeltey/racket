@@ -33,6 +33,7 @@
          impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped
          has-contract? value-contract
          has-blame? value-blame
+         log-n-wrappers
          
          ;; for opters
          check-flat-contract
@@ -217,6 +218,18 @@
                 has-impersonator-prop:unwrapped?
                 get-impersonator-prop:unwrapped)
   (make-impersonator-property 'impersonator-prop:unwrapped))
+
+(define-logger contract-wrapping)
+(define (log-n-wrappers kind val)
+  (log-contract-wrapping-info
+   "~a ~a" kind
+   ;; number of wrappers *already there* when we add a contract
+   ;; we have to compute it inside log-contract-wrapping-info to have it only
+   ;; be computed when someone is listening to the logger
+   (let loop ([val val] [n 0])
+     (if (has-impersonator-prop:unwrapped? val)
+         (loop (get-impersonator-prop:unwrapped val) (add1 n))
+         n))))
 
 (define (contract-first-order c)
   (contract-struct-first-order

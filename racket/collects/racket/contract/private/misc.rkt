@@ -460,6 +460,7 @@
                 (with-contract-continuation-mark
                  blame+neg-party
                  (f x neg-party))))
+            ;; TODO this ought to have the `contracted` property, but it's not a chaperone...
             (make-derived-parameter
              val
              (add-profiling in-proj)
@@ -651,9 +652,11 @@
               f
               (λ args
                 (apply values (make-proj cc-neg-projs neg-party) args)))))
+         (log-n-wrappers "promp-tag" val)
          (proxy val
                 proj1 proj2
                 call/cc-guard call/cc-proxy
+                impersonator-prop:unwrapped val
                 impersonator-prop:contracted ctc
                 impersonator-prop:blame (blame-add-missing-party blame neg-party))]
         [else
@@ -718,6 +721,7 @@
       (define blame+neg-party (cons blame neg-party))
       (cond
         [(continuation-mark-key? val)
+         (log-n-wrappers "continuation-mark-key" val)
          (proxy val 
                 (λ (v) (with-contract-continuation-mark
                         blame+neg-party
@@ -725,6 +729,7 @@
                 (λ (v) (with-contract-continuation-mark
                         blame+neg-party
                         (proj2 v neg-party)))
+                impersonator-prop:unwrapped val
                 impersonator-prop:contracted ctc
                 impersonator-prop:blame blame)]
         [else 
@@ -805,8 +810,10 @@
          '(expected: "~s" given: "~e")
          (contract-name evt-ctc)
          val))
+      (log-n-wrappers "event" val)
       (chaperone-evt val
                      (generator (cons blame neg-party))
+                     impersonator-prop:unwrapped val
                      impersonator-prop:contracted evt-ctc
                      impersonator-prop:blame (blame-add-missing-party blame neg-party)))))
 
@@ -870,9 +877,11 @@
     (λ (val neg-party)
       (cond
         [(channel? val)
+         (log-n-wrappers "channel" val)
          (proxy val 
                 (proj1 neg-party)
                 (proj2 neg-party)
+                impersonator-prop:unwrapped val
                 impersonator-prop:contracted ctc
                 impersonator-prop:blame blame)]
         [else
