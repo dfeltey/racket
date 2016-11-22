@@ -15,7 +15,7 @@
          ;; for tests
          multi-ho/c? multi-ho/c-doms multi-ho/c-rng
          multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
-         has-impersonator-prop:checking-wrapper? get-impersonator-prop:checking-wrapper)
+         has-impersonator-prop:multi/c? get-impersonator-prop:multi/c)
 
 ;; General Strategy
 ;; Each contracted function has two or three chaperone wrappers.
@@ -152,7 +152,10 @@
 ;; blame based on closed-over blame info, so `latest-blame` is only used
 ;; for things like prop:blame, contract profiling, and tail marks, in which
 ;; case we lose information, but it's ok to be conservative in these places
-(struct multi-ho/c multi/c (doms rng first-order-checks latest-blame))
+;; (and this behavior is consistent with what would happen in the absence
+;; of space-efficient contracts anyway)
+;; ditto for `latest-ctc` and prop:contracted
+(struct multi-ho/c multi/c (doms rng first-order-checks latest-blame latest-ctc))
 (struct chaperone-multi-ho/c multi-ho/c ())
 (struct impersonator-multi-ho/c multi-ho/c ())
 
@@ -230,12 +233,8 @@
      impersonator-prop:checking-wrapper  checking-wrapper
      impersonator-prop:outer-wrapper-box b
      impersonator-prop:multi/c           merged-ctc
-     ;; Note: these multi-ho/c are not contracts per se, so maybe they should go
-     ;; on that property. But, that's where `space-efficient-guard` looks for
-     ;; "old" contracts, so if we want to switch to using a different property,
-     ;; we'd need to do it consistently. (And if we do, `impersonator-prop:contracted`
-     ;; could simply hold the last contract that was applied.)
-     impersonator-prop:contracted        merged-ctc
+     ;; for these, latest is fine (and the behavior in the absence of s-e)
+     impersonator-prop:contracted        (multi-ho/c-latest-ctc   merged-ctc)
      impersonator-prop:blame             (multi-ho/c-latest-blame merged-ctc)))
   (set-box! b res)
   res)
@@ -307,7 +306,8 @@
        (ho/c->multi-ho/c dom dom-blame chap-not-imp?))
      (ho/c->multi-ho/c rng blame chap-not-imp?)
      (list (first-order-check (length doms) blame (base->-method? ctc)))
-     blame)]
+     blame
+     ctc)]
    [else ; anything else is wrapped in a multi-leaf wrapper
     (multi-leaf/c
      (list ((contract-late-neg-projection ctc) blame))
@@ -377,7 +377,8 @@
                       (multi-ho/c-rng old-multi))
      (first-order-check-join (multi-ho/c-first-order-checks old-multi)
                              (multi-ho/c-first-order-checks new-multi))
-     (multi-ho/c-latest-blame new-multi))]
+     (multi-ho/c-latest-blame new-multi)
+     (multi-ho/c-latest-ctc   new-multi))]
    [(multi-ho/c? old-multi) ; convert old to a multi-leaf/c
     (multi-leaf/c-join new-multi (multi->leaf old-multi))]
    [(multi-ho/c? new-multi) ; convert new to a multi-leaf/c
@@ -414,5 +415,5 @@
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
    (make-wrapper chap-not-imp? ctc)
-   impersonator-prop:contracted ctc
+   impersonator-prop:contracted (multi-ho/c-latest-ctc   ctc)
    impersonator-prop:blame      (multi-ho/c-latest-blame ctc)))

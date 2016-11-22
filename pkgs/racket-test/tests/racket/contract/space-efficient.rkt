@@ -70,10 +70,11 @@
   (contract-eval '(require racket/contract/private/arrow-space-efficient))
   (contract-eval
    '(define (has-num-contracts? f dom rng)
-      (unless (has-contract? f)
-        (error "has-num-contracts?: no contract"))
-      (define domain/c (car (multi-ho/c-doms (value-contract f))))
-      (define range/c  (multi-ho/c-rng  (value-contract f)))
+      (unless (has-impersonator-prop:multi/c? f)
+        (error "has-num-contracts?: no space-efficient contract"))
+      (define multi/c  (get-impersonator-prop:multi/c f))
+      (define domain/c (car (multi-ho/c-doms multi/c)))
+      (define range/c  (multi-ho/c-rng  multi/c))
       (unless (= (length (multi-leaf/c-proj-list domain/c)) dom)
         (error "has-num-contracts?: wrong number of domain projections"))
       (unless (= (length (multi-leaf/c-proj-list range/c))  rng)
@@ -82,7 +83,7 @@
         (error "has-num-contracts?: wrong num of domain contracts"))
       (unless (= (length (multi-leaf/c-contract-list range/c))  rng)
         (error "has-num-contracts?: wrong num of range contracts"))))
-  (contract-eval '(define (space-efficient? val) (has-impersonator-prop:checking-wrapper? val)))
+  (contract-eval '(define (space-efficient? val) (has-impersonator-prop:multi/c? val)))
 
   (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
   (contract-eval '(define pos->pos (-> pos pos)))
@@ -171,8 +172,8 @@
    '(has-num-contracts? insanely-contracted 1 1))
   ;; not actually doubly-wrapped
   (contract-eval '(define (double-wrapped? x)
-                    (has-impersonator-prop:checking-wrapper?
-                     (get-impersonator-prop:checking-wrapper x))))
+                    (has-impersonator-prop:multi/c?
+                     (get-impersonator-prop:multi/c x))))
   (test-false
    'space-efficient-wrap1
    '(double-wrapped? insanely-contracted))
