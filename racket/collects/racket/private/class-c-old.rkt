@@ -11,7 +11,8 @@
          (only-in "../contract/private/arrow-val-first.rkt" ->-internal ->*-internal)
          (only-in "../contract/private/case-arrow.rkt" case->-internal)
          (only-in "../contract/private/guts.rkt" impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped)
-         (only-in "../contract/private/arr-d.rkt" ->d-internal))
+         (only-in "../contract/private/arr-d.rkt" ->d-internal)
+         "../contract/private/arrow-space-efficient.rkt") ; to propagate properties across procedure->method
 
 (provide make-class/c class/c-late-neg-proj
          blame-add-method-context blame-add-field-context blame-add-init-context
@@ -1703,15 +1704,28 @@
             ;; when necessary.
             (define post-proj (p orig #f))
             (vector-set! meths i
-                         ((if (chaperone-contract? c) chaperone-procedure impersonate-procedure)
+                         (apply
+                          (if (chaperone-contract? c) chaperone-procedure impersonate-procedure)
                           (make-method post-proj m)
                           #f
-                          ;; propagate impersonator properties, for space-efficient wrappers
                           impersonator-prop:contracted (value-contract post-proj)
                           impersonator-prop:blame      (value-blame    post-proj)
-                          impersonator-prop:unwrapped  (if (has-impersonator-prop:unwrapped? post-proj)
-                                                           (get-impersonator-prop:unwrapped  post-proj)
-                                                           orig)))))))
+                          ;; propagate impersonator properties, for space-efficient wrappers
+                          impersonator-prop:unwrapped (if (has-impersonator-prop:unwrapped? post-proj)
+                                                          (get-impersonator-prop:unwrapped  post-proj)
+                                                          orig)
+                          (append (if (has-impersonator-prop:multi/c? post-proj)
+                                      (list impersonator-prop:multi/c
+                                            (get-impersonator-prop:multi/c post-proj))
+                                      '())
+                                  (if (has-impersonator-prop:checking-wrapper? post-proj)
+                                      (list impersonator-prop:checking-wrapper
+                                            (get-impersonator-prop:checking-wrapper post-proj))
+                                      '())
+                                  (if (has-impersonator-prop:outer-wrapper-box? post-proj)
+                                      (list impersonator-prop:outer-wrapper-box
+                                            (get-impersonator-prop:outer-wrapper-box post-proj))
+                                      '()))))))))
     
     ;; Handle external field contracts
     (unless (null? fields)
