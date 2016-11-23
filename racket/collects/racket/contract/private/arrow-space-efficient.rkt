@@ -11,19 +11,23 @@
 
 (provide space-efficient-guard
          contract-has-space-efficient-support?
-         value-has-space-efficient-support?
-         ;; for tests
-         multi-ho/c? multi-ho/c-doms multi-ho/c-rng
-         multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
-         has-impersonator-prop:multi/c? get-impersonator-prop:multi/c
-         ;; for property propagation (object contracts)
-         impersonator-prop:multi/c
-         impersonator-prop:checking-wrapper
-         has-impersonator-prop:checking-wrapper?
-         get-impersonator-prop:checking-wrapper
-         impersonator-prop:outer-wrapper-box
-         has-impersonator-prop:outer-wrapper-box?
-         get-impersonator-prop:outer-wrapper-box)
+         value-has-space-efficient-support?)
+(module+ for-testing
+  (provide multi-ho/c? multi-ho/c-doms multi-ho/c-rng
+           multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
+           has-impersonator-prop:multi/c? get-impersonator-prop:multi/c))
+;; object contracts need to propagate properties across procedure->method
+(module+ properties
+  (provide impersonator-prop:checking-wrapper
+           has-impersonator-prop:checking-wrapper?
+           get-impersonator-prop:checking-wrapper
+           impersonator-prop:multi/c
+           has-impersonator-prop:multi/c?
+           get-impersonator-prop:multi/c
+           impersonator-prop:outer-wrapper-box
+           has-impersonator-prop:outer-wrapper-box?
+           get-impersonator-prop:outer-wrapper-box))
+
 
 ;; General Strategy
 ;; Each contracted function has two or three chaperone wrappers.

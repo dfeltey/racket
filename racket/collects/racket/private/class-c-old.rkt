@@ -12,7 +12,7 @@
          (only-in "../contract/private/case-arrow.rkt" case->-internal)
          (only-in "../contract/private/guts.rkt" impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped)
          (only-in "../contract/private/arr-d.rkt" ->d-internal)
-         "../contract/private/arrow-space-efficient.rkt") ; to propagate properties across procedure->method
+         (submod "../contract/private/arrow-space-efficient.rkt" properties))
 
 (provide make-class/c class/c-late-neg-proj
          blame-add-method-context blame-add-field-context blame-add-init-context

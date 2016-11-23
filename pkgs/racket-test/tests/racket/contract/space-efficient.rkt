@@ -67,7 +67,7 @@
                   0))
    "inner-pos")
 
-  (contract-eval '(require racket/contract/private/arrow-space-efficient))
+  (contract-eval '(require (submod racket/contract/private/arrow-space-efficient for-testing)))
   (contract-eval
    '(define (has-num-contracts? f dom rng)
       (unless (has-impersonator-prop:multi/c? f)
