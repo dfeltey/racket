@@ -15,7 +15,8 @@
 (module+ for-testing
   (provide multi-ho/c? multi-ho/c-doms multi-ho/c-rng
            multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
-           has-impersonator-prop:multi/c? get-impersonator-prop:multi/c))
+           has-impersonator-prop:multi/c? get-impersonator-prop:multi/c
+           value-has-space-efficient-support?))
 ;; object contracts need to propagate properties across procedure->method
 (module+ properties
   (provide impersonator-prop:checking-wrapper
