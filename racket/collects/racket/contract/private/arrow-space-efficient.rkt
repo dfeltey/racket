@@ -335,7 +335,7 @@
     (implies e c)))
 
 ;; join two multi-leaf contracts
-(define (multi-leaf/c-join old-multi new-multi)
+(define (join-multi-leaf/c old-multi new-multi)
   (define old-proj-list (multi-leaf/c-proj-list old-multi))
   (define old-flat-list (multi-leaf/c-contract-list old-multi))
   (define new-proj-list (multi-leaf/c-proj-list new-multi))
@@ -350,7 +350,7 @@
   (multi-leaf/c (append new-proj-list not-implied-projs)
                 (append new-flat-list not-implied-flats)))
 
-(define (first-order-check-join new-checks old-checks)
+(define (join-first-order-check new-checks old-checks)
   (append new-checks
           (for/list ([old (in-list old-checks)]
                      #:when (or (not (implied-by-one?
@@ -389,16 +389,16 @@
        (join-multi-ho/c old new))
      (join-multi-ho/c (multi-ho/c-rng new-multi)
                       (multi-ho/c-rng old-multi))
-     (first-order-check-join (multi-ho/c-first-order-checks old-multi)
+     (join-first-order-check (multi-ho/c-first-order-checks old-multi)
                              (multi-ho/c-first-order-checks new-multi))
      (multi-ho/c-latest-blame new-multi)
      (multi-ho/c-latest-ctc   new-multi))]
    [(multi-ho/c? old-multi) ; convert old to a multi-leaf/c
-    (multi-leaf/c-join new-multi (multi->leaf old-multi))]
+    (join-multi-leaf/c new-multi (multi->leaf old-multi))]
    [(multi-ho/c? new-multi) ; convert new to a multi-leaf/c
-    (multi-leaf/c-join (multi->leaf new-multi) old-multi)]
+    (join-multi-leaf/c (multi->leaf new-multi) old-multi)]
    [else
-    (multi-leaf/c-join new-multi old-multi)]))
+    (join-multi-leaf/c new-multi old-multi)]))
 
 ;; Apply a list of projections over a value
 ;; Note that for our purposes it is important to fold left otherwise blame
