@@ -68,6 +68,10 @@
 ;; regular checking wrapper, as used elsewhere in the contract system (c.f.
 ;; `bail-to-regular-wrapper`).
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Data structures
+
 ;; reference to the 2nd chaperone, see description above
 (define-values (impersonator-prop:checking-wrapper
                 has-impersonator-prop:checking-wrapper?
@@ -83,6 +87,32 @@
                 has-impersonator-prop:outer-wrapper-box?
                 get-impersonator-prop:outer-wrapper-box)
   (make-impersonator-property 'impersonator-prop:outer-wrapper-box))
+
+(struct multi/c ())
+;; we store the most recent blame only. when contracts fail, they assign
+;; blame based on closed-over blame info, so `latest-blame` is only used
+;; for things like prop:blame, contract profiling, and tail marks, in which
+;; case we lose information, but it's ok to be conservative in these places
+;; (and this behavior is consistent with what would happen in the absence
+;; of space-efficient contracts anyway)
+;; ditto for `latest-ctc` and prop:contracted
+(struct multi-ho/c multi/c (doms rng first-order-checks latest-blame latest-ctc))
+(struct chaperone-multi-ho/c multi-ho/c ())
+(struct impersonator-multi-ho/c multi-ho/c ())
+
+(struct multi-leaf/c multi/c (proj-list contract-list))
+
+;; contains all the information necessary to both (1) perform first order checks
+;; for an arrow contract, and (2) determine which such checks are redundant and
+;; can be eliminated
+(struct first-order-check (n-doms blame method?))
+;; stronger really means "the same" here
+(define (first-order-check-stronger? x y)
+  (= (first-order-check-n-doms x) (first-order-check-n-doms y)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Applicability checks
 
 (define debug-bailouts #f)
 
@@ -171,42 +201,8 @@
            (bail "switching from imp to chap or vice versa"))))
 
 
-(struct multi/c ())
-
-;; we store the most recent blame only. when contracts fail, they assign
-;; blame based on closed-over blame info, so `latest-blame` is only used
-;; for things like prop:blame, contract profiling, and tail marks, in which
-;; case we lose information, but it's ok to be conservative in these places
-;; (and this behavior is consistent with what would happen in the absence
-;; of space-efficient contracts anyway)
-;; ditto for `latest-ctc` and prop:contracted
-(struct multi-ho/c multi/c (doms rng first-order-checks latest-blame latest-ctc))
-(struct chaperone-multi-ho/c multi-ho/c ())
-(struct impersonator-multi-ho/c multi-ho/c ())
-
-(struct multi-leaf/c multi/c (proj-list contract-list))
-
-;; contains all the information necessary to both (1) perform first order checks
-;; for an arrow contract, and (2) determine which such checks are redundant and
-;; can be eliminated
-(struct first-order-check (n-doms blame method?))
-;; stronger really means "the same" here
-(define (first-order-check-stronger? x y)
-  (= (first-order-check-n-doms x) (first-order-check-n-doms y)))
-
-(define (do-first-order-checks m/c val)
-  (define checks (multi-ho/c-first-order-checks m/c))
-  (for ([c (in-list checks)])
-    (define n-doms (first-order-check-n-doms c))
-    (cond [(do-arity-checking
-            (first-order-check-blame c)
-            val
-            (for/list ([i (in-range n-doms)]) #f) ; has to have the right length
-            #f ; no rest arg
-            n-doms ; min-arity = max-arity
-            '() ; no keywords
-            (first-order-check-method? c))
-           => (lambda (fail) (fail #f))])))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Wrapper management and contract checking
 
 ;; (or/c contract? multi/c?) × α × blame? × boolean? → α
 (define (space-efficient-guard ctc val blame chap-not-imp?)
@@ -274,7 +270,7 @@
 ;;   and can't use the space-efficient machinery (but since subcontracts
 ;;   always start-out as space-efficient, they can't bail out via the
 ;;   checks in arrow-higher-order, so we need to handle them here)))
-(define-syntax (make-wrapper stx)
+(define-syntax (make-checking-wrapper stx)
   (syntax-case stx ()
     [(_ chap-not-imp? maybe-closed-over-m/c)
      ;; Note: it would be more efficient to have arity-specific wrappers here,
@@ -310,9 +306,58 @@
                   (with-contract-continuation-mark
                    blame
                    (guard-multi/c dom arg chap-not-imp?)))))]))
-(define chaperone-wrapper    (make-wrapper #t #f))
-(define impersonator-wrapper (make-wrapper #f #f))
+(define chaperone-wrapper    (make-checking-wrapper #t #f))
+(define impersonator-wrapper (make-checking-wrapper #f #f))
 
+;; Apply a multi contract to a value
+;; This is never called at the top level of the contract (only for subcontracts)
+(define (guard-multi/c m/c val chap-not-imp?)
+  (unless (multi/c? m/c)
+    (error "internal error: not a space-efficient contract"))
+  (cond [(multi-leaf/c? m/c)
+         (apply-proj-list (multi-leaf/c-proj-list m/c) val)]
+        ;; multi-ho/c cases
+        [(value-has-space-efficient-support? val m/c)
+         (space-efficient-guard
+          m/c val (multi-ho/c-latest-blame m/c) chap-not-imp?)]
+        [else
+         ;; not safe to use space-efficient wrapping
+         (bail-to-regular-wrapper m/c val chap-not-imp?)]))
+
+;; Apply a list of projections over a value
+;; Note that for our purposes it is important to fold left otherwise blame
+;; could be assigned in the wrong order
+;; [a -> (Maybe a)] -> a -> (Maybe a)
+(define (apply-proj-list proj-list val)
+  (foldl (lambda (f v) (f v #f)) val proj-list)) ; #f neg-party (already in blame)
+
+;; create a regular checking wrapper from a space-efficient wrapper for a value
+;; that can't use space-efficient wrapping
+(define (bail-to-regular-wrapper m/c val chap-not-imp?)
+  (do-first-order-checks m/c val)
+  ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
+   val
+   (make-checking-wrapper chap-not-imp? m/c)
+   impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
+   impersonator-prop:blame      (multi-ho/c-latest-blame m/c)))
+
+(define (do-first-order-checks m/c val)
+  (define checks (multi-ho/c-first-order-checks m/c))
+  (for ([c (in-list checks)])
+    (define n-doms (first-order-check-n-doms c))
+    (cond [(do-arity-checking
+            (first-order-check-blame c)
+            val
+            (for/list ([i (in-range n-doms)]) #f) ; has to have the right length
+            #f ; no rest arg
+            n-doms ; min-arity = max-arity
+            '() ; no keywords
+            (first-order-check-method? c))
+           => (lambda (fail) (fail #f))])))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Space-efficient contract data structure management
 
 ;; Convert a higher-order contract to a multi-higher-order contract
 ;; Conversion consists of simultaneously copying the structure of the
@@ -411,35 +456,3 @@
     (join-multi-leaf/c (multi->leaf new-multi) old-multi)]
    [else
     (join-multi-leaf/c new-multi old-multi)]))
-
-;; Apply a list of projections over a value
-;; Note that for our purposes it is important to fold left otherwise blame
-;; could be assigned in the wrong order
-;; [a -> (Maybe a)] -> a -> (Maybe a)
-(define (apply-proj-list proj-list val)
-  (foldl (lambda (f v) (f v #f)) val proj-list)) ; #f neg-party (already in blame)
-
-;; Apply a multi contract over a value
-;; This is never called at the top level of the contract (only for subcontracts)
-(define (guard-multi/c m/c val chap-not-imp?)
-  (unless (multi/c? m/c)
-    (error "internal error: not a space-efficient contract"))
-  (cond [(multi-leaf/c? m/c)
-         (apply-proj-list (multi-leaf/c-proj-list m/c) val)]
-        ;; multi-ho/c cases
-        [(value-has-space-efficient-support? val m/c)
-         (space-efficient-guard
-          m/c val (multi-ho/c-latest-blame m/c) chap-not-imp?)]
-        [else
-         ;; not safe to use space-efficient wrapping
-         (bail-to-regular-wrapper m/c val chap-not-imp?)]))
-
-;; create a regular checking wrapper from a space-efficient wrapper for a value
-;; that can't use space-efficient wrapping
-(define (bail-to-regular-wrapper m/c val chap-not-imp?)
-  (do-first-order-checks m/c val)
-  ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
-   val
-   (make-wrapper chap-not-imp? m/c)
-   impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
-   impersonator-prop:blame      (multi-ho/c-latest-blame m/c)))
