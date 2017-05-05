@@ -183,8 +183,8 @@
 (define (first-order-check-stronger? x y)
   (= (first-order-check-n-doms x) (first-order-check-n-doms y)))
 
-(define (do-first-order-checks ctc val)
-  (define checks (multi-ho/c-first-order-checks ctc))
+(define (do-first-order-checks m/c val)
+  (define checks (multi-ho/c-first-order-checks m/c))
   (for ([c (in-list checks)])
     (define n-doms (first-order-check-n-doms c))
     (cond [(do-arity-checking
@@ -203,7 +203,7 @@
     (if chap-not-imp?
         (chaperone-procedure*   unwrapped chaperone-wrapper)
         (impersonate-procedure* unwrapped impersonator-wrapper)))
-  (define-values (merged-ctc checking-wrapper)
+  (define-values (merged-m/c checking-wrapper)
     (cond [(has-impersonator-prop:multi/c? val)
            ;; value is already in space-efficient mode; merge new contract in
            (unless (has-impersonator-prop:checking-wrapper? val)
@@ -237,7 +237,7 @@
              (error "internal error: expecting no checking wrapper" val))
            (values ctc (make-checking-wrapper val))])) ; already "unwrapped"
   ;; do the actual checking and wrap with the 3rd chaperone (see above)
-  (do-first-order-checks merged-ctc checking-wrapper)
+  (do-first-order-checks merged-m/c checking-wrapper)
   (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
   (define b (box #f)) ; to record the outermost (property-only) chaperone
   (define res
@@ -246,10 +246,10 @@
      #f ; property-only, so we can swap it in and out
      impersonator-prop:checking-wrapper  checking-wrapper
      impersonator-prop:outer-wrapper-box b
-     impersonator-prop:multi/c           merged-ctc
+     impersonator-prop:multi/c           merged-m/c
      ;; for these, latest is fine (and the behavior in the absence of s-e)
-     impersonator-prop:contracted        (multi-ho/c-latest-ctc   merged-ctc)
-     impersonator-prop:blame             (multi-ho/c-latest-blame merged-ctc)))
+     impersonator-prop:contracted        (multi-ho/c-latest-ctc   merged-m/c)
+     impersonator-prop:blame             (multi-ho/c-latest-blame merged-m/c)))
   (set-box! b res)
   res)
 
@@ -264,18 +264,18 @@
 ;;   checks in arrow-higher-order, so we need to handle them here)))
 (define-syntax (make-wrapper stx)
   (syntax-case stx ()
-    [(_ chap-not-imp? maybe-closed-over-ctc)
+    [(_ chap-not-imp? maybe-closed-over-m/c)
      ;; Note: it would be more efficient to have arity-specific wrappers here,
      ;;   as opposed to using a rest arg.
      #`(λ (outermost-chaperone . args)
-         (define ctc
-           #,(if (syntax-e #'maybe-closed-over-ctc)
-                 #'maybe-closed-over-ctc ; we did close over the contract
+         (define m/c
+           #,(if (syntax-e #'maybe-closed-over-m/c)
+                 #'maybe-closed-over-m/c ; we did close over the contract
                  ;; otherwise, get it from the impersonator property
                  #'(get-impersonator-prop:multi/c outermost-chaperone)))
-         (define doms   (multi-ho/c-doms         ctc))
-         (define rng    (multi-ho/c-rng          ctc))
-         (define blame  (multi-ho/c-latest-blame ctc)) ; latest is ok here
+         (define doms   (multi-ho/c-doms         m/c))
+         (define rng    (multi-ho/c-rng          m/c))
+         (define blame  (multi-ho/c-latest-blame m/c)) ; latest is ok here
          (define n-args (length args))
          (define n-doms (length doms))
          (unless (= n-args n-doms)
@@ -409,25 +409,25 @@
 
 ;; Apply a multi contract over a value
 ;; This is never called at the top level of the contract (only for subcontracts)
-(define (guard-multi/c ctc val chap-not-imp?)
-  (unless (multi/c? ctc)
+(define (guard-multi/c m/c val chap-not-imp?)
+  (unless (multi/c? m/c)
     (error "internal error: not a space-efficient contract"))
-  (cond [(multi-leaf/c? ctc)
-         (apply-proj-list (multi-leaf/c-proj-list ctc) val)]
+  (cond [(multi-leaf/c? m/c)
+         (apply-proj-list (multi-leaf/c-proj-list m/c) val)]
         ;; multi-ho/c cases
-        [(value-has-space-efficient-support? val ctc)
+        [(value-has-space-efficient-support? val m/c)
          (space-efficient-guard
-          ctc val (multi-ho/c-latest-blame ctc) chap-not-imp?)]
+          m/c val (multi-ho/c-latest-blame m/c) chap-not-imp?)]
         [else
          ;; not safe to use space-efficient wrapping
-         (bail-to-regular-wrapper ctc val chap-not-imp?)]))
+         (bail-to-regular-wrapper m/c val chap-not-imp?)]))
 
 ;; create a regular checking wrapper from a space-efficient wrapper for a value
 ;; that can't use space-efficient wrapping
-(define (bail-to-regular-wrapper ctc val chap-not-imp?)
-  (do-first-order-checks ctc val)
+(define (bail-to-regular-wrapper m/c val chap-not-imp?)
+  (do-first-order-checks m/c val)
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
-   (make-wrapper chap-not-imp? ctc)
-   impersonator-prop:contracted (multi-ho/c-latest-ctc   ctc)
-   impersonator-prop:blame      (multi-ho/c-latest-blame ctc)))
+   (make-wrapper chap-not-imp? m/c)
+   impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
+   impersonator-prop:blame      (multi-ho/c-latest-blame m/c)))
