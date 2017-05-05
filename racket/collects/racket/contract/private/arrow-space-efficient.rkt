@@ -32,30 +32,41 @@
 
 
 ;; General Strategy
-;; Each contracted function has two or three chaperone wrappers.
+
+;; Each function contracted with a space-efficient contract has two or three
+;; chaperone wrappers.
 ;; - Functions that are wrapped in a "top-level" arrow contract (i.e., not a
 ;;   subcontract of an arrow contract) are first contracted using a regular
-;;   function contract wrapper. Upon being contracted a second time, they reach
-;;   this code, and get three chaperone wrappers:
+;;   function contract wrapper (before reaching this code). Upon being
+;;   contracted a second time, they reach this code, and get three chaperone
+;;   wrappers:
 ;;   - first, an unsafe-chaperone wrapper, which chaperones the current
 ;;     contracted value (to pretend it's it), but actually just calls the
-;;     original, uncontracted function (i.e. skips the original wrapper)
-;;   - second, a chaperone* wrapper, which receives the outermost wrapper,
+;;     original, uncontracted function (i.e. skips the original contract)
+;;   - second, a chaperone* wrapper, which gets passed the outermost wrapper,
 ;;     and looks at a property on it to figure out what to check, then does
-;;     the checking
+;;     the actual contract checking
 ;;   - third, a property-only chaperone wrapper, which has a multi contract
 ;;     on a property, to keep track of which contracts to check.
 ;;   When additional contracts are applied, this third chaperone is swapped out
 ;;   for a new one, which keeps track of the new, merged contract to check.
 ;;   Because it's a property-only chaperone, replacing it with a new one doesn't
-;;   affect equality.
+;;   affect chaperone-of-ness.
 ;; - Functions that are wrapped in an "internal node" arrow contract (i.e.,
-;;   their arrow contract is a subcontract of another arrow contract) will be
-;;   wrapped with space-efficient wrappers from the start.
+;;   their arrow contract is a subcontract of another arrow contract) may be
+;;   wrapped with space-efficient wrappers from the start (i.e., before getting
+;;   any other contract).
 ;;   Note: This could be changed. Just avoid recursively converting contracts in
 ;;     `ho/c->multi-ho/c`, and instead have doms and rngs be `ho-leaf/c` always.
 ;;   Because of this, they don't need the first, unsafe chaperone wrapper above.
 ;;   They only have the last two wrappers, otherwise the above strategy applies.
+
+;; Alternatively, we may try to attach an (internal node) space-efficient
+;; contract to a value that doesn't support space-efficient contracts (e.g.,
+;; a function that takes keyword arguments). In this case, we must fall back to
+;; regular contract wrapping, and convert the space-efficient contract to a
+;; regular checking wrapper, as used elsewhere in the contract system (c.f.
+;; `bail-to-regular-wrapper`).
 
 ;; reference to the 2nd chaperone, see description above
 (define-values (impersonator-prop:checking-wrapper
