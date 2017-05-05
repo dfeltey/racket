@@ -173,7 +173,7 @@
   ;; not actually doubly-wrapped
   (contract-eval '(define (double-wrapped? x)
                     (has-impersonator-prop:multi/c?
-                     (get-impersonator-prop:multi/c x))))
+                     (get-impersonator-prop:checking-wrapper x))))
   (test-false
    'space-efficient-wrap1
    '(double-wrapped? insanely-contracted))
