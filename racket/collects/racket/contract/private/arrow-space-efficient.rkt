@@ -253,7 +253,8 @@
   (set-box! b res)
   res)
 
-;; Create the 2nd chaperone wrapper procedure (see comment at the top)
+;; Create the 2nd chaperone wrapper procedure (see comment at the top),
+;; as well as "deoptimization" wrappers (see below).
 ;; Checking wrappers come in different varieties, along two axes:
 ;; - chaperone vs impersonator (to know how to wrap for subcontracts)
 ;; - where to find the checks (on an impersonator property, for actual
