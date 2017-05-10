@@ -119,8 +119,15 @@
    "inner-pos")
 
   ;; tests for various first-order checks performed by vectors
-
-  
+  (test/spec-failed
+   'vec-space-efficient8
+   '(let* ([ctc [vectorof (vectorof integer?)]]
+           [v (contract
+               ctc
+               (contract ctc (vector (vectorof 1)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-set! v 0 'bad))
+   'neg)
   )
 
   
