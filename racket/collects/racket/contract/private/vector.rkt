@@ -4,17 +4,12 @@
          "guts.rkt"
          "prop.rkt"
          "blame.rkt"
-         "misc.rkt")
+         "misc.rkt"
+         "vector-space-efficient.rkt")
 
 (provide (rename-out [wrap-vectorof vectorof]
                      [wrap-vector/c vector/c])
          vector-immutable/c vector-immutableof)
-
-;; eager is one of:
-;; - #t: always perform an eager check of the elements of an immutable vector
-;; - #f: never  perform an eager check of the elements of an immutable vector
-;; - N (for N>=0): perform an eager check of immutable vectors size <= N
-(define-struct base-vectorof (elem immutable eager))
 
 (define-for-syntax (convert-args args this-one)
   (let loop ([args args]
@@ -151,7 +146,6 @@
 (define (vectorof-late-neg-ho-projection chaperone-or-impersonate-vector)
   (λ (ctc)
     (define elem-ctc (base-vectorof-elem ctc))
-    (define immutable (base-vectorof-immutable ctc))
     (define eager (base-vectorof-eager ctc))
     (define check (check-vectorof ctc))
     (λ (blame)
@@ -189,12 +183,15 @@
                         (unless (p? e)
                           (elem-pos-proj e neg-party)))
                       val)
-               (chaperone-or-impersonate-vector
-                val
-                (checked-ref neg-party)
-                (checked-set neg-party)
-                impersonator-prop:contracted ctc
-                impersonator-prop:blame (blame-add-missing-party blame neg-party))))]
+               (if (and (has-contract? val) (value-has-space-efficient-support? val ctc))
+                   (space-efficient-guard ctc val (blame-add-missing-party blame neg-party))
+                   (chaperone-or-impersonate-vector
+                    val
+                    (checked-ref neg-party)
+                    (checked-set neg-party)
+                    impersonator-prop:unwrapped val
+                    impersonator-prop:contracted ctc
+                    impersonator-prop:blame (blame-add-missing-party blame neg-party)))))]
         [else
          (λ (val neg-party)
            (define (raise-blame val . args) 
@@ -204,12 +201,15 @@
                (vector->immutable-vector
                 (for/vector #:length (vector-length val) ([e (in-vector val)])
                   (elem-pos-proj e neg-party)))
-               (chaperone-or-impersonate-vector
-                val
-                (checked-ref neg-party)
-                (checked-set neg-party)
-                impersonator-prop:contracted ctc
-                impersonator-prop:blame (blame-add-missing-party blame neg-party))))]))))
+               (if (and (has-contract? val) (value-has-space-efficient-support? val ctc))
+                   (space-efficient-guard ctc val (blame-add-missing-party blame neg-party))
+                   (chaperone-or-impersonate-vector
+                    val
+                    (checked-ref neg-party)
+                    (checked-set neg-party)
+                    impersonator-prop:unwrapped val
+                    impersonator-prop:contracted ctc
+                    impersonator-prop:blame (blame-add-missing-party blame neg-party)))))]))))
 
 (define-values (prop:neg-blame-party prop:neg-blame-party? prop:neg-blame-party-get)
   (make-impersonator-property 'prop:neg-blame-party))
@@ -417,6 +417,7 @@
                         (for/list ([e (in-vector val)]
                                    [i (in-naturals)])
                           ((vector-ref elem-pos-projs i) e neg-party)))
+                 ;; TODO: space-efficient machinery for vector/c contracts
                  (vector-wrapper
                   val
                   (λ (vec i val)
