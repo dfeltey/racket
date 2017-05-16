@@ -25,6 +25,67 @@
    '(vector-ref bad-vecof-int 0)
    'pos)
 
+  ;; Testing basic keyword arguments
+  ;; ***********************************************
+
+  ;; If the flat? argument is #t, then the resulting contract is a flat contract, and the c argument must also be a flat contract.
+  ;; Such flat contracts will be unsound if applied to mutable vectors, as they will not check future operations on the vector.
+  (test/spec-passed 
+	'vec-space-efficient-flat-passed
+	'(let* ([ctc 	(vectorof integer? #:flat? #t)]
+                [v 	(contract 
+                   		ctc 
+				(make-vector 10 42) 'pos 'neg )])
+	(vector-ref v 1)))
+
+  (test/spec-failed
+        'vec-space-efficient-flat-failed!
+        '(let* ([ctc    (vectorof integer? #:flat? #t)]
+                [v      (contract 
+                                ctc 
+                                (make-vector 10 "42") 'pos 'neg )])
+        'oeps)
+	"pos")
+
+  ;;Should pass the test because we indicate that it is a flat contract
+  (test/spec-passed
+	'vec-space-efficient-flat-set!
+	'(let* ([ctc 	(vectorof integer? #:flat? #t)]
+                [v 	(contract 
+                   		ctc 
+				(make-vector 10 42) 'pos 'neg )])
+	(vector-set! v 1 "24")))
+
+  ;If the immutable argument is #t and the c argument is a flat contract and the eager argument is #t, the result will be a flat contract. 
+  (contract-eval  '(define ctc-flat (vectorof integer? #:immutable #t #:eager #t)))
+  (test-true 'is-flat '(flat-contract? ctc-flat))
+
+  (test/spec-failed
+	'vec-space-efficient-flat-set!
+	'(let* ([ctc 	(vectorof integer? #:immutable #t #:eager #t)]
+                [v 	(contract 
+                   		ctc 
+				(make-vector 10 42) 'pos 'neg )])
+	'should-fail)
+	"pos")
+
+  (test/spec-passed
+	'vec-space-efficient-flat-set!
+	'(let* ([ctc 	(vectorof integer? #:immutable #t #:eager #t)]
+                [v 	(contract 
+                   		ctc 
+				(vector-immutable 10 42) 'pos 'neg )])
+	(vector-ref v 1)))
+
+   ;If the c argument is a chaperone contract, then the result will be a chaperone contract.
+   (contract-eval '(define ctc-chap (vectorof (-> integer? integer?) #:immutable #t #:eager #t )))
+   (test-true 'is-chaperone '(chaperone-contract? ctc-chap))
+ 
+	
+  ;; End basic keyword arguments
+  ;; ***********************************************
+
+
   ;; non-flat contracts at the leaves/nested vectorof contracts
   (test/spec-passed
    'vec-space-efficient5
@@ -128,6 +189,9 @@
                'pos 'neg)])
       (vector-set! v 0 'bad))
    'neg)
+
+
+  
   )
 
   
