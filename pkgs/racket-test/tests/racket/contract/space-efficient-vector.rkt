@@ -80,6 +80,25 @@
    ;If the c argument is a chaperone contract, then the result will be a chaperone contract.
    (contract-eval '(define ctc-chap (vectorof (-> integer? integer?) #:immutable #t #:eager #t )))
    (test-true 'is-chaperone '(chaperone-contract? ctc-chap))
+
+
+  (test/spec-passed
+        'vec-space-efficient-vector-chap
+        '(let* ([ctc-chap    (vectorof (-> integer? integer?) #:immutable #t #:eager #t)]
+                [v      (contract 
+                                ctc-chap 
+                                (vector-immutable (lambda (x) x)  (lambda (x) (* x x))) 'pos 'neg )])
+        ((vector-ref v 1) 10)))
+
+   (test/spec-failed
+        'vec-space-efficient-vector-chap-fail
+        '(let* ([ctc-chap    (vectorof (-> integer? integer?) #:immutable #t #:eager #t)]
+                [v      (contract 
+                                ctc-chap 
+                                (vector-immutable (lambda (x) "42")) 'pos 'neg )])
+        ((vector-ref v 0) 10))
+	"pos")
+   
  
 	
   ;; End basic keyword arguments
