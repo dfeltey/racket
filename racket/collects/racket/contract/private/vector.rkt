@@ -133,7 +133,9 @@
 (define (blame-add-element-of-context blame #:swap? [swap? #f])
   (blame-add-context blame "an element of" #:swap? swap?))
 
-(define (vectorof-late-neg-ho-projection chaperone-or-impersonate-vector)
+(define (vectorof-late-neg-ho-projection chap-not-imp?)
+  (define chaperone-or-impersonate-vector
+    (if chap-not-imp? chaperone-vector impersonate-vector))
   (λ (ctc)
     (define elem-ctc (base-vectorof-elem ctc))
     (define eager (base-vectorof-eager ctc))
@@ -174,7 +176,7 @@
                           (elem-pos-proj e neg-party)))
                       val)
                (if (and (has-contract? val) (value-has-space-efficient-support? val ctc))
-                   (space-efficient-guard ctc val (blame-add-missing-party blame neg-party))
+                   (space-efficient-guard ctc val (blame-add-missing-party blame neg-party) chap-not-imp?)
                    (chaperone-or-impersonate-vector
                     val
                     (checked-ref neg-party)
@@ -192,7 +194,7 @@
                 (for/vector #:length (vector-length val) ([e (in-vector val)])
                   (elem-pos-proj e neg-party)))
                (if (and (has-contract? val) (value-has-space-efficient-support? val ctc))
-                   (space-efficient-guard ctc val (blame-add-missing-party blame neg-party))
+                   (space-efficient-guard ctc val (blame-add-missing-party blame neg-party) chap-not-imp?)
                    (chaperone-or-impersonate-vector
                     val
                     (checked-ref neg-party)
@@ -211,7 +213,7 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:late-neg-projection (vectorof-late-neg-ho-projection chaperone-vector)))
+   #:late-neg-projection (vectorof-late-neg-ho-projection #t)))
 
 (define-struct (impersonator-vectorof base-vectorof) ()
   #:property prop:custom-write custom-write-property-proc
@@ -220,7 +222,7 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:late-neg-projection (vectorof-late-neg-ho-projection impersonate-vector)))
+   #:late-neg-projection (vectorof-late-neg-ho-projection #f)))
 
 (define-syntax (wrap-vectorof stx)
   (syntax-case stx ()

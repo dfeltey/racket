@@ -37,9 +37,10 @@
 (struct first-order-check (immutable blame)) ;; TODO: handle immutability ...
 
 ;; TODO: transparent only for debugging
-(struct multi-vectorof multi/c (ref-ctc set-ctc first-order latest-blame) #:transparent)
-(struct chaperone-multi-vectorof multi-vectorof () #:transparent)
-(struct multi-leaf/c multi/c (proj-list contract-list) #:transparent)
+(struct multi-vectorof multi/c (ref-ctc set-ctc first-order latest-blame))
+(struct chaperone-multi-vectorof multi-vectorof ())
+(struct impersonator-multi-vectorof multi-vectorof ())
+(struct multi-leaf/c multi/c (proj-list contract-list))
 
 
 ;; abstracted from the former check-vectorof implementation in
@@ -70,7 +71,7 @@
 ;; stub
 (define (contract-has-space-efficient-support? ctc) #t)
 
-(define (value-has-space-efficient-support? val ctc)
+(define (value-has-space-efficient-support? val chap-not-imp?)
   (define (bail reason)
     (when debug-bailouts
       (printf "value bailing: ~a -- ~a\n" reason val))
@@ -94,16 +95,16 @@
                       (first-order-check-ctc f2)))
 
 
-(define (vectorof->multi-vectorof ctc blame)
+(define (vectorof->multi-vectorof ctc blame chap-not-imp?)
   (cond
     [(multi-vectorof? ctc) ; already space efficient
      ctc]
     [(and (base-vectorof? ctc) (contract-has-space-efficient-support? ctc))
      (define elem (base-vectorof-elem ctc))
      (define set-blame (blame-swap blame))
-     (chaperone-multi-vectorof
-      (vectorof->multi-vectorof elem blame)
-      (vectorof->multi-vectorof elem set-blame)
+     ((if chap-not-imp? chaperone-multi-vectorof impersonator-multi-vectorof)
+      (vectorof->multi-vectorof elem blame chap-not-imp?)
+      (vectorof->multi-vectorof elem set-blame chap-not-imp?)
       (list (first-order-check (base-vectorof-immutable ctc) blame))
       blame)]
     [else ; convert to a leaf
@@ -169,15 +170,17 @@
      (multi-leaf/c-join new-multi old-multi)]))
 
 ;; TODO: impersonator property
-;; TODO: hand chaperones and impersonators
-(define (space-efficient-guard ctc val blame)
+;; TODO: handle chaperones and impersonators
+(define (space-efficient-guard ctc val blame chap-not-imp?)
   (define (make-checking-wrapper unwrapped)
-    (chaperone-vector* unwrapped chaperone-ref-wrapper chaperone-set-wrapper))
+    (if chap-not-imp?
+        (chaperone-vector* unwrapped chaperone-ref-wrapper chaperone-set-wrapper)
+        (impersonate-vector* unwrapped impersonator-ref-wrapper impersonator-set-wrapper)))
   (define-values (merged-ctc checking-wrapper)
     (cond [(has-impersonator-prop:multi/c? val)
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
-           (values (join-multi-vectorof (vectorof->multi-vectorof ctc blame)
+           (values (join-multi-vectorof (vectorof->multi-vectorof ctc blame chap-not-imp?)
                                         (get-impersonator-prop:multi/c val))
                    (get-impersonator-prop:checking-wrapper val))]
           [(has-contract? val)
@@ -186,12 +189,14 @@
            (define orig-ctc (value-contract val))
            (define orig-blame (value-blame val))
            (define unwrapped ;; un-contracted (since it is wrapped in a chaperone)
-             (unsafe-chaperone-vector
+             ((if chap-not-imp?
+                  unsafe-chaperone-vector
+                  unsafe-impersonate-vector)
               val
               (get-impersonator-prop:unwrapped val)))
            (values (join-multi-vectorof
-                    (vectorof->multi-vectorof ctc blame)
-                    (vectorof->multi-vectorof orig-ctc orig-blame))
+                    (vectorof->multi-vectorof ctc blame chap-not-imp?)
+                    (vectorof->multi-vectorof orig-ctc orig-blame chap-not-imp?))
                    (make-checking-wrapper unwrapped))]
           [else
            (unless (multi-vectorof? ctc)
@@ -199,14 +204,10 @@
            (when (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting no checking wrapper" val))
            (values ctc (make-checking-wrapper val))]))
-  ;; Need to pass the unwrapped val here, otherwise contract checking will loop
-  ;; These checks are also duplicated in the contract system, so it's unclear
-  ;; what should happen to them
-  ;; moving these to guard-multi
-  ; (do-first-order-checks merged-ctc val #;checking-wrapper)
+  (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
   (define b (box #f))
   (define res
-    (chaperone-vector
+    (chap/imp
      checking-wrapper
      #f
      #f
@@ -226,36 +227,53 @@
   (foldl (lambda (f v) (f v #f)) val proj-list)) ; #f neg-party (already in blame)
 
 ;; TODO: first order checks
-(define (guard-multi/c ctc val)
+(define (guard-multi/c ctc val chap-not-imp?)
   (unless (multi/c? ctc)
     (error "internal error: not a space-efficient contract"))
   (cond
     [(multi-leaf/c? ctc)
      (apply-proj-list (multi-leaf/c-proj-list ctc) val)]
-    [(value-has-space-efficient-support? val ctc)
+    [(value-has-space-efficient-support? val chap-not-imp?)
      (do-first-order-checks ctc val)
-     (space-efficient-guard ctc val (multi-vectorof-latest-blame ctc))]
+     (space-efficient-guard ctc val (multi-vectorof-latest-blame ctc) chap-not-imp?)]
     [else
-     (bail-to-regular-wrapper ctc val #f)]))
+     (bail-to-regular-wrapper ctc val chap-not-imp?)]))
 
 ;; TODO: first order checks????
 (define (chaperone-ref-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
   (define ref-ctc (multi-vectorof-ref-ctc ctc))
-  (guard-multi/c ref-ctc elt))
-  
+  (guard-multi/c ref-ctc elt #t))
+
 (define (chaperone-set-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
   (define set-ctc (multi-vectorof-set-ctc ctc))
-  (guard-multi/c set-ctc elt))
+  (guard-multi/c set-ctc elt #t))
+
+(define (impersonator-ref-wrapper outermost v i elt)
+  (define ctc (get-impersonator-prop:multi/c outermost))
+  (define ref-ctc (multi-vectorof-ref-ctc ctc))
+  (guard-multi/c ref-ctc elt #f))
+
+(define (impersonator-set-wrapper outermost v i elt)
+  (define ctc (get-impersonator-prop:multi/c outermost))
+  (define set-ctc (multi-vectorof-set-ctc ctc))
+  (guard-multi/c set-ctc elt #f))
 
 (define (bail-to-regular-wrapper m/c val chap-not-imp?)
   (do-first-order-checks m/c val)
-  (chaperone-vector*
-   val
-   chaperone-ref-wrapper
-   chaperone-set-wrapper
-   ;; TODO: impersonator-prop:contracted, don't currently keep track of
-   ;;       the latest contract ...
-   ;; TODO: not sure if this is always going to be the correct blame right now???
-   impersonator-prop:blame (multi-vectorof-latest-blame m/c)))
+  ;; TODO: impersonator-prop:contracted, don't currently keep track of
+  ;;       the latest contract ...
+  ;; TODO: not sure if this is always going to be the correct blame right now???
+  (define blame (multi-vectorof-latest-blame m/c))
+  (if chap-not-imp?
+      (chaperone-vector*
+       val
+       chaperone-ref-wrapper
+       chaperone-set-wrapper
+       impersonator-prop:blame blame)
+      (impersonate-vector*
+       val
+       impersonator-ref-wrapper
+       impersonator-set-wrapper
+       impersonator-prop:blame blame)))

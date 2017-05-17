@@ -219,4 +219,10 @@
       (vector-ref v 0))
    "inner-pos")
 
+  (test/spec-passed
+   'vectorof-impersonator
+   '(let* ([ctc (vectorof (make-contract #:late-neg-projection (lambda (b) (lambda (x n) 'foo))))]
+           [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0)))
+
   )
