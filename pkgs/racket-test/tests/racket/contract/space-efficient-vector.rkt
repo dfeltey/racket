@@ -155,7 +155,7 @@
 
   ;; non-identical contracts in nested vectorof
   (test/spec-failed
-   'vec-space-efficient8
+   'vec-space-efficient9
    '(let* ([ctc1 (vectorof (vectorof integer?))]
            [ctc2 (vectorof (vectorof positive?))]
            [v (contract
@@ -166,7 +166,7 @@
    "inner-neg")
 
   (test/spec-failed
-   'vec-space-efficient8
+   'vec-space-efficient10
    '(let* ([ctc1 (vectorof (vectorof integer?))]
            [ctc2 (vectorof (vectorof positive?))]
            [v (contract
@@ -177,7 +177,7 @@
    'neg)
 
   (test/spec-failed
-   'vec-space-efficient8
+   'vec-space-efficient11
    '(let* ([ctc1 (vectorof (vectorof integer?))]
            [ctc2 (vectorof (vectorof positive?))]
            [v (contract
@@ -188,7 +188,7 @@
    'pos)
 
   (test/spec-failed
-   'vec-space-efficient8
+   'vec-space-efficient12
    '(let* ([ctc1 (vectorof (vectorof integer?))]
            [ctc2 (vectorof (vectorof positive?))]
            [v (contract
@@ -200,17 +200,23 @@
 
   ;; tests for various first-order checks performed by vectors
   (test/spec-failed
-   'vec-space-efficient8
+   'vec-space-efficient13
    '(let* ([ctc [vectorof (vectorof integer?)]]
            [v (contract
                ctc
-               (contract ctc (vector (vectorof 1)) 'inner-pos 'inner-neg)
+               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! v 0 'bad))
    'neg)
 
+    (test/spec-failed
+   'vec-space-efficient14
+   '(let* ([ctc (vectorof (vectorof integer? #:immutable #t))]
+           [v (contract
+               ctc
+               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-ref v 0))
+   "inner-pos")
 
-  
   )
-
-  

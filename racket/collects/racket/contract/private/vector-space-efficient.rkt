@@ -3,9 +3,20 @@
 (require "prop.rkt" "guts.rkt" "blame.rkt" (only-in racket/unsafe/ops unsafe-chaperone-vector unsafe-impersonate-vector)
          (submod "arrow-space-efficient.rkt" properties))
 
+;; TODO:
+;; - first order checks
+;; - vector/c space efficient
+;; - chaperone/impersonator dance
+;; - checking values/contracts for space-efficient support
+;;   - values: already chaperoned/impersonated won't work
+;;   - chaperones on top of space-efficient wrappers won't work
+;;   - compare w/ functions
+;;   - contracts: various vectorof? flags
+
 (provide (struct-out base-vectorof)
          space-efficient-guard
-         value-has-space-efficient-support?)
+         value-has-space-efficient-support?
+         do-check-vectorof)
 
 (module+ for-testing
   (provide multi/c? multi-vectorof? multi-vectorof-ref-ctc multi-vectorof-set-ctc
@@ -13,28 +24,73 @@
            value-has-space-efficient-support?))
 
 
+(define debug-bailouts #f)
+
 ;; TODO: This isn't the right place for vectorof, but it will get things working
 ;; eager is one of:
 ;; - #t: always perform an eager check of the elements of an immutable vector
 ;; - #f: never  perform an eager check of the elements of an immutable vector
 ;; - N (for N>=0): perform an eager check of immutable vectors size <= N
 (define-struct base-vectorof (elem immutable eager))
- 
+
 (struct multi/c ())
-(struct first-order-check (ctc blame)) ;; TODO: handle immutability ...
+(struct first-order-check (immutable blame)) ;; TODO: handle immutability ...
 
 ;; TODO: transparent only for debugging
 (struct multi-vectorof multi/c (ref-ctc set-ctc first-order latest-blame) #:transparent)
 (struct chaperone-multi-vectorof multi-vectorof () #:transparent)
 (struct multi-leaf/c multi/c (proj-list contract-list) #:transparent)
 
+
+;; abstracted from the former check-vectorof implementation in
+;; the vector contract implementation, this is the common piece
+;; that is needed for the space-efficient machinery to perform first-order checks
+(define (do-check-vectorof val fail immutable)
+  (unless (vector? val)
+    (fail val '(expected "a vector," given: "~e") val))
+  (cond
+    [(eq? immutable #t)
+     (unless (immutable? val)
+       (fail val '(expected "an immutable vector" given: "~e") val))]
+    [(eq? immutable #f)
+     (when (immutable? val)
+       (fail val '(expected "an mutable vector" given: "~e") val))]
+    [else (void)]))
+
+
+(define (do-first-order-checks m/c val)
+  (define checks (multi-vectorof-first-order m/c))
+  (for ([c (in-list checks)])
+    (define immutable (first-order-check-immutable c))
+    (define blame (first-order-check-blame c))
+    (define (raise-blame val . args)
+      (apply raise-blame-error blame #:missing-party #f val args))
+    (do-check-vectorof val raise-blame immutable)))
+
 ;; stub
 (define (contract-has-space-efficient-support? ctc) #t)
-(define (value-has-space-efficient-support? val ctc) #t)
-  
+
+(define (value-has-space-efficient-support? val ctc)
+  (define (bail reason)
+    (when debug-bailouts
+      (printf "value bailing: ~a -- ~a\n" reason val))
+    #f)
+  (and (or (vector? val)
+           (bail "not a vector"))
+       (or (if (has-impersonator-prop:unwrapped? val)
+               (not (impersonator? (get-impersonator-prop:unwrapped val)))
+               #t)
+           (bail "already chaperoned"))
+       (or (if (has-impersonator-prop:outer-wrapper-box? val)
+               (eq? val (unbox (get-impersonator-prop:outer-wrapper-box val)))
+               #t)
+           (bail "has been chaperoned since last contracted"))
+       ;;TODO: handle disallowing switching between chaperone and impersonator wrappers
+       ))
 
 (define (first-order-check-stronger? f1 f2)
-  (contract-stronger? (first-order-check-ctc f1)
+  #f
+  #;(contract-stronger? (first-order-check-ctc f1)
                       (first-order-check-ctc f2)))
 
 
@@ -48,7 +104,7 @@
      (chaperone-multi-vectorof
       (vectorof->multi-vectorof elem blame)
       (vectorof->multi-vectorof elem set-blame)
-      (list (first-order-check elem blame))
+      (list (first-order-check (base-vectorof-immutable ctc) blame))
       blame)]
     [else ; convert to a leaf
      (multi-leaf/c
@@ -143,7 +199,11 @@
            (when (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting no checking wrapper" val))
            (values ctc (make-checking-wrapper val))]))
-  ;; TODO: first order checks
+  ;; Need to pass the unwrapped val here, otherwise contract checking will loop
+  ;; These checks are also duplicated in the contract system, so it's unclear
+  ;; what should happen to them
+  ;; moving these to guard-multi
+  ; (do-first-order-checks merged-ctc val #;checking-wrapper)
   (define b (box #f))
   (define res
     (chaperone-vector
@@ -173,6 +233,7 @@
     [(multi-leaf/c? ctc)
      (apply-proj-list (multi-leaf/c-proj-list ctc) val)]
     [(value-has-space-efficient-support? val ctc)
+     (do-first-order-checks ctc val)
      (space-efficient-guard ctc val (multi-vectorof-latest-blame ctc))]
     [else
      (bail-to-regular-wrapper ctc val #f)]))
@@ -188,5 +249,13 @@
   (define set-ctc (multi-vectorof-set-ctc ctc))
   (guard-multi/c set-ctc elt))
 
-(define (bail-to-regular-wrapper ctc val chap-not-imp?)
-  (error "TODO: do bailout" val))
+(define (bail-to-regular-wrapper m/c val chap-not-imp?)
+  (do-first-order-checks m/c val)
+  (chaperone-vector*
+   val
+   chaperone-ref-wrapper
+   chaperone-set-wrapper
+   ;; TODO: impersonator-prop:contracted, don't currently keep track of
+   ;;       the latest contract ...
+   ;; TODO: not sure if this is always going to be the correct blame right now???
+   impersonator-prop:blame (multi-vectorof-latest-blame m/c)))

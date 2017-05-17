@@ -244,6 +244,7 @@
              (error "internal error: expecting no checking wrapper" val))
            (values ctc (make-checking-wrapper val))])) ; already "unwrapped"
   ;; do the actual checking and wrap with the 3rd chaperone (see above)
+  ;;TODO:  Maybe this is redundant checking
   (do-first-order-checks merged-m/c checking-wrapper)
   (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
   (define b (box #f)) ; to record the outermost (property-only) chaperone

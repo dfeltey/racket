@@ -47,19 +47,9 @@
 
 (define (check-vectorof c) 
   (let ([elem-ctc (base-vectorof-elem c)]
-        [immutable (base-vectorof-immutable c)]
-        [flat? (flat-vectorof? c)])
+        [immutable (base-vectorof-immutable c)])
     (λ (val fail first-order?)
-      (unless (vector? val)
-        (fail val '(expected "a vector," given: "~e") val))
-      (cond
-        [(eq? immutable #t)
-         (unless (immutable? val)
-           (fail val '(expected "an immutable vector" given: "~e") val))]
-        [(eq? immutable #f)
-         (when (immutable? val)
-           (fail val '(expected "a mutable vector" given: "~e") val))]
-        [else (void)])
+      (do-check-vectorof val fail immutable)
       (when first-order?
         (let loop ([n 0])
           (cond
