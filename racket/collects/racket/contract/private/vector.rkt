@@ -193,7 +193,7 @@
                (vector->immutable-vector
                 (for/vector #:length (vector-length val) ([e (in-vector val)])
                   (elem-pos-proj e neg-party)))
-               (if (and (has-contract? val) (value-has-space-efficient-support? val ctc))
+               (if (and (has-contract? val) (value-has-space-efficient-support? val chap-not-imp?))
                    (space-efficient-guard ctc val (blame-add-missing-party blame neg-party) chap-not-imp?)
                    (chaperone-or-impersonate-vector
                     val

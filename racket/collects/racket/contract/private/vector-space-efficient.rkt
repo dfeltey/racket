@@ -34,9 +34,8 @@
 (define-struct base-vectorof (elem immutable eager))
 
 (struct multi/c ())
-(struct first-order-check (immutable blame)) ;; TODO: handle immutability ...
+(struct first-order-check (immutable blame))
 
-;; TODO: transparent only for debugging
 (struct multi-vectorof multi/c (ref-ctc set-ctc first-order latest-blame))
 (struct chaperone-multi-vectorof multi-vectorof ())
 (struct impersonator-multi-vectorof multi-vectorof ())
@@ -86,14 +85,24 @@
                (eq? val (unbox (get-impersonator-prop:outer-wrapper-box val)))
                #t)
            (bail "has been chaperoned since last contracted"))
-       ;;TODO: handle disallowing switching between chaperone and impersonator wrappers
-       ))
+       ;; disallow switching between chaperone and impersonator wrappers
+       (or (cond [(has-impersonator-prop:checking-wrapper? val)
+                  (define checking-wrapper
+                    (get-impersonator-prop:checking-wrapper val))
+                  (if (chaperone? checking-wrapper)
+                      chap-not-imp?
+                      (not chap-not-imp?))]
+                 [else
+                  (if chap-not-imp?
+                      (chaperone-contract?    (value-contract val))
+                      (impersonator-contract? (value-contract val)))])
+           (bail "switching from imp to chap or vice versa"))))
 
 (define (first-order-check-stronger? f1 f2)
-  #f
-  #;(contract-stronger? (first-order-check-ctc f1)
-                      (first-order-check-ctc f2)))
-
+  (define f1-immutable (first-order-check-immutable f1))
+  (define f2-immutable (first-order-check-immutable f2))
+  (or (eq? f2-immutable 'dont-care)
+      (eq? f1-immutable f2-immutable)))
 
 (define (vectorof->multi-vectorof ctc blame chap-not-imp?)
   (cond
