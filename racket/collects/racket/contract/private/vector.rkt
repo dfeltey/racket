@@ -175,8 +175,8 @@
                         (unless (p? e)
                           (elem-pos-proj e neg-party)))
                       val)
-               (if (and (has-contract? val) (value-has-space-efficient-support? val ctc))
-                   (space-efficient-guard ctc val (blame-add-missing-party blame neg-party) chap-not-imp?)
+               (if (and (has-contract? val) (value-has-vectorof-space-efficient-support? val ctc))
+                   (vectorof-space-efficient-guard ctc val (blame-add-missing-party blame neg-party) chap-not-imp?)
                    (chaperone-or-impersonate-vector
                     val
                     (checked-ref neg-party)
@@ -193,8 +193,8 @@
                (vector->immutable-vector
                 (for/vector #:length (vector-length val) ([e (in-vector val)])
                   (elem-pos-proj e neg-party)))
-               (if (and (has-contract? val) (value-has-space-efficient-support? val chap-not-imp?))
-                   (space-efficient-guard ctc val (blame-add-missing-party blame neg-party) chap-not-imp?)
+               (if (and (has-contract? val) (value-has-vectorof-space-efficient-support? val chap-not-imp?))
+                   (vectorof-space-efficient-guard ctc val (blame-add-missing-party blame neg-party) chap-not-imp?)
                    (chaperone-or-impersonate-vector
                     val
                     (checked-ref neg-party)
@@ -269,8 +269,6 @@
 
 (define/subexpression-pos-prop (vector-immutableof c)
   (vectorof c #:immutable #t))
-
-(define-struct base-vector/c (elems immutable))
 
 (define (vector/c-name c)
   (let ([immutable (base-vector/c-immutable c)])
@@ -385,7 +383,8 @@
            (p e neg-party))
          val)))))
 
-(define (vector/c-ho-late-neg-projection vector-wrapper)
+(define (vector/c-ho-late-neg-projection chap-not-imp?)
+  (define vector-wrapper (if chap-not-imp? chaperone-vector impersonate-vector))
   (λ (ctc)
      (let ([elem-ctcs (base-vector/c-elems ctc)]
            [immutable (base-vector/c-immutable ctc)])
@@ -409,19 +408,25 @@
                         (for/list ([e (in-vector val)]
                                    [i (in-naturals)])
                           ((vector-ref elem-pos-projs i) e neg-party)))
-                 ;; TODO: space-efficient machinery for vector/c contracts
-                 (vector-wrapper
-                  val
-                  (λ (vec i val)
-                    (with-contract-continuation-mark
-                     blame+neg-party
-                     ((vector-ref elem-pos-projs i) val neg-party)))
-                  (λ (vec i val)
-                    (with-contract-continuation-mark
-                     blame+neg-party
-                     ((vector-ref elem-neg-projs i) val neg-party)))
-                  impersonator-prop:contracted ctc
-                  impersonator-prop:blame blame))))))))
+                 (if (and (has-contract? val) (value-has-vector/c-space-efficient-support? val chap-not-imp?))
+                     (vector/c-space-efficient-guard
+                      ctc
+                      val
+                      (blame-add-missing-party blame neg-party)
+                      chap-not-imp?)
+                     (vector-wrapper
+                      val
+                      (λ (vec i val)
+                        (with-contract-continuation-mark
+                          blame+neg-party
+                          ((vector-ref elem-pos-projs i) val neg-party)))
+                      (λ (vec i val)
+                        (with-contract-continuation-mark
+                          blame+neg-party
+                          ((vector-ref elem-neg-projs i) val neg-party)))
+                      impersonator-prop:unwrapped val
+                      impersonator-prop:contracted ctc
+                      impersonator-prop:blame blame)))))))))
 
 (define-struct (chaperone-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc
@@ -430,7 +435,7 @@
    #:name vector/c-name
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
-   #:late-neg-projection (vector/c-ho-late-neg-projection chaperone-vector)))
+   #:late-neg-projection (vector/c-ho-late-neg-projection #t)))
 
 (define-struct (impersonator-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc
@@ -439,7 +444,7 @@
    #:name vector/c-name
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
-   #:late-neg-projection (vector/c-ho-late-neg-projection impersonate-vector)))
+   #:late-neg-projection (vector/c-ho-late-neg-projection #f)))
 
 (define-syntax (wrap-vector/c stx)
   (syntax-case stx ()
