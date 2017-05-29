@@ -360,4 +360,14 @@
            [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0)))
 
+  (test/spec-failed
+   'vector/c-blame
+   '(let* ([ctc (vector/c (-> integer? integer?))]
+           [v (contract
+               ctc
+               (contract ctc (vector add1) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      ((vector-ref v 0) 1.5))
+   "inner-neg")
+
   )
