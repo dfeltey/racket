@@ -350,10 +350,10 @@
 ;; TODO: factor out the first order checks from vector.rkt
 (define (do-vector/c-first-order-checks m/c val)
   (define checks (multi-vector/c-first-order m/c))
-  (for ([c (in-list checks)])
-    (define immutable (vector/c-first-order-immutable m/c))
-    (define blame (vector/c-first-order-blame m/c))
-    (define length (vector/c-first-order-length m/c))
+  (for ([check (in-list checks)])
+    (define immutable (vector/c-first-order-immutable check))
+    (define blame (vector/c-first-order-blame check))
+    (define length (vector/c-first-order-length check))
     (do-check-vector/c val blame immutable length)))
 
 
@@ -563,7 +563,7 @@
   (define blame (multi-vector/c-latest-blame ctc))
   (with-contract-continuation-mark
     blame
-    (guard-multi/c ref-ctc elt #t)))
+    (guard-multi-vector/c ref-ctc elt #t)))
 
 (define (vector/c-chaperone-set-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
@@ -572,7 +572,7 @@
   (define blame (multi-vector/c-latest-blame ctc))
   (with-contract-continuation-mark
     blame
-    (guard-multi/c set-ctc elt #t)))
+    (guard-multi-vector/c set-ctc elt #t)))
 
 (define (vector/c-impersonator-ref-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
@@ -581,7 +581,7 @@
   (define blame (multi-vector/c-latest-blame ctc))
   (with-contract-continuation-mark
     blame
-    (guard-multi/c ref-ctc elt #f)))
+    (guard-multi-vector/c ref-ctc elt #f)))
 
 (define (vector/c-impersonator-set-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
@@ -590,10 +590,10 @@
   (define blame (multi-vector/c-latest-blame ctc))
   (with-contract-continuation-mark
     blame
-    (guard-multi/c set-ctc elt #f)))
+    (guard-multi-vector/c set-ctc elt #f)))
 
 (define (bail-to-regular-vector/c-wrapper m/c val chap-not-imp?)
-  (do-first-order-checks m/c val)
+  (do-vector/c-first-order-checks m/c val)
   (define blame (multi-vector/c-latest-blame m/c))
   (define ctc (multi-vector/c-latest-ctc m/c))
   (if chap-not-imp?

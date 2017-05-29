@@ -426,7 +426,7 @@
                           ((vector-ref elem-neg-projs i) val neg-party)))
                       impersonator-prop:unwrapped val
                       impersonator-prop:contracted ctc
-                      impersonator-prop:blame blame)))))))))
+                      impersonator-prop:blame (blame-add-missing-party blame neg-party))))))))))
 
 (define-struct (chaperone-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc

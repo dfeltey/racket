@@ -225,4 +225,139 @@
            [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0)))
 
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;
+  ;; vector/c contract tests
+  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (test/spec-failed
+   'vector/c-bad-index
+   '(let* ([ctc (vector/c (vector/c integer?))]
+           [v (contract
+               ctc
+               (contract ctc (vector (vector 1 2)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-ref v 0))
+   "inner-pos")
+
+  (test/spec-passed
+   'vector/c-space-efficient1
+   '(let* ([ctc (vector/c (vector/c integer?))]
+           [v (contract
+               ctc
+               (contract ctc (vector (vector 0)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-ref (vector-ref v 0) 0)))
+
+  (test/spec-failed
+   'vector/c-space-efficient2
+   '(let* ([ctc (vector/c (vector/c integer?))]
+           [v (contract ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)])
+      (vector-ref (vector-ref v 0) 0))
+   "inner-pos")
+
+  (test/spec-failed
+   'vector/c-space-efficient3
+   '(let* ([ctc (vector/c (vector/c integer?))]
+           [v (contract
+               ctc
+               (contract ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-ref (vector-ref v 0) 0))
+   "inner-pos")
+
+  (test/spec-failed
+   'vector/c-space-efficient4
+   '(let* ([ctc (vector/c (vector/c integer?))]
+           [v (contract
+               ctc
+               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-set! (vector-ref v 0) 0 'bad))
+   'neg)
+
+  (test/spec-failed
+   'vector/c-space-efficient5
+   '(let* ([ctc (vector/c (vector/c integer?))]
+           [v (contract
+               ctc
+               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-set! v 0 (vector 'bad))
+      (vector-ref (vector-ref v 0) 0))
+   'neg)
+
+  ;; non-identical contracts in nested vectorof
+  (test/spec-failed
+   'vector/c-space-efficient6
+   '(let* ([ctc1 (vector/c (vector/c integer?))]
+           [ctc2 (vector/c (vector/c positive?))]
+           [v (contract
+               ctc1
+               (contract ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-set! (vector-ref v 0) 0 -1))
+   "inner-neg")
+
+  (test/spec-failed
+   'vector/c-space-efficient7
+   '(let* ([ctc1 (vector/c (vector/c integer?))]
+           [ctc2 (vector/c (vector/c positive?))]
+           [v (contract
+               ctc1
+               (contract ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-set! (vector-ref v 0) 0 1/2))
+   'neg)
+
+  (test/spec-failed
+      'vector/c-space-efficient8
+   '(let* ([ctc1 (vector/c (vector/c integer?))]
+           [ctc2 (vector/c (vector/c positive?))]
+           [v (contract
+               ctc1
+               (contract ctc2 (vector (vector 1/2)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-ref (vector-ref v 0) 0))
+   'pos)
+
+  (test/spec-failed
+   'vector/c-space-efficient9
+   '(let* ([ctc1 (vector/c (vector/c integer?))]
+           [ctc2 (vector/c (vector/c positive?))]
+           [v (contract
+               ctc1
+               (contract ctc2 (vector (vector -1)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-ref (vector-ref v 0) 0))
+   "inner-pos")
+
+  ;; tests for various first-order checks performed by vectors
+  (test/spec-failed
+   'vector/c-space-efficient10
+   '(let* ([ctc [vector/c (vector/c integer?)]]
+           [v (contract
+               ctc
+               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-set! v 0 'bad))
+   'neg)
+
+    (test/spec-failed
+     'vector/c-space-efficient11
+     '(let* ([ctc (vector/c (vector/c integer? #:immutable #t))]
+             [v (contract
+                 ctc
+                 (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+                 'pos 'neg)])
+        (vector-ref v 0))
+     "inner-pos")
+
+  (test/spec-passed
+   'vector/c-impersonator
+   '(let* ([ctc (vector/c (make-contract #:late-neg-projection (lambda (b) (lambda (x n) 'foo))))]
+           [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0)))
+
   )
