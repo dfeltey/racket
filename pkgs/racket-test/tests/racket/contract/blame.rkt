@@ -319,5 +319,14 @@
    'complete-prop-blame5
    '(has-complete-blame? (contract (vectorof integer?) (vector 1 2 3) 'pos 'neg))
    #t)
+   (test/spec-passed/result
+   'complete-prop-blame-vector/c
+   '(let* ([ctc (vector/c (-> integer? integer?))]
+           [v (contract
+               ctc
+               (contract ctc (vector add1) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (has-complete-blame? (vector-ref v 0)))
+   #t)
 
   )
