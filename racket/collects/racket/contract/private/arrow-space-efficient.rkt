@@ -297,16 +297,18 @@
          ;; Note: should add tail-marks-match support here.
          (define rng-checker
            (lambda (result)
-             (with-contract-continuation-mark
-              blame
-              (guard-multi/c rng result chap-not-imp?))))
+             (with-space-efficient-contract-continuation-mark
+               (with-contract-continuation-mark
+                 blame
+                 (guard-multi/c rng result chap-not-imp?)))))
          (apply values
                 rng-checker
                 (for/list ([dom (in-list doms)]
                            [arg (in-list args)])
-                  (with-contract-continuation-mark
-                   blame
-                   (guard-multi/c dom arg chap-not-imp?)))))]))
+                  (with-space-efficient-contract-continuation-mark
+                    (with-contract-continuation-mark
+                      blame
+                      (guard-multi/c dom arg chap-not-imp?))))))]))
 (define chaperone-wrapper    (make-checking-wrapper #t #f))
 (define impersonator-wrapper (make-checking-wrapper #f #f))
 

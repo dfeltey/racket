@@ -260,34 +260,38 @@
   (define ctc (get-impersonator-prop:multi/c outermost))
   (define ref-ctc (multi-vectorof-ref-ctc ctc))
   (define blame (multi-vectorof-latest-blame ctc))
-  (with-contract-continuation-mark
-    blame
-    (guard-multi/c ref-ctc elt #t)))
+  (with-space-efficient-contract-continuation-mark
+    (with-contract-continuation-mark
+      blame
+      (guard-multi/c ref-ctc elt #t))))
 
 (define (chaperone-set-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
   (define set-ctc (multi-vectorof-set-ctc ctc))
   (define blame (multi-vectorof-latest-blame ctc))
-  (with-contract-continuation-mark
-    blame
-    (guard-multi/c set-ctc elt #t)))
+  (with-space-efficient-contract-continuation-mark
+    (with-contract-continuation-mark
+      blame
+      (guard-multi/c set-ctc elt #t))))
 
 (define (impersonator-ref-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
   (define ref-ctc (multi-vectorof-ref-ctc ctc))
   (define blame (multi-vectorof-latest-blame ctc))
-  (with-contract-continuation-mark
-    blame
-    (guard-multi/c ref-ctc elt #f)))
+  (with-space-efficient-contract-continuation-mark
+    (with-contract-continuation-mark
+      blame
+      (guard-multi/c ref-ctc elt #f))))
 
 (define (impersonator-set-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
   (define set-ctc (multi-vectorof-set-ctc ctc))
   (define blame (multi-vectorof-latest-blame ctc))
-  (with-contract-continuation-mark
-    blame
-    (guard-multi/c set-ctc elt #f)))
-
+  (with-space-efficient-contract-continuation-mark
+    (with-contract-continuation-mark
+      blame
+      (guard-multi/c set-ctc elt #f))))
+  
 (define (bail-to-regular-wrapper m/c val chap-not-imp?)
   (do-first-order-checks m/c val)
   (define blame (multi-vectorof-latest-blame m/c))
@@ -561,36 +565,40 @@
   (define ref-ctcs (multi-vector/c-ref-ctcs ctc))
   (define ref-ctc (list-ref ref-ctcs i))
   (define blame (multi-vector/c-latest-blame ctc))
-  (with-contract-continuation-mark
-    blame
-    (guard-multi-vector/c ref-ctc elt #t)))
+  (with-space-efficient-contract-continuation-mark
+    (with-contract-continuation-mark
+      blame
+      (guard-multi-vector/c ref-ctc elt #t))))
 
 (define (vector/c-chaperone-set-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
   (define set-ctcs (multi-vector/c-set-ctcs ctc))
   (define set-ctc (list-ref set-ctcs i))
   (define blame (multi-vector/c-latest-blame ctc))
-  (with-contract-continuation-mark
-    blame
-    (guard-multi-vector/c set-ctc elt #t)))
+  (with-space-efficient-contract-continuation-mark
+    (with-contract-continuation-mark
+      blame
+      (guard-multi-vector/c set-ctc elt #t))))
 
 (define (vector/c-impersonator-ref-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
   (define ref-ctcs (multi-vector/c-ref-ctcs ctc))
   (define ref-ctc (list-ref ref-ctcs i))
   (define blame (multi-vector/c-latest-blame ctc))
-  (with-contract-continuation-mark
-    blame
-    (guard-multi-vector/c ref-ctc elt #f)))
+  (with-space-efficient-contract-continuation-mark
+    (with-contract-continuation-mark
+      blame
+      (guard-multi-vector/c ref-ctc elt #f))))
 
 (define (vector/c-impersonator-set-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
   (define set-ctcs (multi-vector/c-set-ctcs ctc))
   (define set-ctc (list-ref set-ctcs i))
   (define blame (multi-vector/c-latest-blame ctc))
-  (with-contract-continuation-mark
-    blame
-    (guard-multi-vector/c set-ctc elt #f)))
+  (with-space-efficient-contract-continuation-mark
+    (with-contract-continuation-mark
+      blame
+      (guard-multi-vector/c set-ctc elt #f))))
 
 (define (bail-to-regular-vector/c-wrapper m/c val chap-not-imp?)
   (do-vector/c-first-order-checks m/c val)

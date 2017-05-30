@@ -370,4 +370,95 @@
       ((vector-ref v 0) 1.5))
    "inner-neg")
 
+
+  ;; space-efficient continuation marks
+
+  (contract-eval
+   '(define (has-space-efficient-mark? v)
+      (define marks (current-continuation-marks))
+      (define res (continuation-mark-set-first marks space-efficient-contract-continuation-mark-key))
+      res))
+
+  (test/spec-passed
+   'space-efficient-mark-present
+   '(let* ([ctc (vectorof has-space-efficient-mark?)]
+           [v (contract ctc (contract ctc (vector 1) 'pos 'neg) 'pos 'neg)])
+      (vector-ref v 0)))
+
+  (test/spec-passed/result
+   'space-efficient-mark-absent
+   '(let* ([ctc (vectorof has-space-efficient-mark?)]
+           [v (contract ctc (vector 1) 'pos 'neg)])
+      (with-handlers ([exn:fail:contract:blame? (lambda (x) 'passed)])
+        (vector-ref v 0)))
+   'passed
+   1)
+
+  
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;;
+  ;; Implementation tests
+  ;;
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  (contract-eval '(require (submod racket/contract/private/vector-space-efficient for-testing)))
+  (contract-eval '(define (space-efficient? val) (has-impersonator-prop:multi/c? val)))
+  
+  ;; vectorof
+  (contract-eval
+   '(define (vectorof-has-num-contracts? v ref set)
+      (unless (has-impersonator-prop:multi/c? c)
+        (error "vectorof-has-num-contracts?: no space-efficient-contract"))
+      (define multi/c (get-impersonator-prop:multi/c v))
+      (define ref/c (multi-vectorof-ref-ctc multi/c))
+      (define set/c (multi-vectorof-set-ctc multi/c))
+      (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
+        (error "vectorof-has-num-contracts?: wrong number of ref projections"))
+      (unless (= (length (multi-leaf/c-proj-list set/c)) set)
+        (error "vectorof-has-num-contracts?: wrong number of set projections"))
+      (unless (= (length (multi-leaf/c-contract-list ref/c)) ref)
+        (error "vectorof-has-num-contracts?: wrong number of ref contracts"))
+      (unless (= (length (multi-leaf/c-contract-list set/c)) set)
+        (error "vectorof-has-num-contracts?: wrong number of set contracts"))))
+
+  (contract-eval
+   '(define (vectorof-can-combine? val ctc)
+      (value-has-vectorof-space-efficient-support? val (chaperone-contract? ctc))))
+
+
+  (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
+  (contract-eval '(define vecof-pos (vectorof pos)))
+  (contract-eval '(define vecof-vecof-pos (vectorof vecof-pos)))
+  
+      
+  
+  ;; vector/c
+    (contract-eval
+   '(define (vector/c-has-num-contracts? v refs sets)
+      (unless (has-impersonator-prop:multi/c? c)
+        (error "vectorof-has-num-contracts?: no space-efficient-contract"))
+      (define multi/c (get-impersonator-prop:multi/c v))
+      (define ref-ctcs (multi-vector/c-ref-ctcs multi/c))
+      (define set-ctcs (multi-vector/c-set-ctcs multi/c))
+      (for ([ref (in-list refs)]
+            [ref/c (in-list ref-ctcs)])
+        (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
+          (error "vectorof-has-num-contracts?: wrong number of ref projections"))
+        (unless (= (length (multi-leaf/c-contract-list ref/c)) ref)
+          (error "vectorof-has-num-contracts?: wrong number of ref contracts")))
+      (for ([set (in-list sets)]
+            [set/c (in-list set-ctcs)])
+        (unless (= (length (multi-leaf/c-proj-list set/c)) set)
+          (error "vectorof-has-num-contracts?: wrong number of set projections"))
+        (unless (= (length (multi-leaf/c-contract-list set/c)) set)
+          (error "vectorof-has-num-contracts?: wrong number of set contracts")))))
+
+    (contract-eval
+     '(define (vector/c-can-combine? val ctc)
+        (value-has-vector/c-space-efficient-support? val (chaperone-contract? ctc))))
+
+
+  ;; TODO: sorting test
+  
+
   )

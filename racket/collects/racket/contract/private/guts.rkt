@@ -58,6 +58,8 @@
          
          contract-continuation-mark-key
          with-contract-continuation-mark
+         space-efficient-contract-continuation-mark-key
+         with-space-efficient-contract-continuation-mark
          
          (struct-out wrapped-extra-arg-arrow)
          contract-custom-write-property-proc
@@ -878,6 +880,13 @@
     (with-continuation-mark contract-continuation-mark-key payload
                             (let () code ...))))
 
+(define space-efficient-contract-continuation-mark-key
+  (make-continuation-mark-key 'space-efficient-contract))
+
+(define-syntax-rule (with-space-efficient-contract-continuation-mark code ...)
+  (with-continuation-mark space-efficient-contract-continuation-mark-key #t
+    (let () code ...)))
+  
 (define (n->th n)
   (string-append 
    (number->string n)

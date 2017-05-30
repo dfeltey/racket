@@ -77,6 +77,8 @@
  
  contract-continuation-mark-key
  with-contract-continuation-mark
+ space-efficient-contract-continuation-mark-key
+ with-space-efficient-contract-continuation-mark
  
  (struct-out wrapped-extra-arg-arrow)
  contract-custom-write-property-proc
