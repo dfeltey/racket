@@ -261,6 +261,11 @@
   (set-box! b res)
   res)
 
+;; If requested, we can log the arities of the contracts that end up being
+;; space-efficient. That can inform whether we should have arity-specific
+;; wrappers, and if so, for which arities.
+(define-logger space-efficient-contract-arrow-wrapper-arity)
+
 ;; Create the 2nd chaperone wrapper procedure (see comment at the top),
 ;; as well as "deoptimization" wrappers (see below).
 ;; Checking wrappers come in different varieties, along two axes:
@@ -287,6 +292,8 @@
          (define blame  (multi-ho/c-latest-blame m/c)) ; latest is ok here
          (define n-args (length args))
          (define n-doms (length doms))
+         (log-space-efficient-contract-arrow-wrapper-arity-info
+          (number->string n-doms))
          (unless (= n-args n-doms)
            (raise-wrong-number-of-args-error blame outermost-chaperone
                                              n-args n-doms n-doms #f))
