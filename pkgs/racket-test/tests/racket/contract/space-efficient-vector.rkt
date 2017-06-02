@@ -25,6 +25,52 @@
    '(vector-ref bad-vecof-int 0)
    'pos)
 
+  (test/spec-failed
+   'vecof-bail-not-a-vector
+   '(let* ([ctc (vectorof (vectorof integer?))]
+           [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   "inner-pos")
+
+  (test/spec-failed
+   'vec/c-bail-not-a-vector
+   '(let* ([ctc (vector/c (vector/c integer?))]
+           [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   "inner-pos")
+
+  (test/spec-failed
+   'vec/c-different-lengths1
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c integer? integer?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   "inner-pos")
+
+  (test/spec-failed
+   'vec/c-different-lengths2
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c integer? integer?)]
+           [v (contract ctc2 (contract ctc1 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   'pos)
+
+  (test/spec-failed
+   'vec/c-different-lengths3
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c integer? integer?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-set! v 0 7))
+   "inner-pos")
+
+  (test/spec-failed
+   'vec/c-different-lengths4
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c integer? integer?)]
+           [v (contract ctc2 (contract ctc1 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-set! v 0 7))
+   'pos)
+
   ;; Testing basic keyword arguments
   ;; ***********************************************
 
@@ -402,17 +448,21 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
   (contract-eval '(require (submod racket/contract/private/vector-space-efficient for-testing)))
+  (contract-eval '(require (only-in (submod racket/contract/private/arrow-space-efficient for-testing)
+                                    get-impersonator-prop:multi/c
+                                    has-impersonator-prop:multi/c?)))
   (contract-eval '(define (space-efficient? val) (has-impersonator-prop:multi/c? val)))
-  
+
   ;; vectorof
   (contract-eval
    '(define (vectorof-has-num-contracts? v ref set)
-      (unless (has-impersonator-prop:multi/c? c)
+      (unless (has-impersonator-prop:multi/c? v)
         (error "vectorof-has-num-contracts?: no space-efficient-contract"))
       (define multi/c (get-impersonator-prop:multi/c v))
       (define ref/c (multi-vectorof-ref-ctc multi/c))
       (define set/c (multi-vectorof-set-ctc multi/c))
       (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
+        (printf "had ~a ref-projs\n\n" (length (multi-leaf/c-proj-list ref/c)))
         (error "vectorof-has-num-contracts?: wrong number of ref projections"))
       (unless (= (length (multi-leaf/c-proj-list set/c)) set)
         (error "vectorof-has-num-contracts?: wrong number of set projections"))
@@ -425,17 +475,10 @@
    '(define (vectorof-can-combine? val ctc)
       (value-has-vectorof-space-efficient-support? val (chaperone-contract? ctc))))
 
-
-  (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
-  (contract-eval '(define vecof-pos (vectorof pos)))
-  (contract-eval '(define vecof-vecof-pos (vectorof vecof-pos)))
-  
-      
-  
   ;; vector/c
     (contract-eval
    '(define (vector/c-has-num-contracts? v refs sets)
-      (unless (has-impersonator-prop:multi/c? c)
+      (unless (has-impersonator-prop:multi/c? v)
         (error "vectorof-has-num-contracts?: no space-efficient-contract"))
       (define multi/c (get-impersonator-prop:multi/c v))
       (define ref-ctcs (multi-vector/c-ref-ctcs multi/c))
@@ -457,8 +500,396 @@
      '(define (vector/c-can-combine? val ctc)
         (value-has-vector/c-space-efficient-support? val (chaperone-contract? ctc))))
 
+  (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
 
-  ;; TODO: sorting test
+  (test/spec-passed
+   'vecof-num-contracts
+   '(let* ([v (contract (vectorof pos) (contract (vectorof pos) (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vectorof-has-num-contracts? v 1 1)))
+
+  (test/spec-passed
+   'vecof-num-contracts-different-ref-set
+   '(let* ([ctc1 (vectorof (>/c 0))]
+           [ctc2 (vectorof real?)]
+           [v1 (contract ctc1 (contract ctc1 (vector 1) 'inner-pos 'inner-neg) 'inner-pos 'inner-neg)]
+           [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
+      (vectorof-has-num-contracts? v 1 2)))
+
+  (test/spec-passed
+   'vec/c-num-contracts
+   '(let* ([v (contract (vector/c pos pos) (contract (vector/c pos pos) (vector 1 2) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector/c-has-num-contracts? v '(1 1) '(1 1))))
+
+  (test/spec-passed
+   'vec/c-num-contracts-different-ref-set
+   '(let* ([ctc1 (vector/c (>/c 0) (>/c 0))]
+           [ctc2 (vector/c real? real?)]
+           [v1 (contract ctc1 (contract ctc1 (vector 1 2) 'inner-pos 'inner-neg) 'inner-pos 'inner-neg)]
+           [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
+      (vector/c-has-num-contracts? v '(1 1) '(2 2))))
+
+  (test/spec-passed
+   'vec/c-num-contracts-different-ref-set-different-posns
+   '(let* ([ctc1 (vector/c (>/c 0) real?)]
+           [ctc2 (vector/c real? real?)]
+           [v1 (contract ctc1 (contract ctc1 (vector 1 2) 'inner-pos 'inner-neg) 'inner-pos 'inner-neg)]
+           [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
+      (vector/c-has-num-contracts? v '(1 1) '(2 1))))
+
+   (test/spec-passed
+   'vec/c-more-ref-than-set
+   '(let* ([ctc2 (vector/c (>/c 0) real?)]
+           [ctc1 (vector/c real? real?)]
+           [v1 (contract ctc1 (contract ctc1 (vector 1 2) 'inner-pos 'inner-neg) 'inner-pos 'inner-neg)]
+           [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
+      (vector/c-has-num-contracts? v '(2 1) '(1 1))))
+
+  ;; TODO: a couple more has-num-contracts? tests with one contract sandwiching another for more interesting contract
+  ;; merging
+
+  (test/spec-passed
+   'vecof-sandwich1
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vectorof real?)]
+           [v (contract ctc1 (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n) 'p 'n)])
+      (vectorof-has-num-contracts? v 2 2)))
+
+  (test/spec-passed
+   'vec/c-sandwich1
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c real?)]
+           [v (contract ctc1 (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n) 'p 'n)])
+      (vector/c-has-num-contracts? v '(2) '(2))))
+
+
+  (test/spec-passed
+   'vecof-incompatible1
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vectorof string?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'p 'n) 'p 'n)])
+      (vectorof-has-num-contracts? v 2 2)))
+
+  (test/spec-passed
+   'vecof-incompatible2
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vectorof string?)]
+           [v (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n)])
+      (vectorof-has-num-contracts? v 2 2)))
+
+  (test/spec-passed
+   'vec/c-incompatible1
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c string?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'p 'n) 'p 'n)])
+      (vector/c-has-num-contracts? v '(2) '(2))))
+
+  (test/spec-passed
+   'vec/c-incompatible2
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c string?)]
+           [v (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n)])
+      (vector/c-has-num-contracts? v '(2) '(2))))
+
+  (test/spec-failed
+   'vecof-incompatible1-blame1
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vectorof string?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   "inner-pos")
+  (test/spec-failed
+   'vecof-incompatible1-blame2
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vectorof string?)]
+           [v (contract ctc1 (contract ctc2 (vector "foo") 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   'pos)
+  (test/spec-failed
+   'vecof-incompatible1-blame3
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vectorof string?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-set! v 0 "foo"))
+   'neg)
+  (test/spec-failed
+   'vecof-incompatible1-blame4
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vectorof string?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-set! v 0 2))
+   "inner-neg")
+
+  (test/spec-failed
+   'vec/c-incompatible1-blame1
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c string?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   "inner-pos")
+  (test/spec-failed
+   'vec/c-incompatible1-blame2
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c string?)]
+           [v (contract ctc1 (contract ctc2 (vector "foo") 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   'pos)
+  (test/spec-failed
+   'vec/c-incompatible1-blame3
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c string?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-set! v 0 "foo"))
+   'neg)
+  (test/spec-failed
+   'vec/c-incompatible1-blame4
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c string?)]
+           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-set! v 0 2))
+   "inner-neg")
+
+  ;; can combine tests
+
+  (contract-eval
+   '(define imp-ctc1
+      (make-contract
+       #:late-neg-projection (lambda (blame) (lambda (val neg) val)))))
+
+  (contract-eval
+   '(define imp-ctc2
+      (make-contract
+       #:late-neg-projection (lambda (blame) (lambda (val neg) val)))))
+
+  (contract-eval
+   '(define chap-ctc
+      (make-chaperone-contract
+       #:late-neg-projection (lambda (blame) (lambda (val neg) val)))))
+
+  ;; vectorof combine
+  (test/spec-passed/result
+   'vectorof-can-combine-chaps
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vectorof real?)]
+           [v (contract ctc1 (vector 1) 'pos 'neg)])
+      (vectorof-can-combine? v ctc2))
+   #t)
+
+  (test/spec-passed/result
+   'vectorof-can-combine-imps
+   '(let* ([ctc1 (vectorof imp-ctc1)]
+           [ctc2 (vectorof imp-ctc2)]
+           [v (contract ctc1 (vector 1) 'pos 'neg)])
+      (vectorof-can-combine? v ctc2))
+   #t)
+
+  (test/spec-passed/result
+   'vectorof-cant-mix-chap-imp
+   '(let* ([ctc1 (vectorof chap-ctc)]
+           [ctc2 (vectorof imp-ctc1)]
+           [v (contract ctc1 (vector 1) 'pos 'neg)])
+      (vectorof-can-combine? v ctc2))
+   #f)
+
+  (test/spec-passed/result
+   'vectorof-cant-mix-imp-chap
+   '(let* ([ctc1 (vectorof imp-ctc1)]
+           [ctc2 (vectorof chap-ctc)]
+           [v (contract ctc1 (vector 1) 'pos 'neg)])
+      (vectorof-can-combine? v ctc2))
+   #f)
+
+  (test/spec-passed/result
+   'vectorof-cant-merge-if-already-chaperoned
+   '(let* ([ctc (vectorof integer?)]
+           [v1 (chaperone-vector (vector 1) #f #f)]
+           [v (contract ctc v1 'pos 'neg)])
+      (vectorof-can-combine? v ctc))
+   #f)
+
+  (test/spec-passed/result
+   'vectorof-cant-merge-if-chaperoned-in-se-mode
+   '(let* ([ctc (vectorof integer?)]
+           [v1 (contract ctc (contract ctc (vector 1) 'pos 'neg) 'pos 'neg)]
+           [v (chaperone-vector v1 #f #f)])
+      (vectorof-can-combine? v ctc))
+   #f)
+
+  ;; vector/c combine
+  (test/spec-passed/result
+   'vector/c-can-combine-chaps
+   '(let* ([ctc1 (vector/c integer?)]
+           [ctc2 (vector/c real?)]
+           [v (contract ctc1 (vector 1) 'pos 'neg)])
+      (vector/c-can-combine? v ctc2))
+   #t)
+
+  (test/spec-passed/result
+   'vector/c-can-combine-imps
+   '(let* ([ctc1 (vector/c imp-ctc1)]
+           [ctc2 (vector/c imp-ctc2)]
+           [v (contract ctc1 (vector 1) 'pos 'neg)])
+      (vector/c-can-combine? v ctc2))
+   #t)
+
+  (test/spec-passed/result
+   'vector/c-cant-mix-chap-imp
+   '(let* ([ctc1 (vector/c chap-ctc)]
+           [ctc2 (vector/c imp-ctc1)]
+           [v (contract ctc1 (vector 1) 'pos 'neg)])
+      (vector/c-can-combine? v ctc2))
+   #f)
+
+  (test/spec-passed/result
+   'vector/c-cant-mix-imp-chap
+   '(let* ([ctc1 (vector/c imp-ctc1)]
+           [ctc2 (vector/c chap-ctc)]
+           [v (contract ctc1 (vector 1) 'pos 'neg)])
+      (vector/c-can-combine? v ctc2))
+   #f)
+
+  (test/spec-passed/result
+   'vector/c-cant-merge-if-already-chaperoned
+   '(let* ([ctc (vector/c integer?)]
+           [v1 (chaperone-vector (vector 1) #f #f)]
+           [v (contract ctc v1 'pos 'neg)])
+      (vector/c-can-combine? v ctc))
+   #f)
+
+  (test/spec-passed/result
+   'vector/c-cant-merge-if-chaperoned-in-se-mode
+   '(let* ([ctc (vector/c integer?)]
+           [v1 (contract ctc (contract ctc (vector 1) 'pos 'neg) 'pos 'neg)]
+           [v (chaperone-vector v1 #f #f)])
+      (vector/c-can-combine? v ctc))
+   #f)
+
+
+  (contract-eval
+   '(define many-layers
+      (contract (vectorof even?)
+                (chaperone-vector
+                 (contract (vectorof exact-integer?)
+                           (contract (vectorof positive?)
+                                     (vector 2)
+                                     'pos1 'neg1)
+                           'pos2 'neg2)
+                 #f
+                 #f)
+                'pos3 'neg3)))
+
+  (test/spec-failed
+   'many-layers-neg1
+   '(vector-set! many-layers 0 0)
+   "neg1")
+  (test/spec-failed
+   'many-layers-neg2
+   '(vector-set! many-layers 0 2.0)
+   "neg2")
+  (test/spec-failed
+   'many-layers-neg3
+   '(vector-set! many-layers 0 1)
+   "neg3")
+
+  (contract-eval
+   '(define many-layers/c
+      (contract (vector/c even?)
+                (chaperone-vector
+                 (contract (vector/c exact-integer?)
+                           (contract (vector/c positive?)
+                                     (vector 2)
+                                     'pos1 'neg1)
+                           'pos2 'neg2)
+                 #f
+                 #f)
+                'pos3 'neg3)))
+
+  (test/spec-failed
+   'many-layers/c-neg1
+   '(vector-set! many-layers/c 0 0)
+   "neg1")
+  (test/spec-failed
+   'many-layers/c-neg2
+   '(vector-set! many-layers/c 0 2.0)
+   "neg2")
+  (test/spec-failed
+   'many-layers/c-neg3
+   '(vector-set! many-layers/c 0 1)
+   "neg3")
+
+  ;; Vector Sorting Tests
+  ;; Make sure that if we sort a vector of vectors
+  ;; that must ref each element at least n times that the
+  ;; contained vectors do not build up contracts
   
+  (contract-eval
+   '(define (my-sort vec)
+      (define length (vector-length vec))
+      (for ([i (in-range length)])
+        (for ([j (in-range i length)])
+          (define vi (vector-ref vec i))
+          (define vj (vector-ref vec j))
+          (when (< (vector-ref vj 0) (vector-ref vi 0))
+            (vector-set! vec i vj)
+            (vector-set! vec j vi))))))
 
+  (contract-eval
+   '(define unsorted (vector
+                      (vector 10)
+                      (vector 9)
+                      (vector 8)
+                      (vector 7)
+                      (vector 6)
+                      (vector 5)
+                      (vector 4)
+                      (vector 3)
+                      (vector 2)
+                      (vector 1))))
+
+  (contract-eval
+   '(define unsorted+contracted
+      (contract (vectorof (vectorof integer?))
+                unsorted
+                'pos 'neg)))
+
+  (test/spec-passed
+   'vecof-sorting
+   '(let ()
+      (my-sort unsorted+contracted)
+      (for ([v (in-vector unsorted+contracted)])
+        (vectorof-has-num-contracts? v 1 1))))
+
+  (contract-eval
+   '(define unsorted2 (vector
+                      (vector 10)
+                      (vector 9)
+                      (vector 8)
+                      (vector 7)
+                      (vector 6)
+                      (vector 5)
+                      (vector 4)
+                      (vector 3)
+                      (vector 2)
+                      (vector 1))))
+
+  (contract-eval
+   '(define unsorted+contracted-vector/c
+      (contract (vector/c (vector/c integer?)
+                          (vector/c integer?)
+                          (vector/c integer?)
+                          (vector/c integer?)
+                          (vector/c integer?)
+                          (vector/c integer?)
+                          (vector/c integer?)
+                          (vector/c integer?)
+                          (vector/c integer?)
+                          (vector/c integer?))
+                unsorted2
+                'pos 'neg)))
+
+  (test/spec-passed
+   'vecof-sorting
+   '(let ()
+      (my-sort unsorted+contracted-vector/c)
+      (for ([v (in-vector unsorted+contracted-vector/c)])
+        (vector/c-has-num-contracts? v '(1) '(1)))))
   )
