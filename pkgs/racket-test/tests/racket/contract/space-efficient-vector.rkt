@@ -4,7 +4,7 @@
 (parameterize ([current-contract-namespace
                 (make-basic-contract-namespace
                  'racket/contract)])
-
+  
   (contract-eval '(define ctc (vectorof integer?)))
   (contract-eval '(define (wrap x) (contract ctc x 'pos 'neg)))
   (contract-eval '(define vecof-one (wrap (wrap (vector 1)))))
@@ -448,9 +448,7 @@
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
   (contract-eval '(require (submod racket/contract/private/vector-space-efficient for-testing)))
-  (contract-eval '(require (only-in (submod racket/contract/private/arrow-space-efficient for-testing)
-                                    get-impersonator-prop:multi/c
-                                    has-impersonator-prop:multi/c?)))
+  (contract-eval '(require (submod racket/contract/private/space-efficient-common for-testing)))
   (contract-eval '(define (space-efficient? val) (has-impersonator-prop:multi/c? val)))
 
   ;; vectorof
@@ -484,13 +482,13 @@
       (define ref-ctcs (multi-vector/c-ref-ctcs multi/c))
       (define set-ctcs (multi-vector/c-set-ctcs multi/c))
       (for ([ref (in-list refs)]
-            [ref/c (in-list ref-ctcs)])
+            [ref/c (in-vector ref-ctcs)])
         (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
           (error "vectorof-has-num-contracts?: wrong number of ref projections"))
         (unless (= (length (multi-leaf/c-contract-list ref/c)) ref)
           (error "vectorof-has-num-contracts?: wrong number of ref contracts")))
       (for ([set (in-list sets)]
-            [set/c (in-list set-ctcs)])
+            [set/c (in-vector set-ctcs)])
         (unless (= (length (multi-leaf/c-proj-list set/c)) set)
           (error "vectorof-has-num-contracts?: wrong number of set projections"))
         (unless (= (length (multi-leaf/c-contract-list set/c)) set)

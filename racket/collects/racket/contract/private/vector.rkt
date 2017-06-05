@@ -5,6 +5,7 @@
          "prop.rkt"
          "blame.rkt"
          "misc.rkt"
+         "vector-common.rkt"
          "vector-space-efficient.rkt")
 
 (provide (rename-out [wrap-vectorof vectorof]
@@ -285,32 +286,6 @@
                 (list '#:immutable immutable)
                 null)))))
 
-(define (check-vector/c ctc val blame neg-party)
-  (define elem-ctcs (base-vector/c-elems ctc))
-  (define immutable (base-vector/c-immutable ctc))
-  (unless (vector? val)
-    (raise-blame-error blame #:missing-party neg-party val
-                       '(expected: "a vector" given: "~e") val))
-  (cond
-    [(eq? immutable #t)
-     (unless (immutable? val)
-       (raise-blame-error blame #:missing-party neg-party val
-                          '(expected: "an immutable vector" given: "~e")
-                          val))]
-    [(eq? immutable #f)
-     (when (immutable? val)
-       (raise-blame-error blame #:missing-party neg-party val
-                          '(expected: "a mutable vector" given: "~e")
-                          val))]
-    [else (void)])
-  (define elem-count (length elem-ctcs))
-  (unless (= (vector-length val) elem-count)
-    (raise-blame-error blame #:missing-party neg-party val
-                       '(expected: "a vector of ~a element~a" given: "~e")
-                       elem-count
-                       (if (= elem-count 1) "" "s") 
-                       val)))
-
 (define (vector/c-first-order ctc)
   (define elem-ctcs (base-vector/c-elems ctc))
   (define immutable (base-vector/c-immutable ctc))
@@ -372,14 +347,16 @@
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
    #:late-neg-projection
-   (λ (ctc) 
+   (λ (ctc)
+     (define elems (base-vector/c-elems ctc))
+     (define immutable (base-vector/c-immutable ctc))
      (λ (blame) 
        (define blame+ctxt (blame-add-element-of-context blame))
        (define val+np-acceptors
-         (for/list ([c (in-list (base-vector/c-elems ctc))])
+         (for/list ([c (in-list elems)])
            ((get/build-late-neg-projection c) blame+ctxt)))
        (λ (val neg-party)
-         (check-vector/c ctc val blame neg-party)
+         (check-vector/c val blame immutable (length elems))
          (for ([e (in-vector val)]
                [p (in-list val+np-acceptors)])
            (p e neg-party))
@@ -390,20 +367,21 @@
   (λ (ctc)
      (let ([elem-ctcs (base-vector/c-elems ctc)]
            [immutable (base-vector/c-immutable ctc)])
+       (define elems-length (length elem-ctcs))
        (λ (blame)
-         (let ([elem-pos-projs (for/vector #:length (length elem-ctcs)
+         (let ([elem-pos-projs (for/vector #:length elems-length
                                  ([c (in-list elem-ctcs)]
                                   [i (in-naturals)])
                                  ((get/build-late-neg-projection c)
                                   (blame-add-context blame (format "the ~a element of" (n->th i)))))]
-               [elem-neg-projs (for/vector #:length (length elem-ctcs)
+               [elem-neg-projs (for/vector #:length elems-length
                                  ([c (in-list elem-ctcs)]
                                   [i (in-naturals)])
                                  ((get/build-late-neg-projection c)
                                   (blame-add-context blame (format "the ~a element of" (n->th i))
                                                      #:swap? #t)))])
            (λ (val neg-party)
-             (check-vector/c ctc val blame neg-party)
+             (check-vector/c val blame immutable elems-length)
              (define blame+neg-party (cons blame neg-party))
              (if (and (immutable? val) (not (chaperone? val)))
                  (apply vector-immutable

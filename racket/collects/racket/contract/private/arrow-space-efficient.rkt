@@ -5,6 +5,8 @@
 ;; based on a prototype by Christophe Scholliers
 
 (require racket/unsafe/ops
+         "space-efficient-common.rkt"
+         (submod "space-efficient-common.rkt" properties)
          "prop.rkt" "guts.rkt" "misc.rkt" "blame.rkt" "arrow-common.rkt"
          "arity-checking.rkt"
          (for-syntax racket/base))
@@ -13,23 +15,8 @@
          contract-has-space-efficient-support?
          value-has-space-efficient-support?)
 (module+ for-testing
-  (provide multi-ho/c? multi-ho/c-doms multi-ho/c-rng
-           multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
-           has-impersonator-prop:multi/c? get-impersonator-prop:multi/c
-           get-impersonator-prop:checking-wrapper
+  (provide multi->? multi->-doms multi->-rng
            value-has-space-efficient-support?))
-;; object contracts need to propagate properties across procedure->method
-(module+ properties
-  (provide impersonator-prop:checking-wrapper
-           has-impersonator-prop:checking-wrapper?
-           get-impersonator-prop:checking-wrapper
-           impersonator-prop:multi/c
-           has-impersonator-prop:multi/c?
-           get-impersonator-prop:multi/c
-           impersonator-prop:outer-wrapper-box
-           has-impersonator-prop:outer-wrapper-box?
-           get-impersonator-prop:outer-wrapper-box))
-
 
 ;; General Strategy
 
@@ -57,7 +44,7 @@
 ;;   wrapped with space-efficient wrappers from the start (i.e., before getting
 ;;   any other contract).
 ;;   Note: This could be changed. Just avoid recursively converting contracts in
-;;     `ho/c->multi-ho/c`, and instead have doms and rngs be `ho-leaf/c` always.
+;;     `ho/c->multi->`, and instead have doms and rngs be `ho-leaf/c` always.
 ;;   Because of this, they don't need the first, unsafe chaperone wrapper above.
 ;;   They only have the last two wrappers, otherwise the above strategy applies.
 
@@ -72,23 +59,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
 
-;; reference to the 2nd chaperone, see description above
-(define-values (impersonator-prop:checking-wrapper
-                has-impersonator-prop:checking-wrapper?
-                get-impersonator-prop:checking-wrapper)
-  (make-impersonator-property 'impersonator-prop:checking-wrapper))
-(define-values (impersonator-prop:multi/c
-                has-impersonator-prop:multi/c?
-                get-impersonator-prop:multi/c)
-  (make-impersonator-property 'impersonator-prop:multi/c))
-;; reference to the 3rd chaperone, see description above
-;; needed to detect whether anyone but us is chaperoning values
-(define-values (impersonator-prop:outer-wrapper-box
-                has-impersonator-prop:outer-wrapper-box?
-                get-impersonator-prop:outer-wrapper-box)
-  (make-impersonator-property 'impersonator-prop:outer-wrapper-box))
-
-(struct multi/c ())
 ;; we store the most recent blame only. when contracts fail, they assign
 ;; blame based on closed-over blame info, so `latest-blame` is only used
 ;; for things like prop:blame, contract profiling, and tail marks, in which
@@ -96,11 +66,9 @@
 ;; (and this behavior is consistent with what would happen in the absence
 ;; of space-efficient contracts anyway)
 ;; ditto for `latest-ctc` and prop:contracted
-(struct multi-ho/c multi/c (doms rng first-order-checks latest-blame latest-ctc))
-(struct chaperone-multi-ho/c multi-ho/c ())
-(struct impersonator-multi-ho/c multi-ho/c ())
-
-(struct multi-leaf/c multi/c (proj-list contract-list))
+(struct multi-> multi-ho/c (doms rng first-order-checks))
+(struct chaperone-multi-> multi-> ())
+(struct impersonator-multi-> multi-> ())
 
 ;; contains all the information necessary to both (1) perform first order checks
 ;; for an arrow contract, and (2) determine which such checks are redundant and
@@ -121,7 +89,7 @@
     (when debug-bailouts
       (printf "contract bailing: ~a -- ~a\n" reason ctc))
     #f)
-  (cond [(multi-ho/c? ctc) ; already one
+  (cond [(multi->? ctc) ; already one
          #t]
         [(base->? ctc) ; only applies to regular arrow contracts (for now)
          (define doms (base->-doms ctc))
@@ -215,7 +183,7 @@
            ;; value is already in space-efficient mode; merge new contract in
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
-           (values (join-multi-ho/c (ho/c->multi-ho/c ctc blame chap-not-imp?)
+           (values (join-multi-> (ho/c->multi-> ctc blame chap-not-imp?)
                                     (get-impersonator-prop:multi/c val))
                    (get-impersonator-prop:checking-wrapper val))]
           [(has-contract? val)
@@ -232,9 +200,9 @@
                   unsafe-impersonate-procedure)
               val
               (get-impersonator-prop:unwrapped val)))
-           (values (join-multi-ho/c
-                    (ho/c->multi-ho/c ctc      blame chap-not-imp?)
-                    (ho/c->multi-ho/c orig-ctc orig-blame chap-not-imp?))
+           (values (join-multi->
+                    (ho/c->multi-> ctc      blame chap-not-imp?)
+                    (ho/c->multi-> orig-ctc orig-blame chap-not-imp?))
                    (make-checking-wrapper unwrapped))]
           [else
            ;; value is not contracted; applying a s-e subcontract directly
@@ -287,8 +255,8 @@
                  #'maybe-closed-over-m/c ; we did close over the contract
                  ;; otherwise, get it from the impersonator property
                  #'(get-impersonator-prop:multi/c outermost-chaperone)))
-         (define doms   (multi-ho/c-doms         m/c))
-         (define rng    (multi-ho/c-rng          m/c))
+         (define doms   (multi->-doms         m/c))
+         (define rng    (multi->-rng          m/c))
          (define blame  (multi-ho/c-latest-blame m/c)) ; latest is ok here
          (define n-args (length args))
          (define n-doms (length doms))
@@ -326,20 +294,13 @@
     (error "internal error: not a space-efficient contract"))
   (cond [(multi-leaf/c? m/c)
          (apply-proj-list (multi-leaf/c-proj-list m/c) val)]
-        ;; multi-ho/c cases
+        ;; multi-> cases
         [(value-has-space-efficient-support? val m/c)
          (space-efficient-guard
           m/c val (multi-ho/c-latest-blame m/c) chap-not-imp?)]
         [else
          ;; not safe to use space-efficient wrapping
          (bail-to-regular-wrapper m/c val chap-not-imp?)]))
-
-;; Apply a list of projections over a value
-;; Note that for our purposes it is important to fold left otherwise blame
-;; could be assigned in the wrong order
-;; [a -> (Maybe a)] -> a -> (Maybe a)
-(define (apply-proj-list proj-list val)
-  (foldl (lambda (f v) (f v #f)) val proj-list)) ; #f neg-party (already in blame)
 
 ;; create a regular checking wrapper from a space-efficient wrapper for a value
 ;; that can't use space-efficient wrapping
@@ -352,7 +313,7 @@
    impersonator-prop:blame      (multi-ho/c-latest-blame m/c)))
 
 (define (do-first-order-checks m/c val)
-  (define checks (multi-ho/c-first-order-checks m/c))
+  (define checks (multi->-first-order-checks m/c))
   (for ([c (in-list checks)])
     (define n-doms (first-order-check-n-doms c))
     (cond [(do-arity-checking
@@ -373,49 +334,26 @@
 ;; Conversion consists of simultaneously copying the structure of the
 ;; higher-order contract and propagating the blame to the leaves.
 ;; At the leaves we convert contracts to multi-leaf/c
-(define (ho/c->multi-ho/c ctc blame chap-not-imp?)
+(define (ho/c->multi-> ctc blame chap-not-imp?)
   (cond
-   [(multi-ho/c? ctc) ; already in multi mode
+   [(multi->? ctc) ; already in multi mode
     ctc]
    ;; copy structure and propagate blame
    [(and (base->? ctc) (contract-has-space-efficient-support? ctc))
     (define doms (base->-doms ctc))
     (define rng  (car (base->-rngs ctc))) ; assumes single range
     (define dom-blame (blame-swap blame))
-    ((if chap-not-imp? chaperone-multi-ho/c impersonator-multi-ho/c)
-     (for/list ([dom (in-list doms)])
-       (ho/c->multi-ho/c dom dom-blame chap-not-imp?))
-     (ho/c->multi-ho/c rng blame chap-not-imp?)
-     (list (first-order-check (length doms) blame (base->-method? ctc)))
+    ((if chap-not-imp? chaperone-multi-> impersonator-multi->)
      blame
-     ctc)]
+     ctc
+     (for/list ([dom (in-list doms)])
+       (ho/c->multi-> dom dom-blame chap-not-imp?))
+     (ho/c->multi-> rng blame chap-not-imp?)
+     (list (first-order-check (length doms) blame (base->-method? ctc))))]
    [else ; anything else is wrapped in a multi-leaf wrapper
     (multi-leaf/c
      (list ((contract-late-neg-projection ctc) blame))
      (list ctc))]))
-
-
-;; checks whether the contract c is already implied by one of the
-;; contracts in contract-list
-(define (implied-by-one? contract-list c #:implies implies)
-  (for/or ([e (in-list contract-list)])
-    (implies e c)))
-
-;; join two multi-leaf contracts
-(define (join-multi-leaf/c old-multi new-multi)
-  (define old-proj-list (multi-leaf/c-proj-list old-multi))
-  (define old-flat-list (multi-leaf/c-contract-list old-multi))
-  (define new-proj-list (multi-leaf/c-proj-list new-multi))
-  (define new-flat-list (multi-leaf/c-contract-list new-multi))
-  (define-values (not-implied-projs not-implied-flats)
-    (for/lists (_1 _2) ([old-proj (in-list old-proj-list)]
-                        [old-flat (in-list old-flat-list)]
-                        #:when (not (implied-by-one?
-                                     new-flat-list old-flat
-                                     #:implies contract-stronger?)))
-      (values old-proj old-flat)))
-  (multi-leaf/c (append new-proj-list not-implied-projs)
-                (append new-flat-list not-implied-flats)))
 
 (define (join-first-order-check new-checks old-checks)
   (append new-checks
@@ -425,44 +363,44 @@
                                       #:implies first-order-check-stronger?))))
             old)))
 
-;; join two multi-ho/c
-(define (join-multi-ho/c new-multi old-multi)
+;; join two multi->
+(define (join-multi-> new-multi old-multi)
   (define (multi->leaf c)
     (multi-leaf/c
      ;; create a regular projection from the multi wrapper
      (list (lambda (val neg-party)
              (bail-to-regular-wrapper c val
-                                      (or (chaperone-multi-ho/c? old-multi)
-                                          (chaperone-multi-ho/c? new-multi)))))
+                                      (or (chaperone-multi->? old-multi)
+                                          (chaperone-multi->? new-multi)))))
      ;; nothing meaningful here. just want to be incomparable by
      ;; `contract-stronger?`
      (list (gensym))))
   (cond
-   [(and (multi-ho/c? old-multi) (multi-ho/c? new-multi))
+   [(and (multi->? old-multi) (multi->? new-multi))
     (define chap/imp/c
-      (cond [(chaperone-multi-ho/c? new-multi)
-             (unless (chaperone-multi-ho/c? old-multi) ; shouldn't happen
+      (cond [(chaperone-multi->? new-multi)
+             (unless (chaperone-multi->? old-multi) ; shouldn't happen
                (error "internal error: joining chaperone and impersonator contracts"
                       new-multi old-multi))
-             chaperone-multi-ho/c]
+             chaperone-multi->]
             [else
-             impersonator-multi-ho/c]))
+             impersonator-multi->]))
     (chap/imp/c
+     (multi-ho/c-latest-blame new-multi)
+     (multi-ho/c-latest-ctc   new-multi)
      ;; if old and new don't have the same arity, then one of them will *have*
      ;; to fail its first order checks, so we're fine.
      ;; (we don't support optional arguments)
-     (for/list ([new (multi-ho/c-doms new-multi)]
-                [old (multi-ho/c-doms old-multi)])
-       (join-multi-ho/c old new))
-     (join-multi-ho/c (multi-ho/c-rng new-multi)
-                      (multi-ho/c-rng old-multi))
-     (join-first-order-check (multi-ho/c-first-order-checks old-multi)
-                             (multi-ho/c-first-order-checks new-multi))
-     (multi-ho/c-latest-blame new-multi)
-     (multi-ho/c-latest-ctc   new-multi))]
-   [(multi-ho/c? old-multi) ; convert old to a multi-leaf/c
+     (for/list ([new (multi->-doms new-multi)]
+                [old (multi->-doms old-multi)])
+       (join-multi-> old new))
+     (join-multi-> (multi->-rng new-multi)
+                      (multi->-rng old-multi))
+     (join-first-order-check (multi->-first-order-checks old-multi)
+                             (multi->-first-order-checks new-multi)))]
+   [(multi->? old-multi) ; convert old to a multi-leaf/c
     (join-multi-leaf/c new-multi (multi->leaf old-multi))]
-   [(multi-ho/c? new-multi) ; convert new to a multi-leaf/c
+   [(multi->? new-multi) ; convert new to a multi-leaf/c
     (join-multi-leaf/c (multi->leaf new-multi) old-multi)]
    [else
     (join-multi-leaf/c new-multi old-multi)]))

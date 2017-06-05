@@ -68,13 +68,14 @@
    "inner-pos")
 
   (contract-eval '(require (submod racket/contract/private/arrow-space-efficient for-testing)))
+  (contract-eval '(require (submod racket/contract/private/space-efficient-common for-testing)))
   (contract-eval
    '(define (has-num-contracts? f dom rng)
       (unless (has-impersonator-prop:multi/c? f)
         (error "has-num-contracts?: no space-efficient contract"))
       (define multi/c  (get-impersonator-prop:multi/c f))
-      (define domain/c (car (multi-ho/c-doms multi/c)))
-      (define range/c  (multi-ho/c-rng  multi/c))
+      (define domain/c (car (multi->-doms multi/c)))
+      (define range/c  (multi->-rng  multi/c))
       (unless (= (length (multi-leaf/c-proj-list domain/c)) dom)
         (error "has-num-contracts?: wrong number of domain projections"))
       (unless (= (length (multi-leaf/c-proj-list range/c))  rng)
@@ -124,7 +125,7 @@
   ;; check whether it has a contract (but not a space-efficient wrapper)
   (test-false
    'space-efficient12.5
-   '(multi-ho/c? (value-contract guarded)))
+   '(multi->? (value-contract guarded)))
   ;; checking normal blame
   (test/spec-failed
    'space-efficient13
