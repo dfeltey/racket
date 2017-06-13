@@ -88,9 +88,7 @@
       (vectorof->multi-vectorof elem set-blame chap-not-imp?)
       (list (first-order-check (base-vectorof-immutable ctc) blame)))]
     [else ; convert to a leaf
-     (multi-leaf/c
-      (list ((contract-late-neg-projection ctc) blame))
-      (list ctc))]))
+     (convert-to-multi-leaf/c ctc blame)]))
 
 (define (first-order-check-join new-checks old-checks)
   (append new-checks
@@ -195,7 +193,6 @@
      (vectorof-space-efficient-guard ctc val (multi-ho/c-latest-blame ctc) chap-not-imp?)]
     [else
      (bail-to-regular-wrapper ctc val chap-not-imp?)]))
-
 
 (define (chaperone-ref-wrapper outermost v i elt)
   (define ctc (get-impersonator-prop:multi/c outermost))
@@ -354,9 +351,7 @@
              (length elems)
              blame)))]
     [else ; convert to a leaf
-     (multi-leaf/c
-      (list ((contract-late-neg-projection ctc) blame))
-      (list ctc))]))
+     (convert-to-multi-leaf/c ctc blame)]))
 
 (define (join-multi-vector/c new-multi old-multi)
   ;; TODO: lift this out to a single top-level definition shared amongst

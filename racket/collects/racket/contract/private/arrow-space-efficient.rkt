@@ -351,9 +351,7 @@
      (ho/c->multi-> rng blame chap-not-imp?)
      (list (first-order-check (length doms) blame (base->-method? ctc))))]
    [else ; anything else is wrapped in a multi-leaf wrapper
-    (multi-leaf/c
-     (list ((contract-late-neg-projection ctc) blame))
-     (list ctc))]))
+    (convert-to-multi-leaf/c ctc blame)]))
 
 (define (join-first-order-check new-checks old-checks)
   (append new-checks
