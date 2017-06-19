@@ -149,7 +149,9 @@
   (let ([c (coerce-contract/f x)])
     (and c
          (not (flat-contract-struct? c))
-         (not (chaperone-contract-struct? c)))))
+         (not (chaperone-contract-struct? c))
+         (not (and (prop:opt-chaperone-contract? c)
+                   ((prop:opt-chaperone-contract-get-test c) c))))))
 
 
 (define (has-contract? v)
