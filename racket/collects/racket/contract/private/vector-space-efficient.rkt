@@ -18,7 +18,8 @@
 ;; - Refactor the space efficient contract implementation and vector contracts
 
 (provide vectorof-space-efficient-guard
-         value-has-vectorof-space-efficient-support?)
+         value-has-vectorof-space-efficient-support?
+         contract-has-vectorof-space-efficient-support?)
 
 (module+ for-testing
   (provide  multi-vectorof? multi-vectorof-ref-ctc multi-vectorof-set-ctc
@@ -40,6 +41,15 @@
     (define (raise-blame val . args)
       (apply raise-blame-error blame #:missing-party #f val args))
     (do-check-vectorof val raise-blame immutable)))
+
+(define (contract-has-vectorof-space-efficient-support? ctc)
+  (define (bail reason)
+    (when debug-bailouts
+      (printf "contract bailing: ~a -- ~a\n" reason ctc))
+    #f)
+  (or (multi-vectorof? ctc)
+      (base-vectorof? ctc)
+      (bail "not a vectorof contract")))
 
 (define (value-has-vectorof-space-efficient-support? val chap-not-imp?)
   (define (bail reason)
@@ -244,7 +254,8 @@
 ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (provide vector/c-space-efficient-guard
-         value-has-vector/c-space-efficient-support?)
+         value-has-vector/c-space-efficient-support?
+         contract-has-vector/c-space-efficient-support?)
 
 (module+ for-testing
   (provide multi-vector/c multi-vector/c-ref-ctcs multi-vector/c-set-ctcs
@@ -287,6 +298,15 @@
                                   new-checks old
                                   #:implies vector/c-first-order-check-stronger?)))
             old)))
+
+(define (contract-has-vector/c-space-efficient-support? ctc)
+  (define (bail reason)
+    (when debug-bailouts
+      (printf "contract bailing: ~a -- ~a\n" reason ctc))
+    #f)
+  (or (multi-vector/c? ctc)
+      (base-vector/c? ctc)
+      (bail "not a vector/c contract")))
 
 ;; TODO: this is the same as the vectorof function, should these actually be the same???
 ;; if so, then just need one, else can abstract most of the common parts
