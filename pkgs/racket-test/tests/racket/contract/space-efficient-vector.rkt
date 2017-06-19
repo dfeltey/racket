@@ -890,4 +890,60 @@
       (my-sort unsorted+contracted-vector/c)
       (for ([v (in-vector unsorted+contracted-vector/c)])
         (vector/c-has-num-contracts? v '(1) '(1)))))
+
+  ;; bail out and switching bugs
+
+  (contract-eval '(require racket/class))
+
+  (test/spec-passed
+   'object/c-passing-vecof
+   '(let* ([grid/c (vectorof (vectorof (object/c)))]
+           [grid (contract
+                  grid/c
+                  (contract
+                   grid/c
+                   (vector (vector (new object%)))
+                   'inner-pos 'inner-neg)
+                  'pos 'neg)])
+      (vector-ref (vector-ref grid 0) 0)))
+
+  (test/spec-failed
+   'object/c-failing-vecof
+   '(let* ([v (contract (vectorof integer?) (vector 1) 'orig-p 'orig-n)]
+           [grid/c (vectorof (vectorof (object/c)))]
+           [grid (contract
+                  grid/c
+                  (contract
+                   grid/c
+                   (vector v)
+                   'inner-pos 'inner-neg)
+                  'pos 'neg)])
+      (vector-ref (vector-ref grid 0) 0))
+   "inner-pos")
+
+  (test/spec-passed
+   'object/c-passing-vec/c
+   '(let* ([grid/c (vector/c (vector/c (object/c)))]
+           [grid (contract
+                  grid/c
+                  (contract
+                   grid/c
+                   (vector (vector (new object%)))
+                   'inner-pos 'inner-neg)
+                  'pos 'neg)])
+      (vector-ref (vector-ref grid 0) 0)))
+
+  (test/spec-failed
+   'object/c-failing-vecof
+   '(let* ([v (contract (vector/c integer?) (vector 1) 'orig-p 'orig-n)]
+           [grid/c (vector/c (vector/c (object/c)))]
+           [grid (contract
+                  grid/c
+                  (contract
+                   grid/c
+                   (vector v)
+                   'inner-pos 'inner-neg)
+                  'pos 'neg)])
+      (vector-ref (vector-ref grid 0) 0))
+   "inner-pos")
   )

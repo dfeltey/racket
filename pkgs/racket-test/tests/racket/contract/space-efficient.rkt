@@ -712,4 +712,33 @@
                                           (lambda (x y) x)
                                           'inner-pos 'inner-neg)
                                 'pos 'neg)))
+
+  (contract-eval '(require racket/class))
+
+  (test/spec-passed
+   'object/c-->-pass/no-bail
+   '(let* ([grid/c (-> (-> (object/c)))]
+           [o (new object%)]
+           [v (lambda () o)]
+           [grid (contract
+                  grid/c
+                  (contract
+                   grid/c
+                   (lambda () v)
+                   'inner-pos 'inner-neg)
+                  'pos 'neg)])
+      ((grid))))
+
+  (test/spec-failed
+   'object/c-->-fail/should-bail
+   '(let* ([v (contract (-> integer?) (lambda () 1) 'p 'n)]
+           [grid (contract
+                  (-> (-> (object/c)))
+                  (contract
+                   (-> (-> (object/c)))
+                   (lambda () v)
+                   'inner-pos 'inner-neg)
+                  'pos 'neg)])
+      ((grid)))
+   "inner-pos")
   )

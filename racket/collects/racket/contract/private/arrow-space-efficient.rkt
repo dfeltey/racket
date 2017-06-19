@@ -163,9 +163,10 @@
                       chap-not-imp?
                       (not chap-not-imp?))]
                  [else
-                  (if chap-not-imp?
-                      (chaperone-contract?    (value-contract val))
-                      (impersonator-contract? (value-contract val)))])
+                  (or (not (value-contract val))
+                           (if chap-not-imp?
+                               (chaperone-contract?    (value-contract val))
+                               (impersonator-contract? (value-contract val))))])
            (bail "switching from imp to chap or vice versa"))))
 
 
@@ -295,7 +296,7 @@
   (cond [(multi-leaf/c? m/c)
          (apply-proj-list (multi-leaf/c-proj-list m/c) val)]
         ;; multi-> cases
-        [(value-has-space-efficient-support? val m/c)
+        [(value-has-space-efficient-support? val chap-not-imp?)
          (space-efficient-guard
           m/c val (multi-ho/c-latest-blame m/c) chap-not-imp?)]
         [else

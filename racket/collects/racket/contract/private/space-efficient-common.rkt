@@ -71,9 +71,9 @@
 ;; could be assigned in the wrong order
 ;; [a -> (Maybe a)] -> a -> (Maybe a)
 (define (apply-proj-list proj-list val)
-  (for/fold ([val val])
+  (for/fold ([val* val])
             ([proj (in-list proj-list)])
-    (proj val #f))) ; #f neg-party (already in blame)
+    (proj val* #f))) ; #f neg-party (already in blame)
 
 ;; checks whether the contract c is already implied by one of the
 ;; contracts in contract-list

@@ -3,7 +3,8 @@
 (require "prop.rkt" "guts.rkt" "blame.rkt" "vector-common.rkt"
          "space-efficient-common.rkt"
          (submod "space-efficient-common.rkt" properties)
-         (only-in racket/unsafe/ops unsafe-chaperone-vector unsafe-impersonate-vector))
+         (only-in racket/unsafe/ops unsafe-chaperone-vector unsafe-impersonate-vector)
+         (for-syntax racket/base))
 
 ;; TODO:
 ;; DONE: first order checks
@@ -63,9 +64,10 @@
                       chap-not-imp?
                       (not chap-not-imp?))]
                  [else
-                  (if chap-not-imp?
-                      (chaperone-contract?    (value-contract val))
-                      (impersonator-contract? (value-contract val)))])
+                  (or (not (value-contract val))
+                      (if chap-not-imp?
+                          (chaperone-contract?    (value-contract val))
+                          (impersonator-contract? (value-contract val))))])
            (bail "switching from imp to chap or vice versa"))))
 
 (define (first-order-check-stronger? f1 f2)
@@ -136,9 +138,10 @@
 
 (define (vectorof-space-efficient-guard ctc val blame chap-not-imp?)
   (define (make-checking-wrapper unwrapped)
-    (if chap-not-imp?
-        (chaperone-vector* unwrapped chaperone-ref-wrapper chaperone-set-wrapper)
-        (impersonate-vector* unwrapped impersonator-ref-wrapper impersonator-set-wrapper)))
+    (define chap/imp (if chap-not-imp? chaperone-vector* impersonate-vector*))
+    (define ref-wrapper (if chap-not-imp? chaperone-ref-wrapper impersonator-ref-wrapper))
+    (define set-wrapper (if chap-not-imp? chaperone-set-wrapper impersonator-set-wrapper))
+    (chap/imp unwrapped ref-wrapper set-wrapper))
   (define-values (merged-ctc checking-wrapper)
     (cond [(has-impersonator-prop:multi/c? val)
            (unless (has-impersonator-prop:checking-wrapper? val)
@@ -194,59 +197,45 @@
     [else
      (bail-to-regular-wrapper ctc val chap-not-imp?)]))
 
-(define (chaperone-ref-wrapper outermost v i elt)
-  (define ctc (get-impersonator-prop:multi/c outermost))
-  (define ref-ctc (multi-vectorof-ref-ctc ctc))
-  (define blame (multi-ho/c-latest-blame ctc))
-  (with-space-efficient-contract-continuation-mark
-    (with-contract-continuation-mark
-      blame
-      (guard-multi/c ref-ctc elt #t))))
+(define ((make-chaperone-leaf-wrapper projs blame) outermost v i elt)
+  (with-contract-continuation-mark
+    blame
+    (apply-proj-list projs elt)))
 
-(define (chaperone-set-wrapper outermost v i elt)
-  (define ctc (get-impersonator-prop:multi/c outermost))
-  (define set-ctc (multi-vectorof-set-ctc ctc))
-  (define blame (multi-ho/c-latest-blame ctc))
-  (with-space-efficient-contract-continuation-mark
-    (with-contract-continuation-mark
-      blame
-      (guard-multi/c set-ctc elt #t))))
 
-(define (impersonator-ref-wrapper outermost v i elt)
-  (define ctc (get-impersonator-prop:multi/c outermost))
-  (define ref-ctc (multi-vectorof-ref-ctc ctc))
-  (define blame (multi-ho/c-latest-blame ctc))
-  (with-space-efficient-contract-continuation-mark
-    (with-contract-continuation-mark
-      blame
-      (guard-multi/c ref-ctc elt #f))))
+(define-syntax (make-vectorof-checking-wrapper stx)
+  (syntax-case stx ()
+    [(_ chap-not-imp? set? maybe-closed-over-m/c)
+     #`(λ (outermost v i elt)
+         (define m/c
+           #,(if (syntax-e #'maybe-closed-over-m/c)
+                 #'maybe-closed-over-m/c
+                 #'(get-impersonator-prop:multi/c outermost)))
+         (define ctc
+           #,(if (syntax-e #'set?)
+                 #'(multi-vectorof-set-ctc m/c)
+                 #'(multi-vectorof-ref-ctc m/c)))
+         (define blame (multi-ho/c-latest-blame m/c))
+         (with-space-efficient-contract-continuation-mark
+           (with-contract-continuation-mark
+             blame
+             (guard-multi/c ctc elt chap-not-imp?))))]))
 
-(define (impersonator-set-wrapper outermost v i elt)
-  (define ctc (get-impersonator-prop:multi/c outermost))
-  (define set-ctc (multi-vectorof-set-ctc ctc))
-  (define blame (multi-ho/c-latest-blame ctc))
-  (with-space-efficient-contract-continuation-mark
-    (with-contract-continuation-mark
-      blame
-      (guard-multi/c set-ctc elt #f))))
-  
+(define chaperone-ref-wrapper (make-vectorof-checking-wrapper #t #f #f))
+(define chaperone-set-wrapper (make-vectorof-checking-wrapper #t #t #f))
+(define impersonator-ref-wrapper (make-vectorof-checking-wrapper #f #f #f))
+(define impersonator-set-wrapper (make-vectorof-checking-wrapper #f #t #f))
+
 (define (bail-to-regular-wrapper m/c val chap-not-imp?)
   (do-first-order-checks m/c val)
   (define blame (multi-ho/c-latest-blame m/c))
   (define ctc (multi-ho/c-latest-ctc m/c))
-  (if chap-not-imp?
-      (chaperone-vector*
-       val
-       chaperone-ref-wrapper
-       chaperone-set-wrapper
-       impersonator-prop:contracted ctc
-       impersonator-prop:blame blame)
-      (impersonate-vector*
-       val
-       impersonator-ref-wrapper
-       impersonator-set-wrapper
-       impersonator-prop:contracted ctc
-       impersonator-prop:blame blame)))
+  ((if chap-not-imp? chaperone-vector* impersonate-vector*)
+   val
+   (make-vectorof-checking-wrapper chap-not-imp? #f m/c)
+   (make-vectorof-checking-wrapper chap-not-imp? #t m/c)
+   impersonator-prop:contracted ctc
+   impersonator-prop:blame blame))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -325,9 +314,10 @@
                       chap-not-imp?
                       (not chap-not-imp?))]
                  [else
-                  (if chap-not-imp?
-                      (chaperone-contract?    (value-contract val))
-                      (impersonator-contract? (value-contract val)))])
+                  (or (not (value-contract val))
+                      (if chap-not-imp?
+                          (chaperone-contract?    (value-contract val))
+                          (impersonator-contract? (value-contract val))))])
            (bail "switching from imp to chap or vice versa"))))
 
 (define (vector/c->multi-vector/c ctc blame chap-not-imp?)
@@ -460,61 +450,37 @@
     [else
      (bail-to-regular-vector/c-wrapper ctc val chap-not-imp?)]))
 
+(define-syntax (make-vector/c-checking-wrapper stx)
+  (syntax-case stx ()
+    [(_ chap-not-imp? set? maybe-closed-over-m/c)
+     #`(λ (outermost v i elt)
+         (define m/c
+           #,(if (syntax-e #'maybe-closed-over-m/c)
+                 #'maybe-closed-over-m/c
+                 #'(get-impersonator-prop:multi/c outermost)))
+         (define ctcs
+           #,(if (syntax-e #'set?)
+                 #'(multi-vector/c-set-ctcs m/c)
+                 #'(multi-vector/c-ref-ctcs m/c)))
+         (define ctc (vector-ref ctcs i))
+         (define blame (multi-ho/c-latest-blame m/c))
+         (with-space-efficient-contract-continuation-mark
+           (with-contract-continuation-mark
+             blame
+             (guard-multi-vector/c ctc elt chap-not-imp?))))]))
 
-(define (vector/c-chaperone-ref-wrapper outermost v i elt)
-  (define ctc (get-impersonator-prop:multi/c outermost))
-  (define ref-ctcs (multi-vector/c-ref-ctcs ctc))
-  (define ref-ctc (vector-ref ref-ctcs i))
-  (define blame (multi-ho/c-latest-blame ctc))
-  (with-space-efficient-contract-continuation-mark
-    (with-contract-continuation-mark
-      blame
-      (guard-multi-vector/c ref-ctc elt #t))))
-
-(define (vector/c-chaperone-set-wrapper outermost v i elt)
-  (define ctc (get-impersonator-prop:multi/c outermost))
-  (define set-ctcs (multi-vector/c-set-ctcs ctc))
-  (define set-ctc (vector-ref set-ctcs i))
-  (define blame (multi-ho/c-latest-blame ctc))
-  (with-space-efficient-contract-continuation-mark
-    (with-contract-continuation-mark
-      blame
-      (guard-multi-vector/c set-ctc elt #t))))
-
-(define (vector/c-impersonator-ref-wrapper outermost v i elt)
-  (define ctc (get-impersonator-prop:multi/c outermost))
-  (define ref-ctcs (multi-vector/c-ref-ctcs ctc))
-  (define ref-ctc (vector-ref ref-ctcs i))
-  (define blame (multi-ho/c-latest-blame ctc))
-  (with-space-efficient-contract-continuation-mark
-    (with-contract-continuation-mark
-      blame
-      (guard-multi-vector/c ref-ctc elt #f))))
-
-(define (vector/c-impersonator-set-wrapper outermost v i elt)
-  (define ctc (get-impersonator-prop:multi/c outermost))
-  (define set-ctcs (multi-vector/c-set-ctcs ctc))
-  (define set-ctc (vector-ref set-ctcs i))
-  (define blame (multi-ho/c-latest-blame ctc))
-  (with-space-efficient-contract-continuation-mark
-    (with-contract-continuation-mark
-      blame
-      (guard-multi-vector/c set-ctc elt #f))))
+(define vector/c-chaperone-ref-wrapper (make-vector/c-checking-wrapper #t #f #f))
+(define vector/c-chaperone-set-wrapper (make-vector/c-checking-wrapper #t #t #f))
+(define vector/c-impersonator-ref-wrapper (make-vector/c-checking-wrapper #f #f #f))
+(define vector/c-impersonator-set-wrapper (make-vector/c-checking-wrapper #f #t #f))
 
 (define (bail-to-regular-vector/c-wrapper m/c val chap-not-imp?)
   (do-vector/c-first-order-checks m/c val)
   (define blame (multi-ho/c-latest-blame m/c))
   (define ctc (multi-ho/c-latest-ctc m/c))
-  (if chap-not-imp?
-      (chaperone-vector*
-       val
-       vector/c-chaperone-ref-wrapper
-       vector/c-chaperone-set-wrapper
-       impersonator-prop:contracted ctc
-       impersonator-prop:blame blame)
-      (impersonate-vector*
-       val
-       vector/c-impersonator-ref-wrapper
-       vector/c-impersonator-set-wrapper
-       impersonator-prop:contracted ctc
-       impersonator-prop:blame blame)))
+  ((if chap-not-imp? chaperone-vector* impersonate-vector*)
+   val
+   (make-vector/c-checking-wrapper chap-not-imp? #f m/c)
+   (make-vector/c-checking-wrapper chap-not-imp? #t m/c)
+   impersonator-prop:contracted ctc
+   impersonator-prop:blame blame))
