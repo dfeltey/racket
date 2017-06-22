@@ -946,4 +946,15 @@
                   'pos 'neg)])
       (vector-ref (vector-ref grid 0) 0))
    "inner-pos")
+
+  (contract-eval '(define (double-wrapped? x)
+                    (has-impersonator-prop:multi/c?
+                     (get-impersonator-prop:checking-wrapper x))))
+
+  (test-false
+   'dont-multi-wrap
+   '(let* ([ctc (vectorof (vectorof integer?))]
+           [v (contract ctc (contract ctc (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v2 (contract (vectorof any/c) v 'p2 'n2)])
+      (double-wrapped? v2)))
   )
