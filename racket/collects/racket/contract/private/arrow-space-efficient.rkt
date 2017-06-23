@@ -252,7 +252,7 @@
          (define rng    (multi->-rng          m/c))
          (define blame  (multi-ho/c-latest-blame m/c)) ; latest is ok here
          (define n-args (length args))
-         (define n-doms (length doms))
+         (define n-doms (vector-length doms))
          (log-space-efficient-contract-arrow-wrapper-arity-info
           (number->string n-doms))
          (unless (= n-args n-doms)
@@ -271,7 +271,7 @@
                  (guard-multi/c rng result chap-not-imp?)))))
          (apply values
                 rng-checker
-                (for/list ([dom (in-list doms)]
+                (for/list ([dom (in-vector doms)]
                            [arg (in-list args)])
                   (with-space-efficient-contract-continuation-mark
                     (with-contract-continuation-mark
@@ -339,7 +339,7 @@
     ((if chap-not-imp? chaperone-multi-> impersonator-multi->)
      blame
      ctc
-     (for/list ([dom (in-list doms)])
+     (for/vector ([dom (in-list doms)])
        (ho/c->multi-> dom dom-blame chap-not-imp?))
      (ho/c->multi-> rng blame chap-not-imp?)
      (list (first-order-check (length doms) blame (base->-method? ctc))))]
@@ -382,11 +382,11 @@
      ;; if old and new don't have the same arity, then one of them will *have*
      ;; to fail its first order checks, so we're fine.
      ;; (we don't support optional arguments)
-     (for/list ([new (multi->-doms new-multi)]
-                [old (multi->-doms old-multi)])
+     (for/vector ([new (in-vector (multi->-doms new-multi))]
+                  [old (in-vector (multi->-doms old-multi))])
        (join-multi-> old new))
      (join-multi-> (multi->-rng new-multi)
-                      (multi->-rng old-multi))
+                   (multi->-rng old-multi))
      (join-first-order-check (multi->-first-order-checks old-multi)
                              (multi->-first-order-checks new-multi)))]
    [(multi->? old-multi) ; convert old to a multi-leaf/c

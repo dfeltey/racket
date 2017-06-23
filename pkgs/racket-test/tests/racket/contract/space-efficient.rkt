@@ -74,7 +74,7 @@
       (unless (has-impersonator-prop:multi/c? f)
         (error "has-num-contracts?: no space-efficient contract"))
       (define multi/c  (get-impersonator-prop:multi/c f))
-      (define domain/c (car (multi->-doms multi/c)))
+      (define domain/c (vector-ref (multi->-doms multi/c) 0))
       (define range/c  (multi->-rng  multi/c))
       (unless (= (length (multi-leaf/c-proj-list domain/c)) dom)
         (error "has-num-contracts?: wrong number of domain projections"))
