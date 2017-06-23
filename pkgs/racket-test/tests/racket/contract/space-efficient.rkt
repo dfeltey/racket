@@ -541,30 +541,39 @@
                  'outer-pos 'outer-neg)
        4)))
 
-  (test-false
-   'space-efficient-bad-subcontract1
-   '(space-efficient?
-     (contract (-> (-> any/c (values any/c any/c)) any/c)
-               (contract (-> (-> any/c (values any/c any/c)) any/c)
-                         (lambda (x) x)
-                         'pos 'neg)
-               'pos 'neg)))
-  (test-false
-   'space-efficient-bad-subcontract2
-   '(space-efficient?
-     (contract (-> any/c (-> any/c (values any/c any/c)) any/c)
-               (contract (-> any/c (-> any/c (values any/c any/c)) any/c)
-                         (lambda (x y) x)
-                         'pos 'neg)
-               'pos 'neg)))
-  (test-false
-   'space-efficient-bad-subcontract3
-   '(space-efficient?
-     (contract (-> any/c (-> any/c (values any/c any/c)))
-               (contract (-> any/c (-> any/c (values any/c any/c)))
-                         (lambda (x) x)
-                         'pos 'neg)
-               'pos 'neg)))
+  (test-true
+   'space-efficient-bail-on-subcontract1
+   ;; Contracts lifted to defeat the opt/c rewriting
+   '(let ([ctc1 (-> (-> any/c (values any/c any/c)) any/c)]
+          [ctc2 (-> (-> any/c (values any/c any/c)) any/c)])
+      (space-efficient?
+       (contract ctc1
+                 (contract ctc2
+                           (lambda (x) x)
+                           'pos 'neg)
+                 'pos 'neg))))
+  (test-true
+   'space-efficient-bail-on-subcontract2
+   ;; Contracts lifted to defeat the opt/c rewriting
+   '(let ([ctc1 (-> any/c (-> any/c (values any/c any/c)) any/c)]
+          [ctc2 (-> any/c (-> any/c (values any/c any/c)) any/c)])
+      (space-efficient?
+       (contract ctc1
+                 (contract ctc2
+                           (lambda (x y) x)
+                           'pos 'neg)
+                 'pos 'neg))))
+  (test-true
+   'space-efficient-bail-on-subcontract3
+   ;; Contracts lifted to defeat the opt/c rewriting
+   '(let ([ctc1 (-> any/c (-> any/c (values any/c any/c)))]
+          [ctc2 (-> any/c (-> any/c (values any/c any/c)))])
+      (space-efficient?
+       (contract ctc1
+                 (contract ctc2
+                           (lambda (x) x)
+                           'pos 'neg)
+                 'pos 'neg))))
 
   (test/neg-blame
    'space-efficient-merge-subcontract1
