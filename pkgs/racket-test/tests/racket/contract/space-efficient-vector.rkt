@@ -498,15 +498,15 @@
       (for ([ref (in-list refs)]
             [ref/c (in-vector ref-ctcs)])
         (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
-          (error "vectorof-has-num-contracts?: wrong number of ref projections"))
+          (error "vector/c-has-num-contracts?: wrong number of ref projections"))
         (unless (= (length (multi-leaf/c-contract-list ref/c)) ref)
-          (error "vectorof-has-num-contracts?: wrong number of ref contracts")))
+          (error "vector/c-has-num-contracts?: wrong number of ref contracts")))
       (for ([set (in-list sets)]
             [set/c (in-vector set-ctcs)])
         (unless (= (length (multi-leaf/c-proj-list set/c)) set)
-          (error "vectorof-has-num-contracts?: wrong number of set projections"))
+          (error "vector/c-has-num-contracts?: wrong number of set projections"))
         (unless (= (length (multi-leaf/c-contract-list set/c)) set)
-          (error "vectorof-has-num-contracts?: wrong number of set contracts")))))
+          (error "vector/c-has-num-contracts?: wrong number of set contracts")))))
 
   (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
 
@@ -967,4 +967,171 @@
            [v (contract ctc (contract ctc (vector (vector 1)) 'ip 'in) 'p 'n)]
            [v2 (contract (vectorof any/c) v 'p2 'n2)])
       (double-wrapped? v2)))
+
+
+  ;; Tests for nested merging of vectorof and vector/c contracts
+  (test/spec-passed/result
+   'vecof+vec/c1
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vector/c integer? integer?)]
+           [v (contract ctc1 (contract ctc2 (vector 1 2) 'ip 'in) 'p 'n)])
+      (and (vector/c-has-num-contracts? v '(1 1) '(1 1))
+           (space-efficient? v)))
+   #t)
+
+  (test/spec-passed/result
+   'vecof+vec/c2
+   '(let* ([ctc2 (vectorof integer?)]
+           [ctc1 (vector/c integer? integer?)]
+           [v (contract ctc1 (contract ctc2 (vector 1 2) 'ip 'in) 'p 'n)])
+      (and (vector/c-has-num-contracts? v '(1 1) '(1 1))
+           (space-efficient? v)))
+   #t)
+
+  (test/spec-failed
+   'vecof+vec/c3
+   '(let* ([ctc1 (vectorof integer?)]
+           [ctc2 (vector/c integer? integer?)]
+           [v (contract ctc1 (contract ctc2 (vector 1 2 3) 'ip 'in) 'p 'n)])
+      v)
+   "ip")
+
+  (test/spec-failed
+   'vecof+vec/c4
+   '(let* ([ctc2 (vectorof integer?)]
+           [ctc1 (vector/c integer? integer?)]
+           [v (contract ctc1 (contract ctc2 (vector 1 2 3) 'ip 'in) 'p 'n)])
+      v)
+   "p")
+
+  (test/spec-passed/result
+   'vecof+vec/c5
+   '(let* ([ctc2 (vectorof (vector/c integer?))]
+           [ctc1 (vector/c (vector/c integer?))]
+           [v (contract ctc1 (contract ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v1 (vector-ref v 0)])
+      (and (vector/c-has-num-contracts? v1 '(1) '(1))
+           (space-efficient? v)
+           (space-efficient? v1)))
+   #t)
+
+  (test/spec-passed/result
+   'vecof+vec/c6
+   '(let* ([ctc1 (vectorof (vector/c integer?))]
+           [ctc2 (vector/c (vector/c integer?))]
+           [v (contract ctc1 (contract ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v1 (vector-ref v 0)])
+      (and (vector/c-has-num-contracts? v1 '(1) '(1))
+           (space-efficient? v)
+           (space-efficient? v1)))
+   #t)
+
+  (test/spec-passed/result
+   'vecof+vec/c7
+   '(let* ([ctc1 (vectorof (vector/c integer?))]
+           [ctc2 (vector/c (vectorof integer?))]
+           [v (contract ctc1 (contract ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v1 (vector-ref v 0)])
+      (and (vector/c-has-num-contracts? v1 '(1) '(1))
+           (space-efficient? v)
+           (space-efficient? v1)))
+   #t)
+
+  (test/spec-passed/result
+   'vecof+vec/c8
+   '(let* ([ctc2 (vectorof (vector/c integer?))]
+           [ctc1 (vector/c (vectorof integer?))]
+           [v (contract ctc1 (contract ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v1 (vector-ref v 0)])
+      (and (vector/c-has-num-contracts? v1 '(1) '(1))
+           (space-efficient? v)
+           (space-efficient? v1)))
+   #t)
+
+  (test/spec-failed
+   'vecof+vec/c9
+   '(let* ([ctc1 (vectorof (vector/c (vectorof integer?)))]
+           [ctc2 (vector/c (vectorof (vector/c integer?)))]
+           [v
+            (contract
+             ctc1
+             (contract ctc2 (vector (vector (vector 1 2))) 'ip 'in)
+             'p 'n)]
+           [v0 (vector-ref v 0)])
+      (vector-ref v0 0))
+   "ip")
+
+  (test/spec-failed
+   'vecof+vec/c10
+   '(let* ([ctc1 (vectorof (vector/c (vectorof integer?)))]
+           [ctc2 (vector/c (vectorof (vector/c integer?)))]
+           [v
+            (contract
+             ctc2
+             (contract ctc1 (vector (vector (vector 1 2))) 'ip 'in)
+             'p 'n)]
+           [v0 (vector-ref v 0)])
+      (vector-ref v0 0))
+   "p")
+
+  (test/spec-failed
+   'vecof+vec/c11
+   '(let* ([ctc1 (vectorof (vector/c (vectorof integer?)))]
+           [ctc2 (vector/c (vectorof (vector/c integer?)))]
+           [v
+            (contract
+             ctc1
+             (contract ctc2 (vector (vector (vector 1))) 'ip 'in)
+             'p 'n)]
+           [v0 (vector-ref v 0)])
+      (vector-set! v0 0 (vector 2 3)))
+   "in")
+
+   (test/spec-failed
+   'vecof+vec/c12
+   '(let* ([ctc1 (vectorof (vector/c (vectorof integer?)))]
+           [ctc2 (vector/c (vectorof (vector/c integer?)))]
+           [v
+            (contract
+             ctc2
+             (contract ctc1 (vector (vector (vector 1))) 'ip 'in)
+             'p 'n)]
+           [v0 (vector-ref v 0)])
+      (vector-set! v0 0 (vector 2 3)))
+   "n")
+
+  (test/spec-passed/result
+   'vecof+vec/c13
+   '(let* ([ctc1 (vectorof (vector/c (vectorof integer?)))]
+           [ctc2 (vector/c (vectorof (vector/c integer?)))]
+           [v
+            (contract
+             ctc1
+             (contract ctc2 (vector (vector (vector 1))) 'ip 'in)
+             'p 'n)]
+           [v0 (vector-ref v 0)]
+           [v1 (vector-ref v0 0)])
+      (and (vector/c-has-num-contracts? v1 '(1) '(1))
+           (space-efficient? v)
+           (space-efficient? v0)
+           (space-efficient? v1)))
+   #t)
+
+  (test/spec-passed
+   'vecof+vec/c14
+   '(let* ([ctc1 (vectorof (vector/c (>/c 0) (>/c 0)))]
+           [ctc2 (vector/c (vectorof real?))]
+           [v1 (contract ctc1 (contract ctc1 (vector (vector 1 2)) 'ip 'in) 'ip 'in)]
+           [v2 (contract ctc2 (contract ctc2 v1 'p 'n) 'p 'n)]
+           [v (vector-ref v2 0)])
+      (vector/c-has-num-contracts? v '(1 1) '(2 2))))
+
+  (test/spec-passed
+   'vecof+vec/c15
+   '(let* ([ctc1 (vectorof (vector/c real? real?))]
+           [ctc2 (vector/c (vectorof (>/c 0)))]
+           [v1 (contract ctc1 (contract ctc1 (vector (vector 1 2)) 'ip 'in) 'ip 'in)]
+           [v2 (contract ctc2 (contract ctc2 v1 'p 'n) 'p 'n)]
+           [v (vector-ref v2 0)])
+      (vector/c-has-num-contracts? v '(2 2) '(1 1))))
   )
