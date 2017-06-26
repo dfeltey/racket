@@ -457,8 +457,8 @@
       (unless (has-impersonator-prop:multi/c? v)
         (error "vectorof-has-num-contracts?: no space-efficient-contract"))
       (define multi/c (get-impersonator-prop:multi/c v))
-      (define ref/c (multi-vectorof-ref-ctc multi/c))
-      (define set/c (multi-vectorof-set-ctc multi/c))
+      (define ref/c (multi-vector-ref-ctcs multi/c))
+      (define set/c (multi-vector-set-ctcs multi/c))
       (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
         (printf "had ~a ref-projs\n\n" (length (multi-leaf/c-proj-list ref/c)))
         (error "vectorof-has-num-contracts?: wrong number of ref projections"))
@@ -470,8 +470,8 @@
         (error "vectorof-has-num-contracts?: wrong number of set contracts"))))
 
   (contract-eval
-   '(define (vectorof-can-combine? val ctc)
-      (value-has-vectorof-space-efficient-support? val (chaperone-contract? ctc))))
+   '(define (vector-can-combine? val ctc)
+      (value-has-vector-space-efficient-support? val (chaperone-contract? ctc))))
 
   ;; vector/c
     (contract-eval
@@ -479,8 +479,8 @@
       (unless (has-impersonator-prop:multi/c? v)
         (error "vectorof-has-num-contracts?: no space-efficient-contract"))
       (define multi/c (get-impersonator-prop:multi/c v))
-      (define ref-ctcs (multi-vector/c-ref-ctcs multi/c))
-      (define set-ctcs (multi-vector/c-set-ctcs multi/c))
+      (define ref-ctcs (multi-vector-ref-ctcs multi/c))
+      (define set-ctcs (multi-vector-set-ctcs multi/c))
       (for ([ref (in-list refs)]
             [ref/c (in-vector ref-ctcs)])
         (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
@@ -493,10 +493,6 @@
           (error "vectorof-has-num-contracts?: wrong number of set projections"))
         (unless (= (length (multi-leaf/c-contract-list set/c)) set)
           (error "vectorof-has-num-contracts?: wrong number of set contracts")))))
-
-    (contract-eval
-     '(define (vector/c-can-combine? val ctc)
-        (value-has-vector/c-space-efficient-support? val (chaperone-contract? ctc))))
 
   (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
 
@@ -665,19 +661,19 @@
 
   ;; vectorof combine
   (test/spec-passed/result
-   'vectorof-can-combine-chaps
+   'vector-can-combine-chaps
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof real?)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
-      (vectorof-can-combine? v ctc2))
+      (vector-can-combine? v ctc2))
    #t)
 
   (test/spec-passed/result
-   'vectorof-can-combine-imps
+   'vector-can-combine-imps
    '(let* ([ctc1 (vectorof imp-ctc1)]
            [ctc2 (vectorof imp-ctc2)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
-      (vectorof-can-combine? v ctc2))
+      (vector-can-combine? v ctc2))
    #t)
 
   (test/spec-passed/result
@@ -685,7 +681,7 @@
    '(let* ([ctc1 (vectorof chap-ctc)]
            [ctc2 (vectorof imp-ctc1)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
-      (vectorof-can-combine? v ctc2))
+      (vector-can-combine? v ctc2))
    #f)
 
   (test/spec-passed/result
@@ -693,7 +689,7 @@
    '(let* ([ctc1 (vectorof imp-ctc1)]
            [ctc2 (vectorof chap-ctc)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
-      (vectorof-can-combine? v ctc2))
+      (vector-can-combine? v ctc2))
    #f)
 
   (test/spec-passed/result
@@ -701,7 +697,7 @@
    '(let* ([ctc (vectorof integer?)]
            [v1 (chaperone-vector (vector 1) #f #f)]
            [v (contract ctc v1 'pos 'neg)])
-      (vectorof-can-combine? v ctc))
+      (vector-can-combine? v ctc))
    #f)
 
   (test/spec-passed/result
@@ -709,24 +705,24 @@
    '(let* ([ctc (vectorof integer?)]
            [v1 (contract ctc (contract ctc (vector 1) 'pos 'neg) 'pos 'neg)]
            [v (chaperone-vector v1 #f #f)])
-      (vectorof-can-combine? v ctc))
+      (vector-can-combine? v ctc))
    #f)
 
   ;; vector/c combine
   (test/spec-passed/result
-   'vector/c-can-combine-chaps
+   'vector-can-combine-chaps
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c real?)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
-      (vector/c-can-combine? v ctc2))
+      (vector-can-combine? v ctc2))
    #t)
 
   (test/spec-passed/result
-   'vector/c-can-combine-imps
+   'vector-can-combine-imps
    '(let* ([ctc1 (vector/c imp-ctc1)]
            [ctc2 (vector/c imp-ctc2)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
-      (vector/c-can-combine? v ctc2))
+      (vector-can-combine? v ctc2))
    #t)
 
   (test/spec-passed/result
@@ -734,7 +730,7 @@
    '(let* ([ctc1 (vector/c chap-ctc)]
            [ctc2 (vector/c imp-ctc1)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
-      (vector/c-can-combine? v ctc2))
+      (vector-can-combine? v ctc2))
    #f)
 
   (test/spec-passed/result
@@ -742,7 +738,7 @@
    '(let* ([ctc1 (vector/c imp-ctc1)]
            [ctc2 (vector/c chap-ctc)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
-      (vector/c-can-combine? v ctc2))
+      (vector-can-combine? v ctc2))
    #f)
 
   (test/spec-passed/result
@@ -750,7 +746,7 @@
    '(let* ([ctc (vector/c integer?)]
            [v1 (chaperone-vector (vector 1) #f #f)]
            [v (contract ctc v1 'pos 'neg)])
-      (vector/c-can-combine? v ctc))
+      (vector-can-combine? v ctc))
    #f)
 
   (test/spec-passed/result
@@ -758,7 +754,7 @@
    '(let* ([ctc (vector/c integer?)]
            [v1 (contract ctc (contract ctc (vector 1) 'pos 'neg) 'pos 'neg)]
            [v (chaperone-vector v1 #f #f)])
-      (vector/c-can-combine? v ctc))
+      (vector-can-combine? v ctc))
    #f)
 
 

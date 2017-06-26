@@ -32,7 +32,7 @@
   (define (raise-blame val . args)
     (apply raise-blame-error blame #:missing-party #f val args))
   (do-check-vectorof val raise-blame immutable)
-  (unless (= (vector-length val) length)
+  (unless (or (not length) (= (vector-length val) length))
     (raise-blame val
                  '(expected: "a vector of ~a element~a" given: "~e")
                  length
