@@ -440,6 +440,20 @@
    'passed
    1)
 
+  (test/spec-failed
+   'vector/c-bailout
+   '(let* ([ctc1 (vector/c (vector/c integer?))]
+           [ctc2 (vector/c (-> integer?))]
+           [v (contract
+               ctc2
+               (contract
+                ctc1
+                (vector (vector 1 2))
+                'inner-pos 'inner-neg)
+               'pos 'neg)])
+      (vector-ref v 0))
+   "inner-pos")
+
   
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;;
