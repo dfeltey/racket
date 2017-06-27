@@ -30,14 +30,22 @@
     (define blame (first-order-check-blame c))
     (check-vector/c val blame immutable length)))
 
+;; TODO: support and conversion can probably be unified into a single function
 (define (contract-has-vector-space-efficient-support? ctc)
   (define (bail reason)
     (when debug-bailouts
       (printf "contract bailing: ~a -- ~a\n" reason ctc))
     #f)
   (or (multi-vector? ctc)
-      (base-vectorof? ctc)
-      (base-vector/c? ctc)
+      ;; TODO: the problem is with turning higher order contracts into leaves
+      ;; because that may drop negative position checks in the future leading to
+      ;; incorrect blame
+      (flat-contract? ctc)
+      (and (base-vectorof? ctc)
+           (contract-has-vector-space-efficient-support? (base-vectorof-elem ctc)))
+      (and (base-vector/c? ctc)
+           (for/and ([sub-ctc (in-list (base-vector/c-elems ctc))])
+             (contract-has-vector-space-efficient-support? sub-ctc)))
       (bail "not a vector contract")))
 
 (define (value-has-vector-space-efficient-support? val chap-not-imp?)
