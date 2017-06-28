@@ -152,7 +152,8 @@
                                       (or (chaperone-multi-vector? old-multi)
                                           (chaperone-multi-vector? new-multi)))))
      ;; incomparable value for `contract-stronger?`
-     (list (gensym))))
+     (list (gensym))
+     (list (multi-ho/c-latest-blame c))))
   (cond
     [(and (multi-vector? old-multi) (multi-vector? new-multi))
      (define chap/imp/c

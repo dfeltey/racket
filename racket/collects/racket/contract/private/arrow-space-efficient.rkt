@@ -374,7 +374,8 @@
                                           (chaperone-multi->? new-multi)))))
      ;; nothing meaningful here. just want to be incomparable by
      ;; `contract-stronger?`
-     (list (gensym))))
+     (list (gensym))
+     (list (multi-ho/c-latest-blame c))))
   (cond
    [(and (multi->? old-multi) (multi->? new-multi))
     (define chap/imp/c

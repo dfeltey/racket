@@ -982,6 +982,36 @@
            [v2 (contract (vectorof any/c) v 'p2 'n2)])
       (double-wrapped? v2)))
 
+  ;; blame and higher-order leaves
+  (test/spec-failed
+   'vectorof+box/c-different-blame
+   '(let* ([ctc1 (vectorof (box/c integer?))]
+           [v (contract ctc1
+                        (contract ctc1
+                                  (vector (box 1))
+                                  'inner-pos 'inner-neg)
+                        'pos 'neg)])
+      (set-box! (vector-ref v 0) 1.1))
+   "neg")
+
+  (test/spec-failed
+   'vectorof+box/c-same-blame
+   '(let* ([ctc1 (vectorof (box/c real? any/c))]
+           [ctc2 (vectorof (box/c (>/c 0) any/c))]
+           [v (contract ctc1 (contract ctc2 (vector (box 1))
+                                       'pos 'neg) 'pos 'neg)])
+      (set-box! (vector-ref v 0) -1))
+   "neg")
+
+  (test/spec-failed
+   'vectorof+box/c-same-blame2
+   '(let* ([ctc1 (vectorof (box/c real? any/c))]
+           [ctc2 (vectorof (box/c (>/c 0) any/c))]
+           [v (contract ctc2 (contract ctc1 (vector (box 1))
+                                       'pos 'neg) 'pos 'neg)])
+      (set-box! (vector-ref v 0) -1))
+   "neg")
+
 
   ;; Tests for nested merging of vectorof and vector/c contracts
   (test/spec-passed/result

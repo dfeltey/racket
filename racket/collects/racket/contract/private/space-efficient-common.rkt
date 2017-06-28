@@ -56,14 +56,15 @@
 ;; applied
 (struct multi-ho/c multi/c (latest-blame latest-ctc))
 
-(struct multi-leaf/c multi/c (proj-list contract-list))
+(struct multi-leaf/c multi/c (proj-list contract-list blame-list))
 
 
 ;; convert a contract into a space-efficient leaf
 (define (convert-to-multi-leaf/c ctc blame)
   (multi-leaf/c
    (list ((contract-late-neg-projection ctc) blame))
-   (list ctc)))
+   (list ctc)
+   (list blame)))
   
 
 ;; Apply a list of projections over a value
@@ -81,21 +82,38 @@
   (for/or ([e (in-list contract-list)])
     (implies e c)))
 
+(define (leaf-implied-by-one? new-contract-list new-blame-list old-ctc old-blame #:implies implies)
+  (define old-blame-pos (blame-positive old-blame))
+  (define old-blame-neg (blame-negative old-blame))
+  (for/or ([new-ctc (in-list new-contract-list)]
+           [new-blame (in-list new-blame-list)])
+    (if (flat-contract? old-ctc)
+        (implies new-ctc old-ctc)
+        (and (implies new-ctc old-ctc)
+             (implies old-ctc new-ctc)
+             (equal? (blame-positive new-blame) old-blame-pos)
+             (equal? (blame-negative new-blame) old-blame-neg)))))
+
 ;; join two multi-leaf contracts
 (define (join-multi-leaf/c old-multi new-multi)
   (define old-proj-list (multi-leaf/c-proj-list old-multi))
   (define old-flat-list (multi-leaf/c-contract-list old-multi))
+  (define old-blame-list (multi-leaf/c-blame-list old-multi))
   (define new-proj-list (multi-leaf/c-proj-list new-multi))
   (define new-flat-list (multi-leaf/c-contract-list new-multi))
-  (define-values (not-implied-projs not-implied-flats)
-    (for/lists (_1 _2) ([old-proj (in-list old-proj-list)]
-                        [old-flat (in-list old-flat-list)]
-                        #:when (not (implied-by-one?
-                                     new-flat-list old-flat
-                                     #:implies contract-stronger?)))
-      (values old-proj old-flat)))
+  (define new-blame-list (multi-leaf/c-blame-list new-multi))
+  (define-values (not-implied-projs not-implied-flats not-implied-blames)
+    (for/lists (_1 _2 _3) ([old-proj (in-list old-proj-list)]
+                           [old-flat (in-list old-flat-list)]
+                           [old-blame (in-list old-blame-list)]
+                           #:when (not (leaf-implied-by-one?
+                                        new-flat-list new-blame-list
+                                        old-flat old-blame
+                                        #:implies contract-stronger?)))
+      (values old-proj old-flat old-blame)))
   (multi-leaf/c (append new-proj-list not-implied-projs)
-                (append new-flat-list not-implied-flats)))
+                (append new-flat-list not-implied-flats)
+                (append new-blame-list not-implied-blames)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
