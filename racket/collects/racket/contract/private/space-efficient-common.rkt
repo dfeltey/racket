@@ -10,7 +10,8 @@
          convert-to-multi-leaf/c
          apply-proj-list
          implied-by-one?
-         join-multi-leaf/c)
+         join-multi-leaf/c
+         multi->leaf)
 
 (module+ for-testing
   (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
@@ -65,7 +66,14 @@
    (list ((contract-late-neg-projection ctc) blame))
    (list ctc)
    (list blame)))
-  
+
+;; TODO: this can be fixed after refactoring, but for now it needs to take the bailout function
+;; as an argument
+(define (multi->leaf c bail chap-not-imp?)
+  (multi-leaf/c
+   (list (lambda (val neg-party) (bail c val chap-not-imp?)))
+   (list (gensym)) ;; need to be incomparable via contract-stronger?
+   (list (multi-ho/c-latest-blame c))))
 
 ;; Apply a list of projections over a value
 ;; Note that for our purposes it is important to fold left otherwise blame

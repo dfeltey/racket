@@ -119,33 +119,23 @@
                                   #:implies first-order-check-stronger?)))
             old)))
 
-(define (join-multi* new old)
+(define (join-multi* new old chap-not-imp?)
   (cond
-    [(and (multi/c? new) (multi/c? old)) (join-multi-vector new old)]
+    [(and (multi/c? new) (multi/c? old)) (join-multi-vector new old chap-not-imp?)]
     [(and (vector? new) (vector? old))
      (for/vector ([nc (in-vector new)]
                   [oc (in-vector old)])
-       (join-multi-vector nc oc))]
+       (join-multi-vector nc oc chap-not-imp?))]
     [(vector? new)
      (for/vector ([nc (in-vector new)])
-       (join-multi-vector nc old))]
+       (join-multi-vector nc old chap-not-imp?))]
     [(vector? old)
      (for/vector ([oc (in-vector old)])
-       (join-multi-vector new oc))]
+       (join-multi-vector new oc chap-not-imp?))]
     [else
      (error "internal error: unexpected combination of space-efficient contracts" new old)]))
 
-(define (join-multi-vector new-multi old-multi)
-  (define (multi->leaf c)
-    (multi-leaf/c
-     ;; create a regular projection from the multi wrapper
-     (list (λ (val neg-party)
-             (bail-to-regular-wrapper c val
-                                      (or (chaperone-multi-vector? old-multi)
-                                          (chaperone-multi-vector? new-multi)))))
-     ;; incomparable value for `contract-stronger?`
-     (list (gensym))
-     (list (multi-ho/c-latest-blame c))))
+(define (join-multi-vector new-multi old-multi chap-not-imp?)
   (cond
     [(and (multi-vector? old-multi) (multi-vector? new-multi))
      (define chap/imp/c
@@ -162,13 +152,15 @@
       (first-order-check-join (multi-vector-first-order old-multi)
                               (multi-vector-first-order new-multi))
       (join-multi* (multi-vector-ref-ctcs new-multi)
-                   (multi-vector-ref-ctcs old-multi))
+                   (multi-vector-ref-ctcs old-multi)
+                   chap-not-imp?)
       (join-multi* (multi-vector-set-ctcs old-multi)
-                   (multi-vector-set-ctcs new-multi)))]
+                   (multi-vector-set-ctcs new-multi)
+                   chap-not-imp?))]
     [(multi-vector? old-multi)
-     (join-multi-leaf/c new-multi (multi->leaf old-multi))]
+     (join-multi-leaf/c new-multi (multi->leaf old-multi bail-to-regular-wrapper chap-not-imp?))]
     [(multi-vector? new-multi)
-     (join-multi-leaf/c (multi->leaf new-multi) old-multi)]
+     (join-multi-leaf/c (multi->leaf new-multi bail-to-regular-wrapper chap-not-imp?) old-multi)]
     [else
      (join-multi-leaf/c new-multi old-multi)]))
 
@@ -183,7 +175,8 @@
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
            (values (join-multi-vector (vector-contract->multi-vector ctc blame chap-not-imp?)
-                                        (get-impersonator-prop:multi/c val))
+                                      (get-impersonator-prop:multi/c val)
+                                      chap-not-imp?)
                    (get-impersonator-prop:checking-wrapper val))]
           [(has-contract? val)
            (when (has-impersonator-prop:checking-wrapper? val)
@@ -198,7 +191,8 @@
               (get-impersonator-prop:unwrapped val)))
            (values (join-multi-vector
                     (vector-contract->multi-vector ctc blame chap-not-imp?)
-                    (vector-contract->multi-vector orig-ctc orig-blame chap-not-imp?))
+                    (vector-contract->multi-vector orig-ctc orig-blame chap-not-imp?)
+                    chap-not-imp?)
                    (make-checking-wrapper unwrapped))]
           [else
            (unless (multi-vector? ctc)

@@ -177,7 +177,8 @@
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
            (values (join-multi-> (ho/c->multi-> ctc blame chap-not-imp?)
-                                    (get-impersonator-prop:multi/c val))
+                                 (get-impersonator-prop:multi/c val)
+                                 chap-not-imp?)
                    (get-impersonator-prop:checking-wrapper val))]
           [(has-contract? val)
            ;; value is already contracted; switch to space-efficient mode
@@ -195,7 +196,8 @@
               (get-impersonator-prop:unwrapped val)))
            (values (join-multi->
                     (ho/c->multi-> ctc      blame chap-not-imp?)
-                    (ho/c->multi-> orig-ctc orig-blame chap-not-imp?))
+                    (ho/c->multi-> orig-ctc orig-blame chap-not-imp?)
+                    chap-not-imp?)
                    (make-checking-wrapper unwrapped))]
           [else
            ;; value is not contracted; applying a s-e subcontract directly
@@ -354,18 +356,7 @@
             old)))
 
 ;; join two multi->
-(define (join-multi-> new-multi old-multi)
-  (define (multi->leaf c)
-    (multi-leaf/c
-     ;; create a regular projection from the multi wrapper
-     (list (lambda (val neg-party)
-             (bail-to-regular-wrapper c val
-                                      (or (chaperone-multi->? old-multi)
-                                          (chaperone-multi->? new-multi)))))
-     ;; nothing meaningful here. just want to be incomparable by
-     ;; `contract-stronger?`
-     (list (gensym))
-     (list (multi-ho/c-latest-blame c))))
+(define (join-multi-> new-multi old-multi chap-not-imp?)
   (cond
    [(and (multi->? old-multi) (multi->? new-multi))
     (define chap/imp/c
@@ -384,14 +375,15 @@
      ;; (we don't support optional arguments)
      (for/vector ([new (in-vector (multi->-doms new-multi))]
                   [old (in-vector (multi->-doms old-multi))])
-       (join-multi-> old new))
+       (join-multi-> old new chap-not-imp?))
      (join-multi-> (multi->-rng new-multi)
-                   (multi->-rng old-multi))
+                   (multi->-rng old-multi)
+                   chap-not-imp?)
      (join-first-order-check (multi->-first-order-checks old-multi)
                              (multi->-first-order-checks new-multi)))]
    [(multi->? old-multi) ; convert old to a multi-leaf/c
-    (join-multi-leaf/c new-multi (multi->leaf old-multi))]
+    (join-multi-leaf/c new-multi (multi->leaf old-multi bail-to-regular-wrapper chap-not-imp?))]
    [(multi->? new-multi) ; convert new to a multi-leaf/c
-    (join-multi-leaf/c (multi->leaf new-multi) old-multi)]
+    (join-multi-leaf/c (multi->leaf new-multi bail-to-regular-wrapper chap-not-imp?) old-multi)]
    [else
     (join-multi-leaf/c new-multi old-multi)]))
