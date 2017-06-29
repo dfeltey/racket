@@ -414,17 +414,7 @@
                (contract ctc (vector add1) 'inner-pos 'inner-neg)
                'pos 'neg)])
       ((vector-ref v 0) 1.5))
-   "neg")
-
-  (test/spec-failed
-   'vectorof-blame
-   '(let* ([ctc (vectorof (-> integer? integer?))]
-           [v (contract
-               ctc
-               (contract ctc (vector add1) 'inner-pos 'inner-neg)
-               'pos 'neg)])
-      ((vector-ref v 0) 1.5))
-   "neg")
+   "inner-neg")
 
 
   ;; space-efficient continuation marks
@@ -692,11 +682,8 @@
       (vector-can-combine? v ctc2))
    #t)
 
-  ;; This test fails right now, but it's not obviously a meaningful test
-  ;; because we can't support s-e mode on contracts that contain non-flat leaves
-  ;; and I don't think there are ANY flat impersonator contracts ...
   (test/spec-passed/result
-   'vectorof-can-combine-imps
+   'vector-can-combine-imps
    '(let* ([ctc1 (vectorof imp-ctc1)]
            [ctc2 (vectorof imp-ctc2)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
@@ -744,9 +731,8 @@
       (vector-can-combine? v ctc2))
    #t)
 
-  ;; FAILS currently, but unclear if this is a meaningful test ... :(
   (test/spec-passed/result
-   'vector/c-can-combine-imps
+   'vector-can-combine-imps
    '(let* ([ctc1 (vector/c imp-ctc1)]
            [ctc2 (vector/c imp-ctc2)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
@@ -1178,18 +1164,4 @@
            [v2 (contract ctc2 (contract ctc2 v1 'p 'n) 'p 'n)]
            [v (vector-ref v2 0)])
       (vector/c-has-num-contracts? v '(2 2) '(1 1))))
-
-  (test/spec-failed
-   'vectorof+box
-   '(let* ([ctc (vectorof (box/c integer?))]
-           [v (contract ctc (contract ctc (vector (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
-      (set-box! (vector-ref v 0) 1.5))
-   "neg")
-
-  (test/spec-failed
-   'vector/c+box
-   '(let* ([ctc (vector/c (box/c integer?))]
-           [v (contract ctc (contract ctc (vector (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
-      (set-box! (vector-ref v 0) 1.5))
-   "neg")
   )

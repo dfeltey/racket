@@ -109,17 +109,7 @@
               (or rngs
                   (bail "no rngs"))
               (or (= (length rngs) 1)
-                  (bail "multiple return values"))
-              ;; subcontracts also have to support space-efficient mode
-              (for/and ([d (in-list doms)])
-                (if (base->? d)
-                    (contract-has-space-efficient-support? d)
-                    (or (flat-contract? d)
-                        (bail "subcontract does not have space-efficient support"))))
-              (if (base->? (car rngs))
-                  (contract-has-space-efficient-support? (car rngs))
-                  (or (flat-contract? (car rngs))
-                      (bail "subcontract does not have space-efficient support"))))]
+                  (bail "multiple return values")))]
         [else
          (bail "not base arrow")
          #f]))

@@ -750,22 +750,4 @@
                   'pos 'neg)])
       ((grid)))
    "inner-pos")
-
-  ;; arrow and vector contracts
-  (test/spec-failed
-   'arrow+vector
-   '(let* ([ctc (-> (vectorof integer?))]
-           [f (contract ctc
-                        (contract ctc (lambda () (vector 1)) 'inner-pos 'inner-neg)
-                        'pos 'neg)])
-      (vector-set! (f) 0 1.5))
-   "neg")
-
-  ;; arrow and box
-  (test/spec-failed
-   'arrow+box
-   '(let* ([ctc (-> (box/c integer?))]
-           [f (contract ctc (contract ctc (lambda () (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
-      (set-box! (f) 1.5))
-   "neg")
   )
