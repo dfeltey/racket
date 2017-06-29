@@ -5,6 +5,7 @@
          "prop.rkt"
          "blame.rkt"
          "misc.rkt"
+         "space-efficient-common.rkt"
          "vector-common.rkt"
          "vector-space-efficient.rkt")
 
@@ -220,7 +221,8 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:late-neg-projection (vectorof-late-neg-ho-projection #t)))
+   #:late-neg-projection (vectorof-late-neg-ho-projection #t))
+  #:property prop:space-efficient-support vector-space-efficient-support-property)
 
 (define-struct (impersonator-vectorof base-vectorof) ()
   #:property prop:custom-write custom-write-property-proc
@@ -229,7 +231,8 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:late-neg-projection (vectorof-late-neg-ho-projection #f)))
+   #:late-neg-projection (vectorof-late-neg-ho-projection #f))
+  #:property prop:space-efficient-support vector-space-efficient-support-property)
 
 (define-syntax (wrap-vectorof stx)
   (syntax-case stx ()
@@ -422,7 +425,8 @@
    #:name vector/c-name
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
-   #:late-neg-projection (vector/c-ho-late-neg-projection #t)))
+   #:late-neg-projection (vector/c-ho-late-neg-projection #t))
+  #:property prop:space-efficient-support vector-space-efficient-support-property)
 
 (define-struct (impersonator-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc
@@ -431,7 +435,8 @@
    #:name vector/c-name
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
-   #:late-neg-projection (vector/c-ho-late-neg-projection #f)))
+   #:late-neg-projection (vector/c-ho-late-neg-projection #f))
+  #:property prop:space-efficient-support vector-space-efficient-support-property)
 
 (define-syntax (wrap-vector/c stx)
   (syntax-case stx ()

@@ -8,7 +8,8 @@
 
 (provide vector-space-efficient-guard
          value-has-vector-space-efficient-support?
-         contract-has-vector-space-efficient-support?)
+         contract-has-vector-space-efficient-support?
+         vector-space-efficient-support-property)
 
 (module+ for-testing
   (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs
@@ -16,8 +17,14 @@
 
 (define debug-bailouts #f)
 
+(define vector-space-efficient-support-property
+  (build-space-efficient-support-property
+   #:has-space-efficient-support? (lambda (ctc) (contract-has-vector-space-efficient-support? ctc))
+   #:convert (lambda (ctc blame chap-not-imp?) (vector-contract->multi-vector ctc blame chap-not-imp?))))
+
 (struct first-order-check (immutable length blame))
-(struct multi-vector multi-ho/c (first-order ref-ctcs set-ctcs))
+(struct multi-vector multi-ho/c (first-order ref-ctcs set-ctcs)
+  #:property prop:space-efficient-support vector-space-efficient-support-property)
 
 (struct chaperone-multi-vector multi-vector ())
 (struct impersonator-multi-vector multi-vector ())
@@ -79,6 +86,9 @@
        (or (not f2-length)
            (and f1-length (= f1-length f2-length)))))
 
+;; If we split up conversion and merging, this function
+;; can be split into 2 vector-contract specific functions
+;; then the dispatch is just on a struct property ...
 (define (vector-contract->multi-vector ctc blame chap-not-imp?)
   (define chap/imp
     (if chap-not-imp? chaperone-multi-vector impersonator-multi-vector))
@@ -92,8 +102,8 @@
       blame
       ctc
       (list (first-order-check (base-vectorof-immutable ctc) #f blame))
-      (vector-contract->multi-vector elem blame chap-not-imp?)
-      (vector-contract->multi-vector elem set-blame chap-not-imp?))]
+      (contract->space-efficient-contract elem blame chap-not-imp?)
+      (contract->space-efficient-contract elem set-blame chap-not-imp?))]
     [(base-vector/c? ctc)
      (define elems (base-vector/c-elems ctc))
      (define set-blame (blame-swap blame))
@@ -105,9 +115,9 @@
              (length elems)
              blame))
       (for/vector ([elem-ctc (in-list elems)])
-        (vector-contract->multi-vector elem-ctc blame chap-not-imp?))
+        (contract->space-efficient-contract elem-ctc blame chap-not-imp?))
       (for/vector ([elem-ctc (in-list elems)])
-        (vector-contract->multi-vector elem-ctc set-blame chap-not-imp?)))]
+        (contract->space-efficient-contract elem-ctc set-blame chap-not-imp?)))]
     [else ; convert to a leaf
      (convert-to-multi-leaf/c ctc blame)]))
 
@@ -174,7 +184,7 @@
     (cond [(has-impersonator-prop:multi/c? val)
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
-           (values (join-multi-vector (vector-contract->multi-vector ctc blame chap-not-imp?)
+           (values (join-multi-vector (contract->space-efficient-contract ctc blame chap-not-imp?)
                                       (get-impersonator-prop:multi/c val)
                                       chap-not-imp?)
                    (get-impersonator-prop:checking-wrapper val))]
@@ -190,8 +200,8 @@
               val
               (get-impersonator-prop:unwrapped val)))
            (values (join-multi-vector
-                    (vector-contract->multi-vector ctc blame chap-not-imp?)
-                    (vector-contract->multi-vector orig-ctc orig-blame chap-not-imp?)
+                    (contract->space-efficient-contract ctc blame chap-not-imp?)
+                    (contract->space-efficient-contract orig-ctc orig-blame chap-not-imp?)
                     chap-not-imp?)
                    (make-checking-wrapper unwrapped))]
           [else
