@@ -414,8 +414,17 @@
                (contract ctc (vector add1) 'inner-pos 'inner-neg)
                'pos 'neg)])
       ((vector-ref v 0) 1.5))
-   "inner-neg")
+   "neg")
 
+  (test/spec-failed
+   'vectorof-blame
+   '(let* ([ctc (vectorof (-> integer? integer?))]
+           [v (contract
+               ctc
+               (contract ctc (vector add1) 'inner-pos 'inner-neg)
+               'pos 'neg)])
+      ((vector-ref v 0) 1.5))
+   "neg")
 
   ;; space-efficient continuation marks
 
@@ -683,7 +692,7 @@
    #t)
 
   (test/spec-passed/result
-   'vector-can-combine-imps
+   'vectorof-can-combine-imps
    '(let* ([ctc1 (vectorof imp-ctc1)]
            [ctc2 (vectorof imp-ctc2)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
@@ -732,7 +741,7 @@
    #t)
 
   (test/spec-passed/result
-   'vector-can-combine-imps
+   'vector/c-can-combine-imps
    '(let* ([ctc1 (vector/c imp-ctc1)]
            [ctc2 (vector/c imp-ctc2)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
@@ -998,6 +1007,19 @@
       (set-box! (vector-ref v 0) -1))
    "neg")
 
+  (test/spec-failed
+   'vectorof+box
+   '(let* ([ctc (vectorof (box/c integer?))]
+           [v (contract ctc (contract ctc (vector (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (set-box! (vector-ref v 0) 1.5))
+   "neg")
+
+  (test/spec-failed
+   'vector/c+box
+   '(let* ([ctc (vector/c (box/c integer?))]
+           [v (contract ctc (contract ctc (vector (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (set-box! (vector-ref v 0) 1.5))
+   "neg")
 
   ;; Tests for nested merging of vectorof and vector/c contracts
   (test/spec-passed/result
