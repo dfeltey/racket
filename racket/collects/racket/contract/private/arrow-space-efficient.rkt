@@ -12,8 +12,9 @@
          (for-syntax racket/base))
 
 (provide space-efficient-guard
-         contract-has-space-efficient-support?
-         value-has-space-efficient-support?)
+         ->-contract-has-space-efficient-support?
+         value-has-space-efficient-support?
+         ->-space-effificent-support-property)
 (module+ for-testing
   (provide multi->? multi->-doms multi->-rng
            value-has-space-efficient-support?))
@@ -59,6 +60,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
 
+(define ->-space-effificent-support-property
+  (build-space-efficient-support-property
+   #:has-space-efficient-support?
+   (lambda (ctc) (->-contract-has-space-efficient-support? ctc))
+   #:convert (lambda (ctc blame chap-not-imp?)
+               (ho/c->multi-> ctc blame chap-not-imp?))))
+
 ;; we store the most recent blame only. when contracts fail, they assign
 ;; blame based on closed-over blame info, so `latest-blame` is only used
 ;; for things like prop:blame, contract profiling, and tail marks, in which
@@ -73,10 +81,13 @@
 ;; contains all the information necessary to both (1) perform first order checks
 ;; for an arrow contract, and (2) determine which such checks are redundant and
 ;; can be eliminated
-(struct first-order-check (n-doms blame method?))
+(struct arrow-first-order-check first-order-check (n-doms blame method?)
+  ;; TODO: this can be specialized for the multi/c contracts rather
+  ;; than using the arrow one ...
+  #:property prop:space-efficient-support ->-space-effificent-support-property)
 ;; stronger really means "the same" here
-(define (first-order-check-stronger? x y)
-  (= (first-order-check-n-doms x) (first-order-check-n-doms y)))
+(define (arrow-first-order-check-stronger? x y)
+  (= (arrow-first-order-check-n-doms x) (arrow-first-order-check-n-doms y)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -84,7 +95,7 @@
 
 (define debug-bailouts #f)
 
-(define (contract-has-space-efficient-support? ctc)
+(define (->-contract-has-space-efficient-support? ctc)
   (define (bail reason)
     (when debug-bailouts
       (printf "contract bailing: ~a -- ~a\n" reason ctc))
@@ -176,9 +187,10 @@
            ;; value is already in space-efficient mode; merge new contract in
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
-           (values (join-multi-> (ho/c->multi-> ctc blame chap-not-imp?)
-                                 (get-impersonator-prop:multi/c val)
-                                 chap-not-imp?)
+           (values (join-multi->
+                    (contract->space-efficient-contract ctc blame chap-not-imp?)
+                    (get-impersonator-prop:multi/c val)
+                    chap-not-imp?)
                    (get-impersonator-prop:checking-wrapper val))]
           [(has-contract? val)
            ;; value is already contracted; switch to space-efficient mode
@@ -195,8 +207,8 @@
               val
               (get-impersonator-prop:unwrapped val)))
            (values (join-multi->
-                    (ho/c->multi-> ctc      blame chap-not-imp?)
-                    (ho/c->multi-> orig-ctc orig-blame chap-not-imp?)
+                    (contract->space-efficient-contract ctc blame chap-not-imp?)
+                    (contract->space-efficient-contract orig-ctc orig-blame chap-not-imp?)
                     chap-not-imp?)
                    (make-checking-wrapper unwrapped))]
           [else
@@ -289,7 +301,7 @@
          (apply-proj-list (multi-leaf/c-proj-list m/c) val)]
         ;; multi-> cases
         [(value-has-space-efficient-support? val chap-not-imp?)
-         (do-first-order-checks m/c val)
+         (do-arrow-first-order-checks m/c val)
          (space-efficient-guard
           m/c val (multi-ho/c-latest-blame m/c) chap-not-imp?)]
         [else
@@ -299,25 +311,25 @@
 ;; create a regular checking wrapper from a space-efficient wrapper for a value
 ;; that can't use space-efficient wrapping
 (define (bail-to-regular-wrapper m/c val chap-not-imp?)
-  (do-first-order-checks m/c val)
+  (do-arrow-first-order-checks m/c val)
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
    (make-checking-wrapper chap-not-imp? m/c)
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
    impersonator-prop:blame      (multi-ho/c-latest-blame m/c)))
 
-(define (do-first-order-checks m/c val)
+(define (do-arrow-first-order-checks m/c val)
   (define checks (multi->-first-order-checks m/c))
   (for ([c (in-list checks)])
-    (define n-doms (first-order-check-n-doms c))
+    (define n-doms (arrow-first-order-check-n-doms c))
     (cond [(do-arity-checking
-            (first-order-check-blame c)
+            (arrow-first-order-check-blame c)
             val
             (for/list ([i (in-range n-doms)]) #f) ; has to have the right length
             #f ; no rest arg
             n-doms ; min-arity = max-arity
             '() ; no keywords
-            (first-order-check-method? c))
+            (arrow-first-order-check-method? c))
            => (lambda (fail) (fail #f))])))
 
 
@@ -333,7 +345,7 @@
    [(multi->? ctc) ; already in multi mode
     ctc]
    ;; copy structure and propagate blame
-   [(and (base->? ctc) (contract-has-space-efficient-support? ctc))
+   [(and (base->? ctc) (->-contract-has-space-efficient-support? ctc))
     (define doms (base->-doms ctc))
     (define rng  (car (base->-rngs ctc))) ; assumes single range
     (define dom-blame (blame-swap blame))
@@ -341,19 +353,11 @@
      blame
      ctc
      (for/vector ([dom (in-list doms)])
-       (ho/c->multi-> dom dom-blame chap-not-imp?))
-     (ho/c->multi-> rng blame chap-not-imp?)
-     (list (first-order-check (length doms) blame (base->-method? ctc))))]
+       (contract->space-efficient-contract dom dom-blame chap-not-imp?))
+     (contract->space-efficient-contract rng blame chap-not-imp?)
+     (list (arrow-first-order-check (length doms) blame (base->-method? ctc))))]
    [else ; anything else is wrapped in a multi-leaf wrapper
     (convert-to-multi-leaf/c ctc blame)]))
-
-(define (join-first-order-check new-checks old-checks)
-  (append new-checks
-          (for/list ([old (in-list old-checks)]
-                     #:when (or (not (implied-by-one?
-                                      new-checks old
-                                      #:implies first-order-check-stronger?))))
-            old)))
 
 ;; join two multi->
 (define (join-multi-> new-multi old-multi chap-not-imp?)
@@ -379,11 +383,13 @@
      (join-multi-> (multi->-rng new-multi)
                    (multi->-rng old-multi)
                    chap-not-imp?)
-     (join-first-order-check (multi->-first-order-checks old-multi)
-                             (multi->-first-order-checks new-multi)))]
+     (join-arrow-first-order-check (multi->-first-order-checks old-multi)
+                                   (multi->-first-order-checks new-multi)))]
    [(multi->? old-multi) ; convert old to a multi-leaf/c
-    (join-multi-leaf/c new-multi (multi->leaf old-multi bail-to-regular-wrapper chap-not-imp?))]
+    (join-multi-leaf/c new-multi (multi->leaf old-multi chap-not-imp?))]
    [(multi->? new-multi) ; convert new to a multi-leaf/c
-    (join-multi-leaf/c (multi->leaf new-multi bail-to-regular-wrapper chap-not-imp?) old-multi)]
+    (join-multi-leaf/c (multi->leaf new-multi chap-not-imp?) old-multi)]
    [else
     (join-multi-leaf/c new-multi old-multi)]))
+
+(define (join-arrow-first-order-check . args) (error "REMOVEME"))

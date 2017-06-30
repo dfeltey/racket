@@ -617,9 +617,9 @@
       (cond
         [(and (has-contract? val) ; about to double-wrap
               ;; are we adding a contract supported by multi-wrapper?
-              (contract-has-space-efficient-support? ctc)
+              (->-contract-has-space-efficient-support? ctc)
               ;; same for the original contract
-              (contract-has-space-efficient-support? (value-contract val))
+              (->-contract-has-space-efficient-support? (value-contract val))
               ;; and the value can support it
               (value-has-space-efficient-support?    val chaperone?))
          ;; avoid the double-wrapping

@@ -22,19 +22,19 @@
    #:has-space-efficient-support? (lambda (ctc) (contract-has-vector-space-efficient-support? ctc))
    #:convert (lambda (ctc blame chap-not-imp?) (vector-contract->multi-vector ctc blame chap-not-imp?))))
 
-(struct first-order-check (immutable length blame))
+(struct vector-first-order-check first-order-check (immutable length blame))
 (struct multi-vector multi-ho/c (first-order ref-ctcs set-ctcs)
   #:property prop:space-efficient-support vector-space-efficient-support-property)
 
 (struct chaperone-multi-vector multi-vector ())
 (struct impersonator-multi-vector multi-vector ())
 
-(define (do-first-order-checks m/c val)
+(define (do-vector-first-order-checks m/c val)
   (define checks (multi-vector-first-order m/c))
   (for ([c (in-list checks)])
-    (define immutable (first-order-check-immutable c))
-    (define length (first-order-check-length c))
-    (define blame (first-order-check-blame c))
+    (define immutable (vector-first-order-check-immutable c))
+    (define length (vector-first-order-check-length c))
+    (define blame (vector-first-order-check-blame c))
     (check-vector/c val blame immutable length)))
 
 (define (contract-has-vector-space-efficient-support? ctc)
@@ -76,11 +76,11 @@
                           (impersonator-contract? (value-contract val))))])
            (bail "switching from imp to chap or vice versa"))))
 
-(define (first-order-check-stronger? f1 f2)
-  (define f1-immutable (first-order-check-immutable f1))
-  (define f1-length (first-order-check-length f1))
-  (define f2-immutable (first-order-check-immutable f2))
-  (define f2-length (first-order-check-length f2))
+(define (vector-first-order-check-stronger? f1 f2)
+  (define f1-immutable (vector-first-order-check-immutable f1))
+  (define f1-length (vector-first-order-check-length f1))
+  (define f2-immutable (vector-first-order-check-immutable f2))
+  (define f2-length (vector-first-order-check-length f2))
   (and (or (eq? f2-immutable 'dont-care)
            (eq? f1-immutable f2-immutable))
        (or (not f2-length)
@@ -101,7 +101,7 @@
      (chap/imp
       blame
       ctc
-      (list (first-order-check (base-vectorof-immutable ctc) #f blame))
+      (list (vector-first-order-check (base-vectorof-immutable ctc) #f blame))
       (contract->space-efficient-contract elem blame chap-not-imp?)
       (contract->space-efficient-contract elem set-blame chap-not-imp?))]
     [(base-vector/c? ctc)
@@ -110,7 +110,7 @@
      (chap/imp
       blame
       ctc
-      (list (first-order-check
+      (list (vector-first-order-check
              (base-vector/c-immutable ctc)
              (length elems)
              blame))
@@ -120,14 +120,6 @@
         (contract->space-efficient-contract elem-ctc set-blame chap-not-imp?)))]
     [else ; convert to a leaf
      (convert-to-multi-leaf/c ctc blame)]))
-
-(define (first-order-check-join new-checks old-checks)
-  (append new-checks
-          (for/list ([old (in-list old-checks)]
-                     #:when (not (implied-by-one?
-                                  new-checks old
-                                  #:implies first-order-check-stronger?)))
-            old)))
 
 (define (join-multi* new old chap-not-imp?)
   (cond
@@ -159,7 +151,7 @@
      (chap/imp/c
       (multi-ho/c-latest-blame new-multi)
       (multi-ho/c-latest-ctc new-multi)
-      (first-order-check-join (multi-vector-first-order old-multi)
+      (vector-first-order-check-join (multi-vector-first-order old-multi)
                               (multi-vector-first-order new-multi))
       (join-multi* (multi-vector-ref-ctcs new-multi)
                    (multi-vector-ref-ctcs old-multi)
@@ -168,9 +160,9 @@
                    (multi-vector-set-ctcs new-multi)
                    chap-not-imp?))]
     [(multi-vector? old-multi)
-     (join-multi-leaf/c new-multi (multi->leaf old-multi bail-to-regular-wrapper chap-not-imp?))]
+     (join-multi-leaf/c new-multi (multi->leaf old-multi chap-not-imp?))]
     [(multi-vector? new-multi)
-     (join-multi-leaf/c (multi->leaf new-multi bail-to-regular-wrapper chap-not-imp?) old-multi)]
+     (join-multi-leaf/c (multi->leaf new-multi chap-not-imp?) old-multi)]
     [else
      (join-multi-leaf/c new-multi old-multi)]))
 
@@ -232,7 +224,7 @@
     [(multi-leaf/c? ctc)
      (apply-proj-list (multi-leaf/c-proj-list ctc) val)]
     [(value-has-vector-space-efficient-support? val chap-not-imp?)
-     (do-first-order-checks ctc val)
+     (do-vector-first-order-checks ctc val)
      (vector-space-efficient-guard ctc val (multi-ho/c-latest-blame ctc) chap-not-imp?)]
     [else
      (bail-to-regular-wrapper ctc val chap-not-imp?)]))
@@ -263,7 +255,7 @@
 (define impersonator-set-wrapper (make-vectorof-checking-wrapper #f #t #f))
 
 (define (bail-to-regular-wrapper m/c val chap-not-imp?)
-  (do-first-order-checks m/c val)
+  (do-vector-first-order-checks m/c val)
   (define blame (multi-ho/c-latest-blame m/c))
   (define ctc (multi-ho/c-latest-ctc m/c))
   ((if chap-not-imp? chaperone-vector* impersonate-vector*)
@@ -272,3 +264,5 @@
    (make-vectorof-checking-wrapper chap-not-imp? #t m/c)
    impersonator-prop:contracted ctc
    impersonator-prop:blame blame))
+
+(define (vector-first-order-check-join . args) (error "REMOVE ME"))

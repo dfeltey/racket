@@ -7,6 +7,7 @@
 (provide (struct-out multi/c)
          (struct-out multi-ho/c)
          (struct-out multi-leaf/c)
+         (struct-out first-order-check)
          convert-to-multi-leaf/c
          apply-proj-list
          implied-by-one?
@@ -53,6 +54,8 @@
                 get-impersonator-prop:outer-wrapper-box)
   (make-impersonator-property 'impersonator-prop:outer-wrapper-box))
 
+;; TODO: can possibly move the space-efficient support property here
+;;       rather than the child structs
 ;; The parent structure of all space-efficient contracts
 (struct multi/c ())
 
@@ -63,6 +66,9 @@
 
 (struct multi-leaf/c multi/c (proj-list contract-list blame-list))
 
+;; Parent structure for first-order checks
+(struct first-order-check ())
+
 
 ;; convert a contract into a space-efficient leaf
 (define (convert-to-multi-leaf/c ctc blame)
@@ -71,13 +77,17 @@
    (list ctc)
    (list blame)))
 
-;; TODO: this can be fixed after refactoring, but for now it needs to take the bailout function
-;; as an argument
-(define (multi->leaf c bail chap-not-imp?)
-  (multi-leaf/c
-   (list (lambda (val neg-party) (bail c val chap-not-imp?)))
-   (list (gensym)) ;; need to be incomparable via contract-stronger?
-   (list (multi-ho/c-latest-blame c))))
+;; Allow the bailout to be passed as an optional to avoid
+;; an extra indirection through the property when possible
+(define (multi->leaf c chap-not-imp? [bail #f])
+  (cond
+    [(multi-leaf/c? c) c]
+    [else
+     (define bailout (or bail (get-bail c)))
+     (multi-leaf/c
+      (list (lambda (val neg-party) (bailout c val chap-not-imp?)))
+      (list (gensym)) ;; need to be incomparable via contract-stronger?
+      (list (multi-ho/c-latest-blame c)))]))
 
 ;; Apply a list of projections over a value
 ;; Note that for our purposes it is important to fold left otherwise blame
@@ -177,3 +187,99 @@
      (convert ctc blame chap-not-imp?)]
     [else
      (convert-to-multi-leaf/c ctc blame)]))
+
+(struct space-efficient-contract-property
+  (can-merge?
+   construct
+   first-order-checks
+   positive-subcontracts
+   negative-subcontracts
+   bail-to-regular-wrapper
+   first-order-stronger?
+   guard-multi
+   do-first-order-checks
+   value-has-s-e-support?)
+  #:omit-define-syntaxes)
+
+(define (space-efficient-contract-property-guard prop info)
+  (unless (space-efficient-contract-property? prop)
+    (raise
+     (make-exn:fail:contract
+      (format "~a: expected a space-efficient contract property; got: ~e"
+              prop)
+      (current-continuation-marks))))
+  prop)
+
+(define-values (prop:space-efficient-contract space-efficient-contract-struct? space-efficient-contract-struct-property)
+  (make-struct-type-property 'space-efficient-contract space-efficient-contract-property-guard))
+
+;; Assuming that merging is symmetric, ie old-can-merge? iff new-can-merge?
+;; This is true of the current s-e implementation, but if it ever changes
+;; this function will neef to check both directions for merging
+(define (merge new-multi old-multi chap-not-imp?)
+  (cond
+    [(and (multi-ho/c? new-multi) (multi-ho/c? old-multi))
+     (define-values (new-can-merge? new-construct new-first-order new-pos new-neg new-bail new-fo-stronger?)
+       (get-merge-components new-multi))
+     (define-values (old-can-merge? old-construct old-first-order old-pos old-neg old-bail old-fo-stronger?)
+       (get-merge-components old-multi))
+     (cond
+       [(old-can-merge? new-multi old-multi chap-not-imp?)
+        (old-construct
+         (multi-ho/c-latest-blame new-multi)
+         (multi-ho/c-latest-ctc new-multi)
+         (first-order-check-join old-first-order new-first-order old-fo-stronger?)
+         (merge* new-pos old-pos chap-not-imp?)
+         (merge* old-neg new-neg chap-not-imp?))]
+       [else
+        (join-multi-leaf/c (multi->leaf new-multi chap-not-imp? new-bail)
+                           (multi->leaf old-multi chap-not-imp? old-bail))])]
+    [else
+     (join-multi-leaf/c (multi->leaf new-multi chap-not-imp?)
+                        (multi->leaf old-multi chap-not-imp?))]))
+
+(define (merge* new old chap-not-imp?)
+  (cond
+    [(and (multi/c? new) (multi/c? old))
+     (merge new old chap-not-imp?)]
+    [(and (vector? new) (vector? old))
+     (for/vector ([nc (in-vector new)]
+                  [oc (in-vector old)])
+       (merge nc oc chap-not-imp?))]
+    [(vector? new)
+     (for/vector ([nc (in-vector new)])
+       (merge nc old chap-not-imp?))]
+    [(vector? old)
+     (for/vector ([oc (in-vector old)])
+       (merge new oc chap-not-imp?))]
+    [else
+     (error "internal error: unexpected combination of space-efficient contracts" new old)]))
+
+
+;; NOTE: All the higher-order s-e contracts have positive/negative/first-order components
+;; these could be stored in the multi-ho/c struct so that we don't need to look up so
+;; many things on the property itself, then the individual structs only need to support
+;; can-merge?/construct/bail/first-order-stronger/guard etc ...
+;; This makes it harder for others to extend the s-e contracts though
+(define (get-merge-components multi)
+  (define prop (space-efficient-contract-struct-property multi))
+  (values (space-efficient-contract-property-can-merge? prop)
+          (space-efficient-contract-property-construct prop)
+          (space-efficient-contract-property-first-order-checks prop)
+          (space-efficient-contract-property-positive-subcontracts prop)
+          (space-efficient-contract-property-negative-subcontracts prop)
+          (space-efficient-contract-property-bail-to-regular-wrapper prop)
+          (space-efficient-contract-property-first-order-stronger? prop)))
+
+(define (get-bail . args) (error "TODO"))
+;; might need this for guard-multi
+(define (bail . args) (error "TODO"))
+
+
+(define (first-order-check-join new-checks old-checks stronger?)
+  (append new-checks
+          (for/list ([old (in-list old-checks)]
+                     #:when (not (implied-by-one?
+                                  new-checks old
+                                  #:implies stronger?)))
+            old)))
