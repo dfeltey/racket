@@ -14,9 +14,11 @@
          join-multi-leaf/c
          multi->leaf
          prop:space-efficient-support
+         prop:space-efficient-contract
          contract-has-space-efficient-support?
          contract->space-efficient-contract
-         build-space-efficient-support-property)
+         build-space-efficient-support-property
+         build-space-efficient-contract-property)
 
 (module+ for-testing
   (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
@@ -196,8 +198,8 @@
    negative-subcontracts
    bail-to-regular-wrapper
    first-order-stronger?
-   guard-multi
    do-first-order-checks
+   space-efficient-guard
    value-has-s-e-support?)
   #:omit-define-syntaxes)
 
@@ -212,6 +214,30 @@
 
 (define-values (prop:space-efficient-contract space-efficient-contract-struct? space-efficient-contract-struct-property)
   (make-struct-type-property 'space-efficient-contract space-efficient-contract-property-guard))
+
+(define (build-space-efficient-contract-property
+         #:can-merge? can-merge?
+         #:construct construct
+         #:first-order-checks first-order-checks
+         #:positive-subcontracts positive-subcontracts
+         #:negative-subcontracts negative-subcontracts
+         #:bail-to-regular-wrapper bail-to-regular-wrapper
+         #:first-order-stronger? first-order-stronger?
+         #:do-first-order-checks do-first-order-checks
+         #:space-efficient-guard space-efficient-guard
+         #:value-has-space-efficient-support? value-has-space-efficient-support?)
+  (space-efficient-contract-property
+   can-merge?
+   construct
+   first-order-checks
+   positive-subcontracts
+   negative-subcontracts
+   bail-to-regular-wrapper
+   first-order-stronger?
+   do-first-order-checks
+   space-efficient-guard
+   value-has-space-efficient-support?))
+
 
 ;; Assuming that merging is symmetric, ie old-can-merge? iff new-can-merge?
 ;; This is true of the current s-e implementation, but if it ever changes
@@ -271,10 +297,9 @@
           (space-efficient-contract-property-bail-to-regular-wrapper prop)
           (space-efficient-contract-property-first-order-stronger? prop)))
 
-(define (get-bail . args) (error "TODO"))
-;; might need this for guard-multi
-(define (bail . args) (error "TODO"))
-
+(define (get-bail multi)
+  (define prop (space-efficient-contract-struct-property multi))
+  (space-efficient-contract-property-bail-to-regular-wrapper prop))
 
 (define (first-order-check-join new-checks old-checks stronger?)
   (append new-checks
