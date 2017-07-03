@@ -18,7 +18,8 @@
          contract-has-space-efficient-support?
          contract->space-efficient-contract
          build-space-efficient-support-property
-         build-space-efficient-contract-property)
+         build-space-efficient-contract-property
+         space-efficient-contract?)
 
 (module+ for-testing
   (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
@@ -212,7 +213,7 @@
       (current-continuation-marks))))
   prop)
 
-(define-values (prop:space-efficient-contract space-efficient-contract-struct? space-efficient-contract-struct-property)
+(define-values (prop:space-efficient-contract space-efficient-contract? space-efficient-contract-property)
   (make-struct-type-property 'space-efficient-contract space-efficient-contract-property-guard))
 
 (define (build-space-efficient-contract-property
@@ -244,7 +245,7 @@
 ;; this function will neef to check both directions for merging
 (define (merge new-multi old-multi chap-not-imp?)
   (cond
-    [(and (multi-ho/c? new-multi) (multi-ho/c? old-multi))
+    [(and (space-efficient-conttact? new-multi) (space-efficient-conttact? old-multi))
      (define-values (new-can-merge? new-construct new-first-order new-pos new-neg new-bail new-fo-stronger?)
        (get-merge-components new-multi))
      (define-values (old-can-merge? old-construct old-first-order old-pos old-neg old-bail old-fo-stronger?)
@@ -288,17 +289,21 @@
 ;; can-merge?/construct/bail/first-order-stronger/guard etc ...
 ;; This makes it harder for others to extend the s-e contracts though
 (define (get-merge-components multi)
-  (define prop (space-efficient-contract-struct-property multi))
+  (define prop (space-efficient-contract-property multi))
+  (define get-first-order (space-efficient-contract-property-first-order-checks prop))
+  (define get-postiive (space-efficient-contract-property-positive-subcontracts prop))
+  (define get-negative (space-efficient-contract-property-negative-subcontracts prop))
   (values (space-efficient-contract-property-can-merge? prop)
           (space-efficient-contract-property-construct prop)
-          (space-efficient-contract-property-first-order-checks prop)
-          (space-efficient-contract-property-positive-subcontracts prop)
-          (space-efficient-contract-property-negative-subcontracts prop)
+          ;; NOTE: we can possible avoid these function calls for the s-e contracts we know about ...
+          (get-first-order multi)
+          (get-positive multi)
+          (get-negative multi)
           (space-efficient-contract-property-bail-to-regular-wrapper prop)
           (space-efficient-contract-property-first-order-stronger? prop)))
 
 (define (get-bail multi)
-  (define prop (space-efficient-contract-struct-property multi))
+  (define prop (space-efficient-contract-property multi))
   (space-efficient-contract-property-bail-to-regular-wrapper prop))
 
 (define (first-order-check-join new-checks old-checks stronger?)
