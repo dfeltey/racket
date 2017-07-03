@@ -67,6 +67,18 @@
    #:convert (lambda (ctc blame chap-not-imp?)
                (ho/c->multi-> ctc blame chap-not-imp?))))
 
+(define ->-space-efficient-contract-property
+  (build-space-efficient-contract-property
+   #:try-merge (lambda (new old chap-not-imp?) (try-merge new old chap-not-imp?))
+   #:get-blame (lambda (this) (multi-ho/c-latest-blame this))
+   #:bail-to-regular-wrapper (lambda (m/c val chap-not-imp?)
+                               (bail-to-regular-wrapper m/c val chap-not-imp?))
+   #:do-first-order-checks (lambda (m/c val) (do-arrow-first-order-checks m/c val))
+   #:space-efficient-guard (lambda (ctc val blame chap-not-imp?)
+                             (space-efficient-guard ctc val blame chap-not-imp?))
+   #:value-has-space-efficient-support?
+   (lambda (val chap-not-imp?) (value-has-space-efficient-support? val chap-not-imp?))))
+
 ;; we store the most recent blame only. when contracts fail, they assign
 ;; blame based on closed-over blame info, so `latest-blame` is only used
 ;; for things like prop:blame, contract profiling, and tail marks, in which
@@ -74,17 +86,16 @@
 ;; (and this behavior is consistent with what would happen in the absence
 ;; of space-efficient contracts anyway)
 ;; ditto for `latest-ctc` and prop:contracted
-(struct multi-> multi-ho/c (doms rng first-order-checks))
+(struct multi-> multi-ho/c (doms rng first-order-checks)
+  #:property prop:space-efficient-support ->-space-effificent-support-property
+  #:property prop:space-efficient-contract ->-space-efficient-contract-property)
 (struct chaperone-multi-> multi-> ())
 (struct impersonator-multi-> multi-> ())
 
 ;; contains all the information necessary to both (1) perform first order checks
 ;; for an arrow contract, and (2) determine which such checks are redundant and
 ;; can be eliminated
-(struct arrow-first-order-check first-order-check (n-doms blame method?)
-  ;; TODO: this can be specialized for the multi/c contracts rather
-  ;; than using the arrow one ...
-  #:property prop:space-efficient-support ->-space-effificent-support-property)
+(struct arrow-first-order-check first-order-check (n-doms blame method?))
 ;; stronger really means "the same" here
 (define (arrow-first-order-check-stronger? x y)
   (= (arrow-first-order-check-n-doms x) (arrow-first-order-check-n-doms y)))
@@ -187,7 +198,7 @@
            ;; value is already in space-efficient mode; merge new contract in
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
-           (values (join-multi->
+           (values (merge
                     (contract->space-efficient-contract ctc blame chap-not-imp?)
                     (get-impersonator-prop:multi/c val)
                     chap-not-imp?)
@@ -206,7 +217,7 @@
                   unsafe-impersonate-procedure)
               val
               (get-impersonator-prop:unwrapped val)))
-           (values (join-multi->
+           (values (merge
                     (contract->space-efficient-contract ctc blame chap-not-imp?)
                     (contract->space-efficient-contract orig-ctc orig-blame chap-not-imp?)
                     chap-not-imp?)
@@ -292,22 +303,6 @@
 (define chaperone-wrapper    (make-checking-wrapper #t #f))
 (define impersonator-wrapper (make-checking-wrapper #f #f))
 
-;; Apply a multi contract to a value
-;; This is never called at the top level of the contract (only for subcontracts)
-(define (guard-multi/c m/c val chap-not-imp?)
-  (unless (multi/c? m/c)
-    (error "internal error: not a space-efficient contract"))
-  (cond [(multi-leaf/c? m/c)
-         (apply-proj-list (multi-leaf/c-proj-list m/c) val)]
-        ;; multi-> cases
-        [(value-has-space-efficient-support? val chap-not-imp?)
-         (do-arrow-first-order-checks m/c val)
-         (space-efficient-guard
-          m/c val (multi-ho/c-latest-blame m/c) chap-not-imp?)]
-        [else
-         ;; not safe to use space-efficient wrapping
-         (bail-to-regular-wrapper m/c val chap-not-imp?)]))
-
 ;; create a regular checking wrapper from a space-efficient wrapper for a value
 ;; that can't use space-efficient wrapping
 (define (bail-to-regular-wrapper m/c val chap-not-imp?)
@@ -359,37 +354,30 @@
    [else ; anything else is wrapped in a multi-leaf wrapper
     (convert-to-multi-leaf/c ctc blame)]))
 
-;; join two multi->
-(define (join-multi-> new-multi old-multi chap-not-imp?)
-  (cond
-   [(and (multi->? old-multi) (multi->? new-multi))
-    (define chap/imp/c
-      (cond [(chaperone-multi->? new-multi)
-             (unless (chaperone-multi->? old-multi) ; shouldn't happen
-               (error "internal error: joining chaperone and impersonator contracts"
-                      new-multi old-multi))
-             chaperone-multi->]
-            [else
-             impersonator-multi->]))
-    (chap/imp/c
-     (multi-ho/c-latest-blame new-multi)
-     (multi-ho/c-latest-ctc   new-multi)
-     ;; if old and new don't have the same arity, then one of them will *have*
-     ;; to fail its first order checks, so we're fine.
-     ;; (we don't support optional arguments)
-     (for/vector ([new (in-vector (multi->-doms new-multi))]
-                  [old (in-vector (multi->-doms old-multi))])
-       (join-multi-> old new chap-not-imp?))
-     (join-multi-> (multi->-rng new-multi)
-                   (multi->-rng old-multi)
-                   chap-not-imp?)
-     (join-arrow-first-order-check (multi->-first-order-checks old-multi)
-                                   (multi->-first-order-checks new-multi)))]
-   [(multi->? old-multi) ; convert old to a multi-leaf/c
-    (join-multi-leaf/c new-multi (multi->leaf old-multi chap-not-imp?))]
-   [(multi->? new-multi) ; convert new to a multi-leaf/c
-    (join-multi-leaf/c (multi->leaf new-multi chap-not-imp?) old-multi)]
-   [else
-    (join-multi-leaf/c new-multi old-multi)]))
+;; merge two multi->
+(define (try-merge new-multi old-multi chap-not-imp?)
+  (define constructor (get-constructor new-multi old-multi))
+  (and constructor
+       (constructor
+        (multi-ho/c-latest-blame new-multi)
+        (multi-ho/c-latest-ctc   new-multi)
+        ;; if old and new don't have the same arity, then one of them will *have*
+        ;; to fail its first order checks, so we're fine.
+        ;; (we don't support optional arguments)
+        (for/vector ([new (in-vector (multi->-doms new-multi))]
+                     [old (in-vector (multi->-doms old-multi))])
+          (merge old new chap-not-imp?))
+        (merge (multi->-rng new-multi)
+               (multi->-rng old-multi)
+               chap-not-imp?)
+        (first-order-check-join (multi->-first-order-checks old-multi)
+                                (multi->-first-order-checks new-multi)
+                                arrow-first-order-check-stronger?))))
 
-(define (join-arrow-first-order-check . args) (error "REMOVEME"))
+(define (get-constructor new old)
+  (or (and (chaperone-multi->? new)
+           (chaperone-multi->? old)
+           chaperone-multi->)
+      (and (impersonator-multi->? new)
+           (impersonator-multi->? old)
+           impersonator-multi->)))

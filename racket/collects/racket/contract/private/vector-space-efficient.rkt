@@ -19,12 +19,27 @@
 
 (define vector-space-efficient-support-property
   (build-space-efficient-support-property
-   #:has-space-efficient-support? (lambda (ctc) (contract-has-vector-space-efficient-support? ctc))
-   #:convert (lambda (ctc blame chap-not-imp?) (vector-contract->multi-vector ctc blame chap-not-imp?))))
+   #:has-space-efficient-support?
+   (lambda (ctc) (contract-has-vector-space-efficient-support? ctc))
+   #:convert
+   (lambda (ctc blame chap-not-imp?) (vector-contract->multi-vector ctc blame chap-not-imp?))))
+
+(define vector-space-efficient-contract-property
+  (build-space-efficient-contract-property
+   #:try-merge (lambda (new old chap-not-imp?) (try-merge new old chap-not-imp?))
+   #:get-blame (lambda (this) (multi-ho/c-latest-blame this))
+   #:bail-to-regular-wrapper (lambda (m/c val chap-not-imp?)
+                               (bail-to-regular-wrapper m/c val chap-not-imp?))
+   #:do-first-order-checks (lambda (m/c val) (do-vector-first-order-checks m/c val))
+   #:space-efficient-guard (lambda (ctc val blame chap-not-imp?)
+                             (vector-space-efficient-guard ctc val blame chap-not-imp?))
+   #:value-has-space-efficient-support?
+   (lambda (val chap-not-imp?) (value-has-vector-space-efficient-support? val chap-not-imp?))))
 
 (struct vector-first-order-check first-order-check (immutable length blame))
 (struct multi-vector multi-ho/c (first-order ref-ctcs set-ctcs)
-  #:property prop:space-efficient-support vector-space-efficient-support-property)
+  #:property prop:space-efficient-support vector-space-efficient-support-property
+  #:property prop:space-efficient-contract vector-space-efficient-contract-property)
 
 (struct chaperone-multi-vector multi-vector ())
 (struct impersonator-multi-vector multi-vector ())
@@ -121,50 +136,43 @@
     [else ; convert to a leaf
      (convert-to-multi-leaf/c ctc blame)]))
 
-(define (join-multi* new old chap-not-imp?)
+(define (try-merge new-multi old-multi chap-not-imp?)
+  (define constructor (get-constructor new-multi old-multi))
+  (and constructor
+       (constructor
+        (multi-ho/c-latest-blame new-multi)
+        (multi-ho/c-latest-ctc new-multi)
+        (first-order-check-join (multi-vector-first-order old-multi)
+                                (multi-vector-first-order new-multi)
+                                vector-first-order-check-stronger?)
+        (merge* (multi-vector-ref-ctcs new-multi)
+                (multi-vector-ref-ctcs old-multi)
+                chap-not-imp?)
+        (merge* (multi-vector-set-ctcs old-multi)
+                (multi-vector-set-ctcs new-multi)
+                chap-not-imp?))))
+
+(define (merge* new old chap-not-imp?)
   (cond
-    [(and (multi/c? new) (multi/c? old)) (join-multi-vector new old chap-not-imp?)]
     [(and (vector? new) (vector? old))
      (for/vector ([nc (in-vector new)]
                   [oc (in-vector old)])
-       (join-multi-vector nc oc chap-not-imp?))]
+       (merge nc oc chap-not-imp?))]
     [(vector? new)
      (for/vector ([nc (in-vector new)])
-       (join-multi-vector nc old chap-not-imp?))]
+       (merge nc old chap-not-imp?))]
     [(vector? old)
      (for/vector ([oc (in-vector old)])
-       (join-multi-vector new oc chap-not-imp?))]
-    [else
-     (error "internal error: unexpected combination of space-efficient contracts" new old)]))
+       (merge new oc chap-not-imp?))]
+    [else (merge new old chap-not-imp?)]))
 
-(define (join-multi-vector new-multi old-multi chap-not-imp?)
-  (cond
-    [(and (multi-vector? old-multi) (multi-vector? new-multi))
-     (define chap/imp/c
-       (cond [(chaperone-multi-vector? new-multi)
-              (unless (chaperone-multi-vector? old-multi)
-                (error "internal error: joining chaperone and impersonator contracts"
-                       new-multi old-multi))
-              chaperone-multi-vector]
-             [else
-              impersonator-multi-vector]))
-     (chap/imp/c
-      (multi-ho/c-latest-blame new-multi)
-      (multi-ho/c-latest-ctc new-multi)
-      (vector-first-order-check-join (multi-vector-first-order old-multi)
-                              (multi-vector-first-order new-multi))
-      (join-multi* (multi-vector-ref-ctcs new-multi)
-                   (multi-vector-ref-ctcs old-multi)
-                   chap-not-imp?)
-      (join-multi* (multi-vector-set-ctcs old-multi)
-                   (multi-vector-set-ctcs new-multi)
-                   chap-not-imp?))]
-    [(multi-vector? old-multi)
-     (join-multi-leaf/c new-multi (multi->leaf old-multi chap-not-imp?))]
-    [(multi-vector? new-multi)
-     (join-multi-leaf/c (multi->leaf new-multi chap-not-imp?) old-multi)]
-    [else
-     (join-multi-leaf/c new-multi old-multi)]))
+(define (get-constructor new old)
+  (or (and (chaperone-multi-vector? new)
+           (chaperone-multi-vector? old)
+           chaperone-multi-vector)
+      (and (impersonator-multi-vector? new)
+           (impersonator-multi-vector? old)
+           impersonator-multi-vector)))
 
 (define (vector-space-efficient-guard ctc val blame chap-not-imp?)
   (define (make-checking-wrapper unwrapped)
@@ -176,9 +184,9 @@
     (cond [(has-impersonator-prop:multi/c? val)
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
-           (values (join-multi-vector (contract->space-efficient-contract ctc blame chap-not-imp?)
-                                      (get-impersonator-prop:multi/c val)
-                                      chap-not-imp?)
+           (values (merge (contract->space-efficient-contract ctc blame chap-not-imp?)
+                          (get-impersonator-prop:multi/c val)
+                          chap-not-imp?)
                    (get-impersonator-prop:checking-wrapper val))]
           [(has-contract? val)
            (when (has-impersonator-prop:checking-wrapper? val)
@@ -191,7 +199,7 @@
                   unsafe-impersonate-vector)
               val
               (get-impersonator-prop:unwrapped val)))
-           (values (join-multi-vector
+           (values (merge
                     (contract->space-efficient-contract ctc blame chap-not-imp?)
                     (contract->space-efficient-contract orig-ctc orig-blame chap-not-imp?)
                     chap-not-imp?)
@@ -216,18 +224,6 @@
      impersonator-prop:blame (multi-ho/c-latest-blame merged-ctc)))
   (set-box! b res)
   res)
-
-(define (guard-multi/c ctc val chap-not-imp?)
-  (unless (multi/c? ctc)
-    (error "internal error: not a space-efficient contract"))
-  (cond
-    [(multi-leaf/c? ctc)
-     (apply-proj-list (multi-leaf/c-proj-list ctc) val)]
-    [(value-has-vector-space-efficient-support? val chap-not-imp?)
-     (do-vector-first-order-checks ctc val)
-     (vector-space-efficient-guard ctc val (multi-ho/c-latest-blame ctc) chap-not-imp?)]
-    [else
-     (bail-to-regular-wrapper ctc val chap-not-imp?)]))
 
 (define-syntax (make-vectorof-checking-wrapper stx)
   (syntax-case stx ()
@@ -264,5 +260,3 @@
    (make-vectorof-checking-wrapper chap-not-imp? #t m/c)
    impersonator-prop:contracted ctc
    impersonator-prop:blame blame))
-
-(define (vector-first-order-check-join . args) (error "REMOVE ME"))

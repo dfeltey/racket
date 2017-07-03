@@ -19,7 +19,10 @@
          contract->space-efficient-contract
          build-space-efficient-support-property
          build-space-efficient-contract-property
-         space-efficient-contract?)
+         space-efficient-contract?
+         merge
+         guard-multi/c
+         first-order-check-join)
 
 (module+ for-testing
   (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
@@ -192,13 +195,9 @@
      (convert-to-multi-leaf/c ctc blame)]))
 
 (struct space-efficient-contract-property
-  (can-merge?
-   construct
-   first-order-checks
-   positive-subcontracts
-   negative-subcontracts
+  (try-merge
+   get-blame
    bail-to-regular-wrapper
-   first-order-stronger?
    do-first-order-checks
    space-efficient-guard
    value-has-s-e-support?)
@@ -213,28 +212,22 @@
       (current-continuation-marks))))
   prop)
 
-(define-values (prop:space-efficient-contract space-efficient-contract? space-efficient-contract-property)
+(define-values (prop:space-efficient-contract space-efficient-contract? get-space-efficient-contract-property)
   (make-struct-type-property 'space-efficient-contract space-efficient-contract-property-guard))
 
 (define (build-space-efficient-contract-property
-         #:can-merge? can-merge?
-         #:construct construct
-         #:first-order-checks first-order-checks
-         #:positive-subcontracts positive-subcontracts
-         #:negative-subcontracts negative-subcontracts
+         #:try-merge try-merge
+         #:get-blame get-blame
          #:bail-to-regular-wrapper bail-to-regular-wrapper
-         #:first-order-stronger? first-order-stronger?
          #:do-first-order-checks do-first-order-checks
          #:space-efficient-guard space-efficient-guard
          #:value-has-space-efficient-support? value-has-space-efficient-support?)
   (space-efficient-contract-property
-   can-merge?
-   construct
-   first-order-checks
-   positive-subcontracts
-   negative-subcontracts
+   try-merge
+   ;; we may not need this, requires thought about splitting entry points
+   ;; needs thought about making a generic entry point to s-e mode
+   get-blame
    bail-to-regular-wrapper
-   first-order-stronger?
    do-first-order-checks
    space-efficient-guard
    value-has-space-efficient-support?))
@@ -244,63 +237,52 @@
 ;; This is true of the current s-e implementation, but if it ever changes
 ;; this function will neef to check both directions for merging
 (define (merge new-multi old-multi chap-not-imp?)
-  (cond
-    [(and (space-efficient-conttact? new-multi) (space-efficient-conttact? old-multi))
-     (define-values (new-can-merge? new-construct new-first-order new-pos new-neg new-bail new-fo-stronger?)
-       (get-merge-components new-multi))
-     (define-values (old-can-merge? old-construct old-first-order old-pos old-neg old-bail old-fo-stronger?)
-       (get-merge-components old-multi))
-     (cond
-       [(old-can-merge? new-multi old-multi chap-not-imp?)
-        (old-construct
-         (multi-ho/c-latest-blame new-multi)
-         (multi-ho/c-latest-ctc new-multi)
-         (first-order-check-join old-first-order new-first-order old-fo-stronger?)
-         (merge* new-pos old-pos chap-not-imp?)
-         (merge* old-neg new-neg chap-not-imp?))]
-       [else
-        (join-multi-leaf/c (multi->leaf new-multi chap-not-imp? new-bail)
-                           (multi->leaf old-multi chap-not-imp? old-bail))])]
-    [else
-     (join-multi-leaf/c (multi->leaf new-multi chap-not-imp?)
-                        (multi->leaf old-multi chap-not-imp?))]))
+  (define-values (_ new-bail) (get-merge-components new-multi))
+  (define-values (old-try-merge old-bail) (get-merge-components old-multi))
+  (or (old-try-merge new-multi old-multi chap-not-imp?)
+      (join-multi-leaf/c (multi->leaf new-multi chap-not-imp? new-bail)
+                         (multi->leaf old-multi chap-not-imp? old-bail))))
 
-(define (merge* new old chap-not-imp?)
-  (cond
-    [(and (multi/c? new) (multi/c? old))
-     (merge new old chap-not-imp?)]
-    [(and (vector? new) (vector? old))
-     (for/vector ([nc (in-vector new)]
-                  [oc (in-vector old)])
-       (merge nc oc chap-not-imp?))]
-    [(vector? new)
-     (for/vector ([nc (in-vector new)])
-       (merge nc old chap-not-imp?))]
-    [(vector? old)
-     (for/vector ([oc (in-vector old)])
-       (merge new oc chap-not-imp?))]
-    [else
-     (error "internal error: unexpected combination of space-efficient contracts" new old)]))
-
-
-;; NOTE: All the higher-order s-e contracts have positive/negative/first-order components
-;; these could be stored in the multi-ho/c struct so that we don't need to look up so
-;; many things on the property itself, then the individual structs only need to support
-;; can-merge?/construct/bail/first-order-stronger/guard etc ...
-;; This makes it harder for others to extend the s-e contracts though
 (define (get-merge-components multi)
-  (define prop (space-efficient-contract-property multi))
-  (define get-first-order (space-efficient-contract-property-first-order-checks prop))
-  (define get-postiive (space-efficient-contract-property-positive-subcontracts prop))
-  (define get-negative (space-efficient-contract-property-negative-subcontracts prop))
-  (values (space-efficient-contract-property-can-merge? prop)
-          (space-efficient-contract-property-construct prop)
-          ;; NOTE: we can possible avoid these function calls for the s-e contracts we know about ...
-          (get-first-order multi)
-          (get-positive multi)
-          (get-negative multi)
-          (space-efficient-contract-property-bail-to-regular-wrapper prop)
-          (space-efficient-contract-property-first-order-stronger? prop)))
+  (cond
+    [(space-efficient-contract? multi)
+     (define prop (get-space-efficient-contract-property multi))
+     (values
+      (space-efficient-contract-property-try-merge prop)
+      (space-efficient-contract-property-bail-to-regular-wrapper prop))]
+    [else
+     (values merge-fail #f)]))
+      
+(define (merge-fail _1 _2 _3) #f)
+
+
+(define (guard-multi/c multi val chap-not-imp?)
+  ;; TODO: how do leaf/c structs fit into this hierarchy ...
+  (cond
+    [(multi-leaf/c? multi)
+     (apply-proj-list (multi-leaf/c-proj-list multi) val)]
+    [else
+     (unless (space-efficient-contract? multi)
+       (error "internal error: not a space-efficient contract"))
+     (define-values (bail blame do-f-o-checks space-efficient-guard value-has-s-e-support?)
+       (get-guard-components multi))
+     ;; NOTE: both branches do first-order checks before anything else
+     ;; that check can probably be lifted to before this cond ...
+     (cond
+       [(value-has-s-e-support? val chap-not-imp?)
+        (do-f-o-checks multi val)
+        (space-efficient-guard multi val blame chap-not-imp?)]
+       [else
+        (bail multi val chap-not-imp?)])]))
+
+(define (get-guard-components multi)
+  (define prop (get-space-efficient-contract-property multi))
+  (values
+   (space-efficient-contract-property-bail-to-regular-wrapper prop)
+   ((space-efficient-contract-property-get-blame prop) multi)
+   (space-efficient-contract-property-do-first-order-checks prop)
+   (space-efficient-contract-property-space-efficient-guard prop)
+   (space-efficient-contract-property-value-has-s-e-support? prop)))
 
 (define (get-bail multi)
   (define prop (space-efficient-contract-property multi))
