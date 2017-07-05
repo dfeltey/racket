@@ -11,7 +11,7 @@
          "arity-checking.rkt"
          (for-syntax racket/base))
 
-(provide space-efficient-guard
+(provide arrow-space-efficient-guard
          ->-contract-has-space-efficient-support?
          value-has-space-efficient-support?
          ->-space-effificent-support-property)
@@ -70,12 +70,11 @@
 (define ->-space-efficient-contract-property
   (build-space-efficient-contract-property
    #:try-merge (lambda (new old chap-not-imp?) (try-merge new old chap-not-imp?))
-   #:get-blame (lambda (this) (multi-ho/c-latest-blame this))
    #:bail-to-regular-wrapper (lambda (m/c val chap-not-imp?)
                                (bail-to-regular-wrapper m/c val chap-not-imp?))
    #:do-first-order-checks (lambda (m/c val) (do-arrow-first-order-checks m/c val))
-   #:space-efficient-guard (lambda (ctc val blame chap-not-imp?)
-                             (space-efficient-guard ctc val blame chap-not-imp?))
+   #:space-efficient-guard (lambda (ctc val chap-not-imp?)
+                             (arrow-space-efficient-guard ctc val chap-not-imp?))
    #:value-has-space-efficient-support?
    (lambda (val chap-not-imp?) (value-has-space-efficient-support? val chap-not-imp?))))
 
@@ -187,8 +186,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wrapper management and contract checking
 
-;; (or/c contract? multi/c?) × α × blame? × boolean? → α
-(define (space-efficient-guard ctc val blame chap-not-imp?)
+;; (or/c contract? multi/c?) × α × boolean? → α
+(define (arrow-space-efficient-guard ctc val chap-not-imp?)
+  (define blame (multi-ho/c-latest-blame ctc))
   (define (make-checking-wrapper unwrapped) ; add 2nd chaperone, see above
     (if chap-not-imp?
         (chaperone-procedure*   unwrapped chaperone-wrapper)
@@ -199,7 +199,7 @@
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
            (values (merge
-                    (contract->space-efficient-contract ctc blame chap-not-imp?)
+                    ctc
                     (get-impersonator-prop:multi/c val)
                     chap-not-imp?)
                    (get-impersonator-prop:checking-wrapper val))]
@@ -218,7 +218,7 @@
               val
               (get-impersonator-prop:unwrapped val)))
            (values (merge
-                    (contract->space-efficient-contract ctc blame chap-not-imp?)
+                    ctc
                     (contract->space-efficient-contract orig-ctc orig-blame chap-not-imp?)
                     chap-not-imp?)
                    (make-checking-wrapper unwrapped))]

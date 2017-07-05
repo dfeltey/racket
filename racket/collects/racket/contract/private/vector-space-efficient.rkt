@@ -27,12 +27,11 @@
 (define vector-space-efficient-contract-property
   (build-space-efficient-contract-property
    #:try-merge (lambda (new old chap-not-imp?) (try-merge new old chap-not-imp?))
-   #:get-blame (lambda (this) (multi-ho/c-latest-blame this))
    #:bail-to-regular-wrapper (lambda (m/c val chap-not-imp?)
                                (bail-to-regular-wrapper m/c val chap-not-imp?))
    #:do-first-order-checks (lambda (m/c val) (do-vector-first-order-checks m/c val))
-   #:space-efficient-guard (lambda (ctc val blame chap-not-imp?)
-                             (vector-space-efficient-guard ctc val blame chap-not-imp?))
+   #:space-efficient-guard (lambda (ctc val chap-not-imp?)
+                             (vector-space-efficient-guard ctc val chap-not-imp?))
    #:value-has-space-efficient-support?
    (lambda (val chap-not-imp?) (value-has-vector-space-efficient-support? val chap-not-imp?))))
 
@@ -174,7 +173,8 @@
            (impersonator-multi-vector? old)
            impersonator-multi-vector)))
 
-(define (vector-space-efficient-guard ctc val blame chap-not-imp?)
+(define (vector-space-efficient-guard ctc val chap-not-imp?)
+  (define blame (multi-ho/c-latest-blame ctc))
   (define (make-checking-wrapper unwrapped)
     (define chap/imp (if chap-not-imp? chaperone-vector* impersonate-vector*))
     (define ref-wrapper (if chap-not-imp? chaperone-ref-wrapper impersonator-ref-wrapper))
@@ -184,7 +184,7 @@
     (cond [(has-impersonator-prop:multi/c? val)
            (unless (has-impersonator-prop:checking-wrapper? val)
              (error "internal error: expecting a checking wrapper" val))
-           (values (merge (contract->space-efficient-contract ctc blame chap-not-imp?)
+           (values (merge ctc
                           (get-impersonator-prop:multi/c val)
                           chap-not-imp?)
                    (get-impersonator-prop:checking-wrapper val))]
@@ -200,7 +200,7 @@
               val
               (get-impersonator-prop:unwrapped val)))
            (values (merge
-                    (contract->space-efficient-contract ctc blame chap-not-imp?)
+                    ctc
                     (contract->space-efficient-contract orig-ctc orig-blame chap-not-imp?)
                     chap-not-imp?)
                    (make-checking-wrapper unwrapped))]

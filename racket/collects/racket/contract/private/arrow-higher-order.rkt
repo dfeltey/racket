@@ -11,6 +11,7 @@
          "list.rkt"
          (prefix-in arrow: "arrow-common.rkt")
          "arrow-space-efficient.rkt"
+         "space-efficient-common.rkt"
          (only-in racket/unsafe/ops
                   unsafe-chaperone-procedure
                   unsafe-impersonate-procedure))
@@ -622,11 +623,12 @@
               (->-contract-has-space-efficient-support? (value-contract val))
               ;; and the value can support it
               (value-has-space-efficient-support?    val chaperone?))
+         (printf "about to call s-e-guard\n")
          ;; avoid the double-wrapping
-         (space-efficient-guard ctc
-                                val
-                                full-blame
-                                chaperone?)]
+         (arrow-space-efficient-guard
+          (contract->space-efficient-contract ctc full-blame chaperone?)
+          val
+          chaperone?)]
         [chap/imp-func
          (log-n-wrappers "arrow-higher-order" val)
          (if (or post? (not rngs))

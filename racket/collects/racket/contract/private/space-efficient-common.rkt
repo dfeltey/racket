@@ -196,7 +196,6 @@
 
 (struct space-efficient-contract-property
   (try-merge
-   get-blame
    bail-to-regular-wrapper
    do-first-order-checks
    space-efficient-guard
@@ -217,16 +216,12 @@
 
 (define (build-space-efficient-contract-property
          #:try-merge try-merge
-         #:get-blame get-blame
          #:bail-to-regular-wrapper bail-to-regular-wrapper
          #:do-first-order-checks do-first-order-checks
          #:space-efficient-guard space-efficient-guard
          #:value-has-space-efficient-support? value-has-space-efficient-support?)
   (space-efficient-contract-property
    try-merge
-   ;; we may not need this, requires thought about splitting entry points
-   ;; needs thought about making a generic entry point to s-e mode
-   get-blame
    bail-to-regular-wrapper
    do-first-order-checks
    space-efficient-guard
@@ -264,14 +259,14 @@
     [else
      (unless (space-efficient-contract? multi)
        (error "internal error: not a space-efficient contract"))
-     (define-values (bail blame do-f-o-checks space-efficient-guard value-has-s-e-support?)
+     (define-values (bail do-f-o-checks space-efficient-guard value-has-s-e-support?)
        (get-guard-components multi))
      ;; NOTE: both branches do first-order checks before anything else
      ;; that check can probably be lifted to before this cond ...
      (cond
        [(value-has-s-e-support? val chap-not-imp?)
         (do-f-o-checks multi val)
-        (space-efficient-guard multi val blame chap-not-imp?)]
+        (space-efficient-guard multi val chap-not-imp?)]
        [else
         (bail multi val chap-not-imp?)])]))
 
@@ -279,7 +274,6 @@
   (define prop (get-space-efficient-contract-property multi))
   (values
    (space-efficient-contract-property-bail-to-regular-wrapper prop)
-   ((space-efficient-contract-property-get-blame prop) multi)
    (space-efficient-contract-property-do-first-order-checks prop)
    (space-efficient-contract-property-space-efficient-guard prop)
    (space-efficient-contract-property-value-has-s-e-support? prop)))

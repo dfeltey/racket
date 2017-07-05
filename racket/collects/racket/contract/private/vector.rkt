@@ -181,7 +181,10 @@
                       (if (and (has-contract? val)
                                (contract-has-vector-space-efficient-support? (value-contract val))
                                (value-has-vector-space-efficient-support? val ctc))
-                          (vector-space-efficient-guard ctc val (blame-add-missing-party blame neg-party) chap-not-imp?)
+                          (vector-space-efficient-guard
+                           (contract->space-efficient-contract ctc (blame-add-missing-party blame neg-party) chap-not-imp?)
+                           val
+                           chap-not-imp?)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
@@ -202,7 +205,10 @@
                       (if (and (has-contract? val)
                                (contract-has-vector-space-efficient-support? (value-contract val))
                                (value-has-vector-space-efficient-support? val chap-not-imp?))
-                          (vector-space-efficient-guard ctc val (blame-add-missing-party blame neg-party) chap-not-imp?)
+                          (vector-space-efficient-guard
+                           (contract->space-efficient-contract ctc (blame-add-missing-party blame neg-party) chap-not-imp?)
+                           val
+                           chap-not-imp?)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
@@ -400,9 +406,8 @@
                                  (contract-has-vector-space-efficient-support? (value-contract val))
                                  (value-has-vector-space-efficient-support? val chap-not-imp?))
                             (vector-space-efficient-guard
-                             ctc
+                             (contract->space-efficient-contract ctc (blame-add-missing-party blame neg-party) chap-not-imp?)
                              val
-                             (blame-add-missing-party blame neg-party)
                              chap-not-imp?)
                             (vector-wrapper
                              val
