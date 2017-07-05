@@ -22,7 +22,8 @@
          space-efficient-contract?
          merge
          guard-multi/c
-         first-order-check-join)
+         first-order-check-join
+         enter-space-efficient-mode)
 
 (module+ for-testing
   (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
@@ -289,3 +290,12 @@
                                   new-checks old
                                   #:implies stronger?)))
             old)))
+
+(define (enter-space-efficient-mode val ctc blame chap-not-imp?)
+  (and (has-contract? val)
+       (contract-has-space-efficient-support? ctc)
+       (contract-has-space-efficient-support? (value-contract val))
+       (guard-multi/c (contract->space-efficient-contract ctc blame chap-not-imp?)
+                      val
+                      chap-not-imp?)))
+

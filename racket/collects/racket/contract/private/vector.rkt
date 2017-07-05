@@ -164,6 +164,7 @@
         [(flat-contract? elem-ctc)
          (define p? (flat-contract-predicate elem-ctc))
          (λ (val neg-party)
+           (define full-blame (blame-add-missing-party blame neg-party))
            (define (raise-blame val . args) 
              (apply raise-blame-error blame #:missing-party neg-party val args))
            (check val raise-blame #f)
@@ -178,22 +179,17 @@
                           (elem-pos-proj e neg-party)))
                       val)
                (begin (log-n-wrappers "immutable-vectorof-ho" val)
-                      (if (and (has-contract? val)
-                               (contract-has-vector-space-efficient-support? (value-contract val))
-                               (value-has-vector-space-efficient-support? val ctc))
-                          (vector-space-efficient-guard
-                           (contract->space-efficient-contract ctc (blame-add-missing-party blame neg-party) chap-not-imp?)
-                           val
-                           chap-not-imp?)
+                      (or (enter-space-efficient-mode val ctc full-blame chap-not-imp?)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
                            (checked-set neg-party)
                            impersonator-prop:unwrapped val
                            impersonator-prop:contracted ctc
-                           impersonator-prop:blame (blame-add-missing-party blame neg-party))))))]
+                           impersonator-prop:blame full-blame)))))]
         [else
          (λ (val neg-party)
+           (define full-blame (blame-add-missing-party blame neg-party))
            (define (raise-blame val . args) 
              (apply raise-blame-error blame #:missing-party neg-party val args))
            (check val raise-blame #f)
@@ -202,20 +198,14 @@
                 (for/vector #:length (vector-length val) ([e (in-vector val)])
                   (elem-pos-proj e neg-party)))
                (begin (log-n-wrappers "mutable-vectorof-ho" val)
-                      (if (and (has-contract? val)
-                               (contract-has-vector-space-efficient-support? (value-contract val))
-                               (value-has-vector-space-efficient-support? val chap-not-imp?))
-                          (vector-space-efficient-guard
-                           (contract->space-efficient-contract ctc (blame-add-missing-party blame neg-party) chap-not-imp?)
-                           val
-                           chap-not-imp?)
+                      (or (enter-space-efficient-mode val ctc full-blame chap-not-imp?)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
                            (checked-set neg-party)
                            impersonator-prop:unwrapped val
                            impersonator-prop:contracted ctc
-                           impersonator-prop:blame (blame-add-missing-party blame neg-party))))))]))))
+                           impersonator-prop:blame full-blame)))))]))))
 
 (define-values (prop:neg-blame-party prop:neg-blame-party? prop:neg-blame-party-get)
   (make-impersonator-property 'prop:neg-blame-party))
@@ -394,6 +384,7 @@
                                   (blame-add-context blame (format "the ~a element of" (n->th i))
                                                      #:swap? #t)))])
            (λ (val neg-party)
+             (define full-blame (blame-add-missing-party blame neg-party))
              (check-vector/c val blame immutable elems-length)
              (define blame+neg-party (cons blame neg-party))
              (if (and (immutable? val) (not (chaperone? val)))
@@ -402,13 +393,7 @@
                                    [i (in-naturals)])
                           ((vector-ref elem-pos-projs i) e neg-party)))
                  (begin (log-n-wrappers "mutable-vector/c-ho" val)
-                        (if (and (has-contract? val)
-                                 (contract-has-vector-space-efficient-support? (value-contract val))
-                                 (value-has-vector-space-efficient-support? val chap-not-imp?))
-                            (vector-space-efficient-guard
-                             (contract->space-efficient-contract ctc (blame-add-missing-party blame neg-party) chap-not-imp?)
-                             val
-                             chap-not-imp?)
+                        (or (enter-space-efficient-mode val ctc full-blame chap-not-imp?)
                             (vector-wrapper
                              val
                              (λ (vec i val)
@@ -421,7 +406,7 @@
                                  ((vector-ref elem-neg-projs i) val neg-party)))
                              impersonator-prop:unwrapped val
                              impersonator-prop:contracted ctc
-                             impersonator-prop:blame (blame-add-missing-party blame neg-party)))))))))))
+                             impersonator-prop:blame full-blame))))))))))
 
 (define-struct (chaperone-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc

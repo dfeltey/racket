@@ -615,38 +615,26 @@
             (if is-impersonator? unsafe-impersonate-procedure unsafe-chaperone-procedure)
             (if is-impersonator? impersonate-procedure chaperone-procedure)))
       (define full-blame (blame-add-missing-party orig-blame neg-party))
-      (cond
-        [(and (has-contract? val) ; about to double-wrap
-              ;; are we adding a contract supported by multi-wrapper?
-              (->-contract-has-space-efficient-support? ctc)
-              ;; same for the original contract
-              (->-contract-has-space-efficient-support? (value-contract val))
-              ;; and the value can support it
-              (value-has-space-efficient-support?    val chaperone?))
-         (printf "about to call s-e-guard\n")
-         ;; avoid the double-wrapping
-         (arrow-space-efficient-guard
-          (contract->space-efficient-contract ctc full-blame chaperone?)
-          val
-          chaperone?)]
-        [chap/imp-func
-         (log-n-wrappers "arrow-higher-order" val)
-         (if (or post? (not rngs))
-             (chaperone-or-impersonate-procedure
-              val
-              chap/imp-func
-              impersonator-prop:contracted ctc
-              impersonator-prop:blame full-blame
-              impersonator-prop:unwrapped val)
-             (chaperone-or-impersonate-procedure
-              val
-              chap/imp-func
-              impersonator-prop:contracted ctc
+      (or (enter-space-efficient-mode val ctc full-blame chaperone?)
+          (cond
+            [chap/imp-func
+             (log-n-wrappers "arrow-higher-order" val)
+             (if (or post? (not rngs))
+                 (chaperone-or-impersonate-procedure
+                  val
+                  chap/imp-func
+                  impersonator-prop:contracted ctc
+                  impersonator-prop:blame full-blame
+                  impersonator-prop:unwrapped val)
+                 (chaperone-or-impersonate-procedure
+                  val
+                  chap/imp-func
+                  impersonator-prop:contracted ctc
               impersonator-prop:blame full-blame
               impersonator-prop:application-mark
               (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))
               impersonator-prop:unwrapped val))]
-        [else val]))
+            [else val])))
     (cond
       [late-neg?
        (define (arrow-higher-order:lnp val neg-party)
