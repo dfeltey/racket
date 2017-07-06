@@ -10,9 +10,6 @@
          (struct-out first-order-check)
          convert-to-multi-leaf/c
          apply-proj-list
-         implied-by-one?
-         join-multi-leaf/c
-         multi->leaf
          prop:space-efficient-support
          prop:space-efficient-contract
          contract-has-space-efficient-support?
@@ -251,15 +248,13 @@
       
 (define (merge-fail _1 _2) #f)
 
-
 (define (guard-multi/c multi val)
-  ;; TODO: how do leaf/c structs fit into this hierarchy ...
   (cond
     [(multi-leaf/c? multi)
      (apply-proj-list (multi-leaf/c-proj-list multi) val)]
     [else
      (unless (space-efficient-contract? multi)
-       (error "internal error: not a space-efficient contract"))
+       (error "internal error: not a space-efficient contract" multi))
      (space-efficient-guard multi val)]))
 
 (define (space-efficient-guard multi val)

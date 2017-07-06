@@ -6,10 +6,7 @@
          (only-in racket/unsafe/ops unsafe-chaperone-vector unsafe-impersonate-vector)
          (for-syntax racket/base))
 
-(provide vector-space-efficient-guard
-         value-has-vector-space-efficient-support?
-         contract-has-vector-space-efficient-support?
-         vector-space-efficient-support-property)
+(provide vector-space-efficient-support-property)
 
 (module+ for-testing
   (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs

@@ -11,10 +11,7 @@
          "arity-checking.rkt"
          (for-syntax racket/base))
 
-(provide arrow-space-efficient-guard
-         ->-contract-has-space-efficient-support?
-         value-has-space-efficient-support?
-         ->-space-effificent-support-property)
+(provide ->-space-effificent-support-property)
 (module+ for-testing
   (provide multi->? multi->-doms multi->-rng
            value-has-space-efficient-support?))
