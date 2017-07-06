@@ -61,21 +61,82 @@
                 get-impersonator-prop:outer-wrapper-box)
   (make-impersonator-property 'impersonator-prop:outer-wrapper-box))
 
-;; TODO: can possibly move the space-efficient support property here
-;;       rather than the child structs
-;; The parent structure of all space-efficient contracts
-(struct multi/c ())
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; An interface for space-efficient contract conversion and merging
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(struct space-efficient-support-property
+  (has-space-efficient-support?
+   convert)
+  #:omit-define-syntaxes)
+
+(define (space-efficient-support-property-guard prop info)
+  (unless (space-efficient-support-property? prop)
+    (raise
+     (make-exn:fail:contract
+      (format "~a: expected a space-efficient-support property; got ~e"
+              prop)
+      (current-continuation-marks))))
+  prop)
+
+(define-values (prop:space-efficient-support struct-has-space-efficient-support? space-efficient-support-struct-property)
+  (make-struct-type-property 'space-efficient-support space-efficient-support-property-guard))
+
+(define (build-space-efficient-support-property
+         #:has-space-efficient-support? has-space-efficient-support?
+         #:convert convert)
+  (space-efficient-support-property has-space-efficient-support? convert))
+
+(struct space-efficient-contract-property
+  (try-merge
+   space-efficient-guard
+   get-projection)
+  #:omit-define-syntaxes)
+
+(define (space-efficient-contract-property-guard prop info)
+  (unless (space-efficient-contract-property? prop)
+    (raise
+     (make-exn:fail:contract
+      (format "~a: expected a space-efficient contract property; got: ~e"
+              prop)
+      (current-continuation-marks))))
+  prop)
+
+(define-values (prop:space-efficient-contract space-efficient-contract? get-space-efficient-contract-property)
+  (make-struct-type-property 'space-efficient-contract space-efficient-contract-property-guard))
+
+(define (build-space-efficient-contract-property
+         #:try-merge try-merge
+         #:space-efficient-guard space-efficient-guard
+         #:get-projection get-projection)
+  (space-efficient-contract-property
+   try-merge
+   space-efficient-guard
+   get-projection))
+
+(struct multi/c ()
+  #:property prop:space-efficient-support
+  (build-space-efficient-support-property
+   #:has-space-efficient-support? (lambda (ctc) #t)
+   #:convert (lambda (ctc blame) ctc)))
 
 ;; Parent structure for higher order space-efficient contracts
 ;; which must keep track of the latest blame and latest contract
 ;; applied
 (struct multi-ho/c multi/c (latest-blame latest-ctc))
 
-(struct multi-leaf/c multi/c (proj-list contract-list blame-list))
+(struct multi-leaf/c multi/c (proj-list contract-list blame-list)
+  #:property prop:space-efficient-contract
+  (build-space-efficient-contract-property
+   #:try-merge (lambda (new old) (and (multi-leaf/c? new) (join-multi-leaf/c new old)))
+   #:space-efficient-guard
+   (lambda (ctc val) (error "internal error: called space-efficient-guard on a leaf" ctc val))
+   #:get-projection
+   (lambda (ctc) (lambda (val neg-party) (error "internal error: tried to apply a leaf as a projection" ctc)))))
 
 ;; Parent structure for first-order checks
 (struct first-order-check ())
-
 
 ;; convert a contract into a space-efficient leaf
 (define (convert-to-multi-leaf/c ctc blame)
@@ -144,33 +205,6 @@
                 (append new-flat-list not-implied-flats)
                 (append new-blame-list not-implied-blames)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; An interface for space-efficient contract conversion and merging
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct space-efficient-support-property
-  (has-space-efficient-support?
-   convert)
-  #:omit-define-syntaxes)
-
-(define (space-efficient-support-property-guard prop info)
-  (unless (space-efficient-support-property? prop)
-    (raise
-     (make-exn:fail:contract
-      (format "~a: expected a space-efficient-support property; got ~e"
-              prop)
-      (current-continuation-marks))))
-  prop)
-
-(define-values (prop:space-efficient-support struct-has-space-efficient-support? space-efficient-support-struct-property)
-  (make-struct-type-property 'space-efficient-support space-efficient-support-property-guard))
-
-(define (build-space-efficient-support-property
-         #:has-space-efficient-support? has-space-efficient-support?
-         #:convert convert)
-  (space-efficient-support-property has-space-efficient-support? convert))
-
 ;; contract-has-space-efficient-support? : any/c -> boolean?
 ;; Returns #t if the value is a contract with space-efficient support
 (define (contract-has-space-efficient-support? ctc)
@@ -194,34 +228,6 @@
      (convert ctc blame)]
     [else
      (convert-to-multi-leaf/c ctc blame)]))
-
-(struct space-efficient-contract-property
-  (try-merge
-   space-efficient-guard
-   get-projection)
-  #:omit-define-syntaxes)
-
-(define (space-efficient-contract-property-guard prop info)
-  (unless (space-efficient-contract-property? prop)
-    (raise
-     (make-exn:fail:contract
-      (format "~a: expected a space-efficient contract property; got: ~e"
-              prop)
-      (current-continuation-marks))))
-  prop)
-
-(define-values (prop:space-efficient-contract space-efficient-contract? get-space-efficient-contract-property)
-  (make-struct-type-property 'space-efficient-contract space-efficient-contract-property-guard))
-
-(define (build-space-efficient-contract-property
-         #:try-merge try-merge
-         #:space-efficient-guard space-efficient-guard
-         #:get-projection get-projection)
-  (space-efficient-contract-property
-   try-merge
-   space-efficient-guard
-   get-projection))
-
 
 ;; Assuming that merging is symmetric, ie old-can-merge? iff new-can-merge?
 ;; This is true of the current s-e implementation, but if it ever changes

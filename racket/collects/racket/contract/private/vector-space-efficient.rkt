@@ -17,27 +17,8 @@
 
 (define debug-bailouts #f)
 
-(define vector-space-efficient-support-property
-  (build-space-efficient-support-property
-   #:has-space-efficient-support?
-   (lambda (ctc) (contract-has-vector-space-efficient-support? ctc))
-   #:convert
-   (lambda (ctc blame) (vector-contract->multi-vector ctc blame))))
-
-(define vector-space-efficient-contract-property
-  (build-space-efficient-contract-property
-   #:try-merge (lambda (new old) (try-merge new old))
-   #:space-efficient-guard (lambda (ctc val)
-                             (vector-space-efficient-guard ctc val))
-   #:get-projection (lambda (ctc) (get-projection ctc))))
-
 (struct vector-first-order-check first-order-check (immutable length blame))
-(struct multi-vector multi-ho/c (first-order ref-ctcs set-ctcs)
-  #:property prop:space-efficient-support vector-space-efficient-support-property
-  #:property prop:space-efficient-contract vector-space-efficient-contract-property)
-
-(struct chaperone-multi-vector multi-vector ())
-(struct impersonator-multi-vector multi-vector ())
+(struct multi-vector multi-ho/c (first-order ref-ctcs set-ctcs))
 
 (define (do-vector-first-order-checks m/c val)
   (define checks (multi-vector-first-order m/c))
@@ -259,3 +240,19 @@
   (lambda (val neg)
     (do-vector-first-order-checks ctc val)
     (bail-to-regular-wrapper ctc val)))
+
+(define vector-space-efficient-support-property
+  (build-space-efficient-support-property
+   #:has-space-efficient-support? contract-has-vector-space-efficient-support?
+   #:convert vector-contract->multi-vector))
+
+(define vector-space-efficient-contract-property
+  (build-space-efficient-contract-property
+   #:try-merge try-merge
+   #:space-efficient-guard vector-space-efficient-guard
+   #:get-projection get-projection))
+
+(struct chaperone-multi-vector multi-vector ()
+  #:property prop:space-efficient-contract vector-space-efficient-contract-property)
+(struct impersonator-multi-vector multi-vector ()
+  #:property prop:space-efficient-contract vector-space-efficient-contract-property)

@@ -60,20 +60,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
 
-(define ->-space-effificent-support-property
-  (build-space-efficient-support-property
-   #:has-space-efficient-support?
-   (lambda (ctc) (->-contract-has-space-efficient-support? ctc))
-   #:convert (lambda (ctc blame)
-               (ho/c->multi-> ctc blame))))
-
-(define ->-space-efficient-contract-property
-  (build-space-efficient-contract-property
-   #:try-merge (lambda (new old) (try-merge new old))
-   #:space-efficient-guard (lambda (ctc val)
-                             (arrow-space-efficient-guard ctc val))
-   #:get-projection (lambda (ctc) (get-projection ctc))))
-
 ;; we store the most recent blame only. when contracts fail, they assign
 ;; blame based on closed-over blame info, so `latest-blame` is only used
 ;; for things like prop:blame, contract profiling, and tail marks, in which
@@ -81,11 +67,7 @@
 ;; (and this behavior is consistent with what would happen in the absence
 ;; of space-efficient contracts anyway)
 ;; ditto for `latest-ctc` and prop:contracted
-(struct multi-> multi-ho/c (doms rng first-order-checks)
-  #:property prop:space-efficient-support ->-space-effificent-support-property
-  #:property prop:space-efficient-contract ->-space-efficient-contract-property)
-(struct chaperone-multi-> multi-> ())
-(struct impersonator-multi-> multi-> ())
+(struct multi-> multi-ho/c (doms rng first-order-checks))
 
 ;; contains all the information necessary to both (1) perform first order checks
 ;; for an arrow contract, and (2) determine which such checks are redundant and
@@ -384,3 +366,19 @@
       (and (impersonator-multi->? new)
            (impersonator-multi->? old)
            impersonator-multi->)))
+
+(define ->-space-effificent-support-property
+  (build-space-efficient-support-property
+   #:has-space-efficient-support? ->-contract-has-space-efficient-support?
+   #:convert ho/c->multi->))
+
+(define ->-space-efficient-contract-property
+  (build-space-efficient-contract-property
+   #:try-merge try-merge
+   #:space-efficient-guard arrow-space-efficient-guard
+   #:get-projection get-projection))
+
+(struct chaperone-multi-> multi-> ()
+  #:property prop:space-efficient-contract ->-space-efficient-contract-property)
+(struct impersonator-multi-> multi-> ()
+  #:property prop:space-efficient-contract ->-space-efficient-contract-property)
