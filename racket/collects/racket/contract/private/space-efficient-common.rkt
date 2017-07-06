@@ -86,13 +86,13 @@
 
 ;; Allow the bailout to be passed as an optional to avoid
 ;; an extra indirection through the property when possible
-(define (multi->leaf c chap-not-imp? [bail #f])
+(define (multi->leaf c [bail #f])
   (cond
     [(multi-leaf/c? c) c]
     [else
      (define bailout (or bail (get-bail c)))
      (multi-leaf/c
-      (list (lambda (val neg-party) (bailout c val chap-not-imp?)))
+      (list bailout)
       (list (gensym)) ;; need to be incomparable via contract-stronger?
       (list (multi-ho/c-latest-blame c)))]))
 
@@ -186,21 +186,19 @@
 ;; converts a contract into a space-efficient contract, if the contract
 ;; has space-efficient support, we dispatch to it's convert property
 ;; otherwise we build a multi-leaf/c
-(define (contract->space-efficient-contract ctc blame chap-not-imp?)
+(define (contract->space-efficient-contract ctc blame)
   (cond
     [(struct-has-space-efficient-support? ctc)
      (define prop (space-efficient-support-struct-property ctc))
      (define convert (space-efficient-support-property-convert prop))
-     (convert ctc blame chap-not-imp?)]
+     (convert ctc blame)]
     [else
      (convert-to-multi-leaf/c ctc blame)]))
 
 (struct space-efficient-contract-property
   (try-merge
-   bail-to-regular-wrapper
-   do-first-order-checks
    space-efficient-guard
-   value-has-s-e-support?)
+   get-projection)
   #:omit-define-syntaxes)
 
 (define (space-efficient-contract-property-guard prop info)
@@ -217,27 +215,23 @@
 
 (define (build-space-efficient-contract-property
          #:try-merge try-merge
-         #:bail-to-regular-wrapper bail-to-regular-wrapper
-         #:do-first-order-checks do-first-order-checks
          #:space-efficient-guard space-efficient-guard
-         #:value-has-space-efficient-support? value-has-space-efficient-support?)
+         #:get-projection get-projection)
   (space-efficient-contract-property
    try-merge
-   bail-to-regular-wrapper
-   do-first-order-checks
    space-efficient-guard
-   value-has-space-efficient-support?))
+   get-projection))
 
 
 ;; Assuming that merging is symmetric, ie old-can-merge? iff new-can-merge?
 ;; This is true of the current s-e implementation, but if it ever changes
 ;; this function will neef to check both directions for merging
-(define (merge new-multi old-multi chap-not-imp?)
-  (define-values (_ new-bail) (get-merge-components new-multi))
-  (define-values (old-try-merge old-bail) (get-merge-components old-multi))
-  (or (old-try-merge new-multi old-multi chap-not-imp?)
-      (join-multi-leaf/c (multi->leaf new-multi chap-not-imp? new-bail)
-                         (multi->leaf old-multi chap-not-imp? old-bail))))
+(define (merge new-multi old-multi)
+  (define-values (_ new-proj) (get-merge-components new-multi))
+  (define-values (old-try-merge old-proj) (get-merge-components old-multi))
+  (or (old-try-merge new-multi old-multi)
+      (join-multi-leaf/c (multi->leaf new-multi new-proj)
+                         (multi->leaf old-multi old-proj))))
 
 (define (get-merge-components multi)
   (cond
@@ -245,14 +239,14 @@
      (define prop (get-space-efficient-contract-property multi))
      (values
       (space-efficient-contract-property-try-merge prop)
-      (space-efficient-contract-property-bail-to-regular-wrapper prop))]
+      ((space-efficient-contract-property-get-projection prop) multi))]
     [else
      (values merge-fail #f)]))
       
-(define (merge-fail _1 _2 _3) #f)
+(define (merge-fail _1 _2) #f)
 
 
-(define (guard-multi/c multi val chap-not-imp?)
+(define (guard-multi/c multi val)
   ;; TODO: how do leaf/c structs fit into this hierarchy ...
   (cond
     [(multi-leaf/c? multi)
@@ -260,28 +254,16 @@
     [else
      (unless (space-efficient-contract? multi)
        (error "internal error: not a space-efficient contract"))
-     (define-values (bail do-f-o-checks space-efficient-guard value-has-s-e-support?)
-       (get-guard-components multi))
-     ;; NOTE: both branches do first-order checks before anything else
-     ;; that check can probably be lifted to before this cond ...
-     (cond
-       [(value-has-s-e-support? val chap-not-imp?)
-        (do-f-o-checks multi val)
-        (space-efficient-guard multi val chap-not-imp?)]
-       [else
-        (bail multi val chap-not-imp?)])]))
+     (space-efficient-guard multi val)]))
 
-(define (get-guard-components multi)
+(define (space-efficient-guard multi val)
   (define prop (get-space-efficient-contract-property multi))
-  (values
-   (space-efficient-contract-property-bail-to-regular-wrapper prop)
-   (space-efficient-contract-property-do-first-order-checks prop)
-   (space-efficient-contract-property-space-efficient-guard prop)
-   (space-efficient-contract-property-value-has-s-e-support? prop)))
+  (define guard (space-efficient-contract-property-space-efficient-guard prop))
+  (guard multi val))
 
 (define (get-bail multi)
   (define prop (space-efficient-contract-property multi))
-  (space-efficient-contract-property-bail-to-regular-wrapper prop))
+  ((space-efficient-contract-property-get-projection prop) multi))
 
 (define (first-order-check-join new-checks old-checks stronger?)
   (append new-checks
@@ -291,11 +273,10 @@
                                   #:implies stronger?)))
             old)))
 
-(define (enter-space-efficient-mode val ctc blame chap-not-imp?)
+(define (enter-space-efficient-mode val ctc blame)
   (and (has-contract? val)
        (contract-has-space-efficient-support? ctc)
        (contract-has-space-efficient-support? (value-contract val))
-       (guard-multi/c (contract->space-efficient-contract ctc blame chap-not-imp?)
-                      val
-                      chap-not-imp?)))
+       (guard-multi/c (contract->space-efficient-contract ctc blame)
+                      val)))
 

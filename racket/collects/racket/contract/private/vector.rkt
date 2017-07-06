@@ -179,7 +179,7 @@
                           (elem-pos-proj e neg-party)))
                       val)
                (begin (log-n-wrappers "immutable-vectorof-ho" val)
-                      (or (enter-space-efficient-mode val ctc full-blame chap-not-imp?)
+                      (or (enter-space-efficient-mode val ctc full-blame)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
@@ -198,7 +198,7 @@
                 (for/vector #:length (vector-length val) ([e (in-vector val)])
                   (elem-pos-proj e neg-party)))
                (begin (log-n-wrappers "mutable-vectorof-ho" val)
-                      (or (enter-space-efficient-mode val ctc full-blame chap-not-imp?)
+                      (or (enter-space-efficient-mode val ctc full-blame)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
@@ -393,7 +393,7 @@
                                    [i (in-naturals)])
                           ((vector-ref elem-pos-projs i) e neg-party)))
                  (begin (log-n-wrappers "mutable-vector/c-ho" val)
-                        (or (enter-space-efficient-mode val ctc full-blame chap-not-imp?)
+                        (or (enter-space-efficient-mode val ctc full-blame)
                             (vector-wrapper
                              val
                              (λ (vec i val)

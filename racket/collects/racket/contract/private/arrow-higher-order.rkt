@@ -615,7 +615,7 @@
             (if is-impersonator? unsafe-impersonate-procedure unsafe-chaperone-procedure)
             (if is-impersonator? impersonate-procedure chaperone-procedure)))
       (define full-blame (blame-add-missing-party orig-blame neg-party))
-      (or (enter-space-efficient-mode val ctc full-blame chaperone?)
+      (or (enter-space-efficient-mode val ctc full-blame)
           (cond
             [chap/imp-func
              (log-n-wrappers "arrow-higher-order" val)
