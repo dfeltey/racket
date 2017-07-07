@@ -163,7 +163,7 @@
               (values (merge ctc
                              (get-impersonator-prop:multi/c val))
                       (get-impersonator-prop:checking-wrapper val))]
-             [(has-contract? val)
+             [(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
               (define orig-ctc (value-contract val))

@@ -1186,4 +1186,73 @@
            [v2 (contract ctc2 (contract ctc2 v1 'p 'n) 'p 'n)]
            [v (vector-ref v2 0)])
       (vector/c-has-num-contracts? v '(2 2) '(1 1))))
-  )
+
+  (test/spec-passed
+   'vecof+chap+non-s-e
+   '(let ()
+      (define ctc (vectorof (-> integer?)))
+      (define v (contract ctc (contract ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
+      (define my/c
+        (make-chaperone-contract
+         #:late-neg-projection
+         (lambda (blame)
+           (lambda (val neg)
+             (define full-blame (blame-add-missing-party blame neg))
+             (chaperone-procedure
+              val
+              #f
+              impersonator-prop:contracted my/c
+              impersonator-prop:blame full-blame)))))
+      (define f (contract my/c (lambda () 23) 'pf 'nf))
+      (vector-set! v 0 f)))
+
+  (contract-eval
+   '(define my->/c
+      (make-chaperone-contract
+       #:late-neg-projection
+       (lambda (blame)
+         (lambda (val neg)
+           (define full-blame (blame-add-missing-party blame neg))
+           (chaperone-procedure
+            val
+            (lambda (arg)
+              (unless (integer? arg)
+                (raise-blame-error (blame-swap full-blame) arg "bad arg"))
+              (values
+               (lambda (res)
+                 (unless (integer? res)
+                   (raise-blame-error full-blame res "bad res"))
+                 res)
+               arg))
+            impersonator-prop:contracted my->/c
+            impersonator-prop:blame full-blame))))))
+
+   (test/spec-passed
+    'vecof+chap+non-s-e-ok
+    '(let ()
+       (define ctc (vectorof (-> integer? integer?)))
+       (define v (contract ctc (contract ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
+       (define f (contract my->/c (lambda (x) 23) 'pf 'nf))
+       (vector-set! v 0 f)
+       ((vector-ref v 0) 1)))
+
+   (test/spec-failed
+    'vecof+chap+non-s-e-blame-neg
+    '(let ()
+       (define ctc (vectorof (-> integer? integer?)))
+       (define v (contract ctc (contract ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
+       (define f (contract my->/c (lambda (x) 23) 'pf 'nf))
+       (vector-set! v 0 f)
+       ((vector-ref v 0) 1.1))
+    "n")
+
+   (test/spec-failed
+    'vecof+chap+non-s-e-blame-pos
+    '(let ()
+       (define ctc (vectorof (-> integer? integer?)))
+       (define v (contract ctc (contract ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
+       (define f (contract my->/c (lambda (x) 2.3) 'pf 'nf))
+       (vector-set! v 0 f)
+       ((vector-ref v 0) 1))
+    "pf")
+   )

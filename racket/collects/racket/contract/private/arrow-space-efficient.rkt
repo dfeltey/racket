@@ -182,7 +182,7 @@
                        ctc
                        (get-impersonator-prop:multi/c val))
                       (get-impersonator-prop:checking-wrapper val))]
-             [(has-contract? val)
+             [(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
               ;; value is already contracted; switch to space-efficient mode
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
