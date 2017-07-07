@@ -126,7 +126,7 @@
 (struct multi-leaf/c multi/c (proj-list contract-list blame-list)
   #:property prop:space-efficient-contract
   (build-space-efficient-contract-property
-   #:try-merge (lambda (new old) (and (multi-leaf/c? new) (join-multi-leaf/c new old)))
+   #:try-merge (lambda (new old) (and (multi-leaf/c? old) (join-multi-leaf/c new old)))
    #:space-efficient-guard
    (lambda (ctc val) (error "internal error: called space-efficient-guard on a leaf" ctc val))
    #:get-projection
@@ -230,9 +230,9 @@
 ;; This is true of the current s-e implementation, but if it ever changes
 ;; this function will neef to check both directions for merging
 (define (merge new-multi old-multi)
-  (define-values (_ new-proj) (get-merge-components new-multi))
-  (define-values (old-try-merge old-proj) (get-merge-components old-multi))
-  (or (old-try-merge new-multi old-multi)
+  (define-values (new-try-merge new-proj) (get-merge-components new-multi))
+  (define-values (_ old-proj) (get-merge-components old-multi))
+  (or (new-try-merge new-multi old-multi)
       (join-multi-leaf/c (multi->leaf new-multi new-proj)
                          (multi->leaf old-multi old-proj))))
 
@@ -249,12 +249,12 @@
 (define (merge-fail _1 _2) #f)
 
 (define (guard-multi/c multi val)
+  (unless (space-efficient-contract? multi)
+    (error "internal error: not a space-efficient contract" multi))
   (cond
     [(multi-leaf/c? multi)
      (apply-proj-list (multi-leaf/c-proj-list multi) val)]
     [else
-     (unless (space-efficient-contract? multi)
-       (error "internal error: not a space-efficient contract" multi))
      (space-efficient-guard multi val)]))
 
 (define (space-efficient-guard multi val)

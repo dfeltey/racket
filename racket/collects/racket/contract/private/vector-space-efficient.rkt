@@ -147,6 +147,7 @@
            impersonator-multi-vector)))
 
 (define (vector-space-efficient-guard ctc val)
+  ;; TODO: sometimes the first-order check are redundant ...
   (do-vector-first-order-checks ctc val)
   (define chap-not-imp? (chaperone-multi-vector? ctc))
   (cond
@@ -178,8 +179,6 @@
                        (contract->space-efficient-contract orig-ctc orig-blame))
                       (make-checking-wrapper unwrapped))]
              [else
-              (unless (multi-vector? ctc)
-                (error "internal error: expecting a space-efficient contract" ctc))
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
               (values ctc (make-checking-wrapper val))]))

@@ -163,6 +163,7 @@
 
 ;; (or/c contract? multi/c?) × α × boolean? → α
 (define (arrow-space-efficient-guard ctc val)
+  ;; TODO: sometimes the first-order checks are redundant ...
   (do-arrow-first-order-checks ctc val)
   (define chap-not-imp? (chaperone-multi->? ctc))
   (cond
@@ -201,8 +202,6 @@
                       (make-checking-wrapper unwrapped))]
              [else
               ;; value is not contracted; applying a s-e subcontract directly
-              (unless (multi/c? ctc)
-                (error "internal error: expecting a space-efficient contract" ctc))
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
               (values ctc (make-checking-wrapper val))])) ; already "unwrapped"
