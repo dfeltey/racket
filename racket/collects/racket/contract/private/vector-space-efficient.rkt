@@ -6,7 +6,8 @@
          (only-in racket/unsafe/ops unsafe-chaperone-vector unsafe-impersonate-vector)
          (for-syntax racket/base))
 
-(provide vector-space-efficient-support-property)
+(provide vectorof-space-efficient-support-property
+         vector/c-space-efficient-support-property)
 
 (module+ for-testing
   (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs
@@ -14,7 +15,7 @@
 
 (define debug-bailouts #f)
 
-(struct vector-first-order-check first-order-check (immutable length blame))
+(struct vector-first-order-check (immutable length blame))
 (struct multi-vector multi-ho/c (first-order ref-ctcs set-ctcs))
 
 (define (do-vector-first-order-checks m/c val)
@@ -74,41 +75,37 @@
        (or (not f2-length)
            (and f1-length (= f1-length f2-length)))))
 
-;; If we split up conversion and merging, this function
-;; can be split into 2 vector-contract specific functions
-;; then the dispatch is just on a struct property ...
-(define (vector-contract->multi-vector ctc blame)
+
+(define (vectorof->multi-vector ctc blame)
   (define chap-not-imp? (chaperone-contract? ctc))
   (define chap/imp
     (if chap-not-imp? chaperone-multi-vector impersonator-multi-vector))
-  (cond
-    [(multi-vector? ctc) ; already space efficient
-     ctc]
-    [(base-vectorof? ctc)
-     (define elem (base-vectorof-elem ctc))
-     (define set-blame (blame-swap blame))
-     (chap/imp
-      blame
-      ctc
-      (list (vector-first-order-check (base-vectorof-immutable ctc) #f blame))
-      (contract->space-efficient-contract elem blame)
-      (contract->space-efficient-contract elem set-blame))]
-    [(base-vector/c? ctc)
-     (define elems (base-vector/c-elems ctc))
-     (define set-blame (blame-swap blame))
-     (chap/imp
-      blame
-      ctc
-      (list (vector-first-order-check
-             (base-vector/c-immutable ctc)
-             (length elems)
-             blame))
-      (for/vector ([elem-ctc (in-list elems)])
-        (contract->space-efficient-contract elem-ctc blame))
-      (for/vector ([elem-ctc (in-list elems)])
-        (contract->space-efficient-contract elem-ctc set-blame)))]
-    [else ; convert to a leaf
-     (convert-to-multi-leaf/c ctc blame)]))
+  (define elem (base-vectorof-elem ctc))
+  (define set-blame (blame-swap blame))
+  (chap/imp
+   blame
+   ctc
+   (list (vector-first-order-check (base-vectorof-immutable ctc) #f blame))
+   (contract->space-efficient-contract elem blame)
+   (contract->space-efficient-contract elem set-blame)))
+
+(define (vector/c->multi-vector ctc blame)
+  (define chap-not-imp? (chaperone-contract? ctc))
+  (define chap/imp
+    (if chap-not-imp? chaperone-multi-vector impersonator-multi-vector))
+  (define elems (base-vector/c-elems ctc))
+  (define set-blame (blame-swap blame))
+  (chap/imp
+   blame
+   ctc
+   (list (vector-first-order-check
+          (base-vector/c-immutable ctc)
+          (length elems)
+          blame))
+   (for/vector ([elem-ctc (in-list elems)])
+     (contract->space-efficient-contract elem-ctc blame))
+   (for/vector ([elem-ctc (in-list elems)])
+     (contract->space-efficient-contract elem-ctc set-blame))))
 
 (define (try-merge new-multi old-multi)
   (define constructor (get-constructor new-multi old-multi))
@@ -237,10 +234,15 @@
     (do-vector-first-order-checks ctc val)
     (bail-to-regular-wrapper ctc val)))
 
-(define vector-space-efficient-support-property
-  (build-space-efficient-support-property
+(define vectorof-space-efficient-support-property
+  (build-space-efficient-contract-property
    #:has-space-efficient-support? contract-has-vector-space-efficient-support?
-   #:convert vector-contract->multi-vector))
+   #:convert vectorof->multi-vector))
+
+(define vector/c-space-efficient-support-property
+  (build-space-efficient-contract-property
+   #:has-space-efficient-support? contract-has-vector-space-efficient-support?
+   #:convert vector/c->multi-vector))
 
 (define vector-space-efficient-contract-property
   (build-space-efficient-contract-property

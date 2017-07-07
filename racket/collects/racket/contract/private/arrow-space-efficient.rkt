@@ -69,7 +69,7 @@
 ;; contains all the information necessary to both (1) perform first order checks
 ;; for an arrow contract, and (2) determine which such checks are redundant and
 ;; can be eliminated
-(struct arrow-first-order-check first-order-check (n-doms blame method?))
+(struct arrow-first-order-check (n-doms blame method?))
 ;; stronger really means "the same" here
 (define (arrow-first-order-check-stronger? x y)
   (= (arrow-first-order-check-n-doms x) (arrow-first-order-check-n-doms y)))
@@ -319,23 +319,16 @@
 ;; At the leaves we convert contracts to multi-leaf/c
 (define (ho/c->multi-> ctc blame)
   (define chap-not-imp? (chaperone-contract? ctc))
-  (cond
-   [(multi->? ctc) ; already in multi mode
-    ctc]
-   ;; copy structure and propagate blame
-   [(and (base->? ctc) (->-contract-has-space-efficient-support? ctc))
-    (define doms (base->-doms ctc))
-    (define rng  (car (base->-rngs ctc))) ; assumes single range
-    (define dom-blame (blame-swap blame))
-    ((if chap-not-imp? chaperone-multi-> impersonator-multi->)
-     blame
-     ctc
-     (for/vector ([dom (in-list doms)])
-       (contract->space-efficient-contract dom dom-blame))
-     (contract->space-efficient-contract rng blame)
-     (list (arrow-first-order-check (length doms) blame (base->-method? ctc))))]
-   [else ; anything else is wrapped in a multi-leaf wrapper
-    (convert-to-multi-leaf/c ctc blame)]))
+  (define doms (base->-doms ctc))
+  (define rng  (car (base->-rngs ctc))) ; assumes single range
+  (define dom-blame (blame-swap blame))
+  ((if chap-not-imp? chaperone-multi-> impersonator-multi->)
+   blame
+   ctc
+   (for/vector ([dom (in-list doms)])
+     (contract->space-efficient-contract dom dom-blame))
+   (contract->space-efficient-contract rng blame)
+   (list (arrow-first-order-check (length doms) blame (base->-method? ctc)))))
 
 ;; merge two multi->
 (define (try-merge new-multi old-multi)
@@ -364,7 +357,7 @@
            impersonator-multi->)))
 
 (define ->-space-effificent-support-property
-  (build-space-efficient-support-property
+  (build-space-efficient-contract-property
    #:has-space-efficient-support? ->-contract-has-space-efficient-support?
    #:convert ho/c->multi->))
 

@@ -218,7 +218,7 @@
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
    #:late-neg-projection (vectorof-late-neg-ho-projection #t))
-  #:property prop:space-efficient-support vector-space-efficient-support-property)
+  #:property prop:space-efficient-contract vectorof-space-efficient-support-property)
 
 (define-struct (impersonator-vectorof base-vectorof) ()
   #:property prop:custom-write custom-write-property-proc
@@ -228,7 +228,7 @@
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
    #:late-neg-projection (vectorof-late-neg-ho-projection #f))
-  #:property prop:space-efficient-support vector-space-efficient-support-property)
+  #:property prop:space-efficient-contract vectorof-space-efficient-support-property)
 
 (define-syntax (wrap-vectorof stx)
   (syntax-case stx ()
@@ -416,7 +416,7 @@
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
    #:late-neg-projection (vector/c-ho-late-neg-projection #t))
-  #:property prop:space-efficient-support vector-space-efficient-support-property)
+  #:property prop:space-efficient-contract vector/c-space-efficient-support-property)
 
 (define-struct (impersonator-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc
@@ -426,7 +426,7 @@
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
    #:late-neg-projection (vector/c-ho-late-neg-projection #f))
-  #:property prop:space-efficient-support vector-space-efficient-support-property)
+  #:property prop:space-efficient-contract vector/c-space-efficient-support-property)
 
 (define-syntax (wrap-vector/c stx)
   (syntax-case stx ()

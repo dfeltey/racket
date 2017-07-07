@@ -1581,15 +1581,15 @@
      
 (define-struct (-> base->) ()
   #:property prop:chaperone-contract (make-property #f)
-  #:property prop:space-efficient-support ->-space-effificent-support-property)
+  #:property prop:space-efficient-contract ->-space-effificent-support-property)
 
 (define-struct (predicate/c base->) ()
   #:property prop:chaperone-contract (make-property #f)
-  #:property prop:space-efficient-support ->-space-effificent-support-property)
+  #:property prop:space-efficient-contract ->-space-effificent-support-property)
 
 (define-struct (impersonator-> base->) ()
   #:property prop:contract (make-property #t)
-  #:property prop:space-efficient-support ->-space-effificent-support-property)
+  #:property prop:space-efficient-contract ->-space-effificent-support-property)
 
 (define ->void-contract
   (let-syntax ([get-chaperone-constructor

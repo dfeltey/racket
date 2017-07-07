@@ -4,17 +4,11 @@
 
 (require "prop.rkt" "guts.rkt" "blame.rkt")
 
-(provide (struct-out multi/c)
-         (struct-out multi-ho/c)
-         (struct-out multi-leaf/c)
-         (struct-out first-order-check)
-         convert-to-multi-leaf/c
+(provide (struct-out multi-ho/c)
          apply-proj-list
-         prop:space-efficient-support
          prop:space-efficient-contract
          contract-has-space-efficient-support?
          contract->space-efficient-contract
-         build-space-efficient-support-property
          build-space-efficient-contract-property
          space-efficient-contract?
          merge
@@ -63,30 +57,10 @@
 ;; An interface for space-efficient contract conversion and merging
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct space-efficient-support-property
-  (has-space-efficient-support?
-   convert)
-  #:omit-define-syntaxes)
-
-(define (space-efficient-support-property-guard prop info)
-  (unless (space-efficient-support-property? prop)
-    (raise
-     (make-exn:fail:contract
-      (format "~a: expected a space-efficient-support property; got ~e"
-              prop)
-      (current-continuation-marks))))
-  prop)
-
-(define-values (prop:space-efficient-support struct-has-space-efficient-support? space-efficient-support-struct-property)
-  (make-struct-type-property 'space-efficient-support space-efficient-support-property-guard))
-
-(define (build-space-efficient-support-property
-         #:has-space-efficient-support? has-space-efficient-support?
-         #:convert convert)
-  (space-efficient-support-property has-space-efficient-support? convert))
-
 (struct space-efficient-contract-property
-  (try-merge
+  (has-space-efficient-support?
+   convert
+   try-merge
    space-efficient-guard
    get-projection)
   #:omit-define-syntaxes)
@@ -104,26 +78,30 @@
   (make-struct-type-property 'space-efficient-contract space-efficient-contract-property-guard))
 
 (define (build-space-efficient-contract-property
-         #:try-merge try-merge
-         #:space-efficient-guard space-efficient-guard
-         #:get-projection get-projection)
+         #:has-space-efficient-support? [has-space-efficient-support? (lambda (_) #t)]
+         #:convert [convert (lambda (ctc) ctc)]
+         #:try-merge [try-merge (lambda (new old) #f)]
+         #:space-efficient-guard
+         [space-efficient-guard
+          (lambda (ctc val)
+            (error "internal error: contract does not support `space-efficient-guard`" ctc))]
+         #:get-projection
+         [get-projection
+          (lambda (ctc)
+            (lambda (val neg) (error "internal error: contract does not support `get-projection`" ctc)))])
   (space-efficient-contract-property
+   has-space-efficient-support?
+   convert
    try-merge
    space-efficient-guard
    get-projection))
 
-(struct multi/c ()
-  #:property prop:space-efficient-support
-  (build-space-efficient-support-property
-   #:has-space-efficient-support? (lambda (ctc) #t)
-   #:convert (lambda (ctc blame) ctc)))
-
 ;; Parent structure for higher order space-efficient contracts
 ;; which must keep track of the latest blame and latest contract
 ;; applied
-(struct multi-ho/c multi/c (latest-blame latest-ctc))
+(struct multi-ho/c (latest-blame latest-ctc))
 
-(struct multi-leaf/c multi/c (proj-list contract-list blame-list)
+(struct multi-leaf/c (proj-list contract-list blame-list)
   #:property prop:space-efficient-contract
   (build-space-efficient-contract-property
    #:try-merge (lambda (new old) (and (multi-leaf/c? old) (join-multi-leaf/c new old)))
@@ -205,13 +183,11 @@
 ;; contract-has-space-efficient-support? : any/c -> boolean?
 ;; Returns #t if the value is a contract with space-efficient support
 (define (contract-has-space-efficient-support? ctc)
-  (or (multi/c? ctc) ; already a space-efficient contract
-      ;; maybe this check needs to be a multi-ho/c because if we have a leaf something else should happen
-      (and (struct-has-space-efficient-support? ctc)
-           (let* ([prop (space-efficient-support-struct-property ctc)]
-                  [has-space-efficient-support?
-                   (space-efficient-support-property-has-space-efficient-support? prop)])
-             (has-space-efficient-support? ctc)))))
+  (and (space-efficient-contract? ctc)
+       (let* ([prop (get-space-efficient-contract-property ctc)]
+              [has-space-efficient-support?
+               (space-efficient-contract-property-has-space-efficient-support? prop)])
+         (has-space-efficient-support? ctc))))
 
 ;; contract->space-efficient-contract : contract? blame? boolean? -> multi/c?
 ;; converts a contract into a space-efficient contract, if the contract
@@ -219,10 +195,13 @@
 ;; otherwise we build a multi-leaf/c
 (define (contract->space-efficient-contract ctc blame)
   (cond
-    [(struct-has-space-efficient-support? ctc)
-     (define prop (space-efficient-support-struct-property ctc))
-     (define convert (space-efficient-support-property-convert prop))
-     (convert ctc blame)]
+    [(space-efficient-contract? ctc)
+     (define prop (get-space-efficient-contract-property ctc))
+     (define has-support? (space-efficient-contract-property-has-space-efficient-support? prop))
+     (define convert (space-efficient-contract-property-convert prop))
+     (if (has-support? ctc)
+         (convert ctc blame)
+         (convert-to-multi-leaf/c ctc blame))]
     [else
      (convert-to-multi-leaf/c ctc blame)]))
 
