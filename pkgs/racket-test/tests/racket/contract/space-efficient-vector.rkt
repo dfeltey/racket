@@ -1206,6 +1206,7 @@
       (define f (contract my/c (lambda () 23) 'pf 'nf))
       (vector-set! v 0 f)))
 
+
   (contract-eval
    '(define my->/c
       (make-chaperone-contract
@@ -1255,4 +1256,56 @@
        (vector-set! v 0 f)
        ((vector-ref v 0) 1))
     "pf")
-   )
+
+  (test/spec-passed
+   'vecof+->-insert-contracted-non-s-e
+   '(let ()
+      (define ctc (vectorof (-> integer?)))
+      (define v (contract ctc (contract ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
+      (define f (contract
+                 (case-> (-> integer?)
+                         (-> (values integer? integer?)))
+                 (lambda () 2)
+                 'fp 'fn))
+      (vector-set! v 0 f)))
+
+  (test/spec-passed
+   'vec/c+->-insert-contracted-non-s-e
+   '(let ()
+      (define ctc (vector/c (-> integer?)))
+      (define v (contract ctc (contract ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
+      (define f (contract
+                 (case-> (-> integer?)
+                         (-> (values integer? integer?)))
+                 (lambda () 2)
+                 'fp 'fn))
+      (vector-set! v 0 f)))
+
+  (test/spec-failed
+   'vecof+->-insert-contracted-non-s-e-fail-blame-pos
+   '(let ()
+      (define ctc (vectorof (-> integer?)))
+      (define v (contract ctc (contract ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
+      (define f (contract
+                 (case-> (-> integer?)
+                         (-> (values integer? integer?)))
+                 (lambda () 'bad)
+                 'fp 'fn))
+      (vector-set! v 0 f)
+      ((vector-ref v 0)))
+   "fp")
+
+  (test/spec-failed
+   'vecof+->-insert-contracted-non-s-e-fail-blame-neg
+   '(let ()
+      (define ctc (vectorof (-> integer? integer?)))
+      (define v (contract ctc (contract ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
+      (define f (contract
+                 (case-> (-> integer? integer?)
+                         (-> integer? (values integer? integer?)))
+                 (lambda (x) 3)
+                 'fp 'fn))
+      (vector-set! v 0 f)
+      ((vector-ref v 0) 1.2))
+   "n")
+  )

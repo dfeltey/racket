@@ -7,7 +7,8 @@
          (for-syntax racket/base))
 
 (provide vectorof-space-efficient-support-property
-         vector/c-space-efficient-support-property)
+         vector/c-space-efficient-support-property
+         value-has-vector-space-efficient-support?)
 
 (module+ for-testing
   (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs
@@ -157,7 +158,7 @@
        (cond [(has-impersonator-prop:multi/c? val)
               (unless (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting a checking wrapper" val))
-              (values (merge ctc
+              (values (try-merge ctc
                              (get-impersonator-prop:multi/c val))
                       (get-impersonator-prop:checking-wrapper val))]
              [(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
@@ -171,7 +172,7 @@
                      unsafe-impersonate-vector)
                  val
                  (get-impersonator-prop:unwrapped val)))
-              (values (merge
+              (values (try-merge
                        ctc
                        (contract->space-efficient-contract orig-ctc orig-blame))
                       (make-checking-wrapper unwrapped))]
@@ -179,20 +180,23 @@
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
               (values ctc (make-checking-wrapper val))]))
-     (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
-     (define b (box #f))
-     (define res
-       (chap/imp
-        checking-wrapper
-        #f
-        #f
-        impersonator-prop:checking-wrapper checking-wrapper
-        impersonator-prop:outer-wrapper-box b
-        impersonator-prop:multi/c merged-ctc
-        impersonator-prop:contracted  (multi-ho/c-latest-ctc merged-ctc)
-        impersonator-prop:blame (multi-ho/c-latest-blame merged-ctc)))
-     (set-box! b res)
-     res]
+     (cond
+       [merged-ctc
+        (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
+        (define b (box #f))
+        (define res
+          (chap/imp
+           checking-wrapper
+           #f
+           #f
+           impersonator-prop:checking-wrapper checking-wrapper
+           impersonator-prop:outer-wrapper-box b
+           impersonator-prop:multi/c merged-ctc
+           impersonator-prop:contracted  (multi-ho/c-latest-ctc merged-ctc)
+           impersonator-prop:blame (multi-ho/c-latest-blame merged-ctc)))
+        (set-box! b res)
+        res]
+       [else (bail-to-regular-wrapper ctc val)])]
     [else (bail-to-regular-wrapper ctc val)]))
 
 (define-syntax (make-vectorof-checking-wrapper stx)
@@ -227,7 +231,8 @@
    (make-vectorof-checking-wrapper #f m/c)
    (make-vectorof-checking-wrapper #t m/c)
    impersonator-prop:contracted ctc
-   impersonator-prop:blame blame))
+   impersonator-prop:blame blame
+   impersonator-prop:unwrapped val))
 
 (define (get-projection ctc)
   (lambda (val neg)

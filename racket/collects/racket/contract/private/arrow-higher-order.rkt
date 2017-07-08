@@ -615,26 +615,30 @@
             (if is-impersonator? unsafe-impersonate-procedure unsafe-chaperone-procedure)
             (if is-impersonator? impersonate-procedure chaperone-procedure)))
       (define full-blame (blame-add-missing-party orig-blame neg-party))
-      (or (enter-space-efficient-mode val ctc full-blame)
-          (cond
-            [chap/imp-func
-             (log-n-wrappers "arrow-higher-order" val)
-             (if (or post? (not rngs))
-                 (chaperone-or-impersonate-procedure
-                  val
-                  chap/imp-func
-                  impersonator-prop:contracted ctc
-                  impersonator-prop:blame full-blame
-                  impersonator-prop:unwrapped val)
-                 (chaperone-or-impersonate-procedure
-                  val
-                  chap/imp-func
-                  impersonator-prop:contracted ctc
+      (cond
+        [(and (has-contract? val)
+              (contract-has-space-efficient-support? ctc)
+              (contract-has-space-efficient-support? (value-contract val))
+              (value-has-space-efficient-support? val chaperone?))
+         (guard-multi/c (contract->space-efficient-contract ctc full-blame) val)]
+        [chap/imp-func
+         (log-n-wrappers "arrow-higher-order" val)
+         (if (or post? (not rngs))
+             (chaperone-or-impersonate-procedure
+              val
+              chap/imp-func
+              impersonator-prop:contracted ctc
+              impersonator-prop:blame full-blame
+              impersonator-prop:unwrapped val)
+             (chaperone-or-impersonate-procedure
+              val
+              chap/imp-func
+              impersonator-prop:contracted ctc
               impersonator-prop:blame full-blame
               impersonator-prop:application-mark
               (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))
               impersonator-prop:unwrapped val))]
-            [else val])))
+        [else val]))
     (cond
       [late-neg?
        (define (arrow-higher-order:lnp val neg-party)

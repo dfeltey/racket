@@ -5,6 +5,7 @@
 (require "prop.rkt" "guts.rkt" "blame.rkt")
 
 (provide (struct-out multi-ho/c)
+         (struct-out multi-leaf/c)
          apply-proj-list
          prop:space-efficient-contract
          contract-has-space-efficient-support?
@@ -109,9 +110,6 @@
    (lambda (ctc val) (error "internal error: called space-efficient-guard on a leaf" ctc val))
    #:get-projection
    (lambda (ctc) (lambda (val neg-party) (error "internal error: tried to apply a leaf as a projection" ctc)))))
-
-;; Parent structure for first-order checks
-(struct first-order-check ())
 
 ;; convert a contract into a space-efficient leaf
 (define (convert-to-multi-leaf/c ctc blame)

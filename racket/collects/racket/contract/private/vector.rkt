@@ -179,7 +179,11 @@
                           (elem-pos-proj e neg-party)))
                       val)
                (begin (log-n-wrappers "immutable-vectorof-ho" val)
-                      (or (enter-space-efficient-mode val ctc full-blame)
+                      (if (and (has-contract? val)
+                               (contract-has-space-efficient-support? ctc)
+                               (contract-has-space-efficient-support? (value-contract val))
+                               (value-has-vector-space-efficient-support? val chap-not-imp?))
+                          (guard-multi/c (contract->space-efficient-contract ctc full-blame) val)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
@@ -198,7 +202,11 @@
                 (for/vector #:length (vector-length val) ([e (in-vector val)])
                   (elem-pos-proj e neg-party)))
                (begin (log-n-wrappers "mutable-vectorof-ho" val)
-                      (or (enter-space-efficient-mode val ctc full-blame)
+                      (if (and (has-contract? val)
+                               (contract-has-space-efficient-support? ctc)
+                               (contract-has-space-efficient-support? (value-contract val))
+                               (value-has-vector-space-efficient-support? val chap-not-imp?))
+                          (guard-multi/c (contract->space-efficient-contract ctc full-blame) val)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
@@ -393,7 +401,11 @@
                                    [i (in-naturals)])
                           ((vector-ref elem-pos-projs i) e neg-party)))
                  (begin (log-n-wrappers "mutable-vector/c-ho" val)
-                        (or (enter-space-efficient-mode val ctc full-blame)
+                        (if (and (has-contract? val)
+                                 (contract-has-space-efficient-support? ctc)
+                                 (contract-has-space-efficient-support? (value-contract val))
+                                 (value-has-vector-space-efficient-support? val chap-not-imp?))
+                            (guard-multi/c (contract->space-efficient-contract ctc full-blame) val)
                             (vector-wrapper
                              val
                              (λ (vec i val)

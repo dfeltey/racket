@@ -11,7 +11,8 @@
          "arity-checking.rkt"
          (for-syntax racket/base))
 
-(provide ->-space-effificent-support-property)
+(provide ->-space-effificent-support-property
+         value-has-space-efficient-support?)
 (module+ for-testing
   (provide multi->? multi->-doms multi->-rng
            value-has-space-efficient-support?))
@@ -178,7 +179,7 @@
               ;; value is already in space-efficient mode; merge new contract in
               (unless (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting a checking wrapper" val))
-              (values (merge
+              (values (try-merge
                        ctc
                        (get-impersonator-prop:multi/c val))
                       (get-impersonator-prop:checking-wrapper val))]
@@ -196,7 +197,7 @@
                      unsafe-impersonate-procedure)
                  val
                  (get-impersonator-prop:unwrapped val)))
-              (values (merge
+              (values (try-merge
                        ctc
                        (contract->space-efficient-contract orig-ctc orig-blame))
                       (make-checking-wrapper unwrapped))]
@@ -205,21 +206,25 @@
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
               (values ctc (make-checking-wrapper val))])) ; already "unwrapped"
-     ;; do the actual checking and wrap with the 3rd chaperone (see above)
-     (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
-     (define b (box #f)) ; to record the outermost (property-only) chaperone
-     (define res
-       (chap/imp
-        checking-wrapper
-        #f ; property-only, so we can swap it in and out
-        impersonator-prop:checking-wrapper  checking-wrapper
-        impersonator-prop:outer-wrapper-box b
-        impersonator-prop:multi/c           merged-m/c
-        ;; for these, latest is fine (and the behavior in the absence of s-e)
-        impersonator-prop:contracted        (multi-ho/c-latest-ctc   merged-m/c)
-        impersonator-prop:blame             (multi-ho/c-latest-blame merged-m/c)))
-     (set-box! b res)
-     res]
+     (cond
+       [merged-m/c
+        ;; do the actual checking and wrap with the 3rd chaperone (see above)
+        (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
+        (define b (box #f)) ; to record the outermost (property-only) chaperone
+        (define res
+          (chap/imp
+           checking-wrapper
+           #f ; property-only, so we can swap it in and out
+           impersonator-prop:checking-wrapper  checking-wrapper
+           impersonator-prop:outer-wrapper-box b
+           impersonator-prop:multi/c           merged-m/c
+           ;; for these, latest is fine (and the behavior in the absence of s-e)
+           impersonator-prop:contracted        (multi-ho/c-latest-ctc   merged-m/c)
+           impersonator-prop:blame             (multi-ho/c-latest-blame merged-m/c)))
+        (set-box! b res)
+        res]
+       [else
+        (bail-to-regular-wrapper ctc val)])]
     [else (bail-to-regular-wrapper ctc val)]))
 
 ;; If requested, we can log the arities of the contracts that end up being
@@ -288,7 +293,8 @@
    val
    (make-checking-wrapper m/c)
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
-   impersonator-prop:blame      (multi-ho/c-latest-blame m/c)))
+   impersonator-prop:blame      (multi-ho/c-latest-blame m/c)
+   impersonator-prop:unwrapped val))
 
 (define (do-arrow-first-order-checks m/c val)
   (define checks (multi->-first-order-checks m/c))
