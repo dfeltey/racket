@@ -34,6 +34,8 @@
            has-impersonator-prop:outer-wrapper-box?
            get-impersonator-prop:outer-wrapper-box))
 
+(define-logger space-efficient-coerce-contract)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
 
@@ -113,8 +115,10 @@
 
 ;; convert a contract into a space-efficient leaf
 (define (convert-to-multi-leaf/c ctc blame)
+  (unless (contract-struct? ctc)
+    (error "wasn't a contract struct"))
   (multi-leaf/c
-   (list ((contract-late-neg-projection ctc) blame))
+   (list ((get/build-late-neg-projection ctc) blame))
    (list ctc)
    (list blame)))
 
@@ -127,7 +131,7 @@
      (define bailout (or bail (get-bail c)))
      (multi-leaf/c
       (list bailout)
-      (list (gensym)) ;; need to be incomparable via contract-stronger?
+      (list #f) ;; Bail out of ctc comparison when we see #f
       (list (multi-ho/c-latest-blame c)))]))
 
 ;; Apply a list of projections over a value
@@ -145,17 +149,19 @@
   (for/or ([e (in-list contract-list)])
     (implies e c)))
 
-(define (leaf-implied-by-one? new-contract-list new-blame-list old-ctc old-blame #:implies implies)
+(define (leaf-implied-by-one? new-contract-list new-blame-list old-ctc old-blame)
   (define old-blame-pos (blame-positive old-blame))
   (define old-blame-neg (blame-negative old-blame))
-  (for/or ([new-ctc (in-list new-contract-list)]
-           [new-blame (in-list new-blame-list)])
-    (if (flat-contract? old-ctc)
-        (implies new-ctc old-ctc)
-        (and (implies new-ctc old-ctc)
-             (implies old-ctc new-ctc)
-             (equal? (blame-positive new-blame) old-blame-pos)
-             (equal? (blame-negative new-blame) old-blame-neg)))))
+  (and old-ctc
+       (for/or ([new-ctc (in-list new-contract-list)]
+                [new-blame (in-list new-blame-list)])
+         (and new-ctc
+              (if (flat-contract? old-ctc)
+                  (contract-struct-stronger? new-ctc old-ctc)
+                  (and (contract-struct-stronger? new-ctc old-ctc)
+                       (contract-struct-stronger? old-ctc new-ctc)
+                       (equal? (blame-positive new-blame) old-blame-pos)
+                       (equal? (blame-negative new-blame) old-blame-neg)))))))
 
 ;; join two multi-leaf contracts
 (define (join-multi-leaf/c old-multi new-multi)
@@ -171,8 +177,7 @@
                            [old-blame (in-list old-blame-list)]
                            #:when (not (leaf-implied-by-one?
                                         new-flat-list new-blame-list
-                                        old-flat old-blame
-                                        #:implies contract-stronger?)))
+                                        old-flat old-blame)))
       (values old-proj old-flat old-blame)))
   (multi-leaf/c (append new-proj-list not-implied-projs)
                 (append new-flat-list not-implied-flats)

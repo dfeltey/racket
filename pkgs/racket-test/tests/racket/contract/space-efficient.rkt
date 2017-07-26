@@ -165,6 +165,22 @@
       (if (= n 0)
           f
           (contract-times (contract c f 'positive 'negative) c (- n 1)))))
+
+  (test/spec-passed
+   'arrow-false-contracts
+   '(let* ([f (lambda (x) x)]
+           [ctc (-> #f #f)] ;; defeat opt/c rewriting
+           [cf1 (contract ctc f 'pos 'neg)]
+           [cf2 (contract ctc cf1 'pos 'neg)]
+           [cf3 (contract ctc cf2 'pos 'neg)]
+           [cf4 (contract ctc cf3 'pos 'neg)])
+      (has-num-contracts? cf4 1 1)))
+
+  (test/spec-passed
+   'arrow-many-false-contracts
+   '(let ([ctc (-> #f #f)])
+      (has-num-contracts? (contract-times (lambda (x) x) ctc 1000) 1 1)))
+
   ;; Apply the contract 1000 times
   (contract-eval
    '(define insanely-contracted (contract-times guarded-twice pos->pos 1000)))
@@ -767,5 +783,41 @@
    '(let* ([ctc (-> (box/c integer?))]
            [f (contract ctc (contract ctc (lambda () (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
       (set-box! (f) 1.5))
+   "neg")
+
+  (test/spec-failed
+   'arrow-symbol-multi-pos1
+   '(let* ([ctc1 (-> integer? (-> symbol? symbol?))]
+           [ctc2 (-> integer? symbol?)]
+           [f (lambda (x) (lambda (y) y))]
+           [cf (contract ctc2 (contract ctc1 f 'inner-pos 'inner-neg) 'pos 'neg)])
+      (cf 0))
+   "pos")
+
+  (test/spec-failed
+   'arrow-symbol-multi-pos2
+   '(let* ([ctc1 (-> integer? (-> symbol? symbol?))]
+           [ctc2 (-> integer? symbol?)]
+           [f (lambda (x) 'foo)]
+           [cf (contract ctc2 (contract ctc1 f 'inner-pos 'inner-neg) 'pos 'neg)])
+      (cf 0))
+   "inner-pos")
+
+  (test/spec-failed
+   'arrow-symbol-multi-neg1
+   '(let* ([ctc1 (-> symbol? integer?)]
+           [ctc2 (-> (-> symbol? symbol?) integer?)]
+           [f (lambda (x) 0)]
+           [cf (contract ctc2 (contract ctc1 f 'inner-pos 'inner-neg) 'pos 'neg)])
+      (cf (lambda (x) x)))
+   "inner-neg")
+
+  (test/spec-failed
+   'arrow-symbol-multi-neg2
+   '(let* ([ctc1 (-> symbol? integer?)]
+           [ctc2 (-> (-> symbol? symbol?) integer?)]
+           [f (lambda (x) 0)]
+           [cf (contract ctc2 (contract ctc1 f 'inner-pos 'inner-neg) 'pos 'neg)])
+      (cf 'foo))
    "neg")
   )

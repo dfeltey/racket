@@ -519,6 +519,36 @@
 
   (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
 
+  (contract-eval
+   '(define (add-many-contracts n ctc val)
+      (for/fold ([val val])
+                ([i (in-range n)])
+        (contract ctc val 'pos 'neg))))
+
+  (test/spec-passed
+   'vecof-false-contracts
+   '(let* ([v0 (contract (vectorof #f) (vector #f) 'pos 'neg)]
+           [v1 (contract (vectorof #f) v0 'pos 'neg)]
+           [v2 (contract (vectorof #f) v1 'pos 'neg)]
+           [v3 (contract (vectorof #f) v2 'pos 'neg)])
+      (vectorof-has-num-contracts? v3 1 1)))
+
+  (test/spec-passed
+   'vecof-false-contracts
+   '(let* ([v0 (contract (vector/c #f) (vector #f) 'pos 'neg)]
+           [v1 (contract (vector/c #f) v0 'pos 'neg)]
+           [v2 (contract (vector/c #f) v1 'pos 'neg)]
+           [v3 (contract (vector/c #f) v2 'pos 'neg)])
+      (vector/c-has-num-contracts? v3 '(1) '(1))))
+
+  (test/spec-passed
+   'vecof-many-false-contracts
+   '(vectorof-has-num-contracts? (add-many-contracts 1000 (vectorof #f) (vector #f)) 1 1))
+
+  (test/spec-passed
+   'vec/c-many-false-contracts
+   '(vector/c-has-num-contracts? (add-many-contracts 1000 (vector/c #f) (vector #f)) '(1) '(1)))
+
   (test/spec-passed
    'vecof-num-contracts
    '(let* ([v (contract (vectorof pos) (contract (vectorof pos) (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
@@ -1308,4 +1338,36 @@
       (vector-set! v 0 f)
       ((vector-ref v 0) 1.2))
    "n")
+
+  (test/spec-failed
+   'vector-symbol-multi-pos1
+   '(let* ([ctc1 (vectorof (vectorof integer?))]
+           [ctc2 (vectorof symbol?)]
+           [v (contract ctc2 (contract ctc1 (vector (vector 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   "pos")
+
+  (test/spec-failed
+   'vector-symbol-multi-pos2
+   '(let* ([ctc1 (vectorof (vectorof integer?))]
+           [ctc2 (vectorof symbol?)]
+           [v (contract ctc2 (contract ctc1 (vector 'foo) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-ref v 0))
+   "inner-pos")
+
+  (test/spec-failed
+   'vector-symbol-multi-neg1
+   '(let* ([ctc1 (vectorof symbol?)]
+           [ctc2 (vectorof (vectorof integer?))]
+           [v (contract ctc2 (contract ctc1 (vector 'dont-care) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-set! v 0 (vector 1)))
+   "inner-neg")
+
+  (test/spec-failed
+   'vector-symbol-multi-neg2
+   '(let* ([ctc1 (vectorof symbol?)]
+           [ctc2 (vectorof (vectorof integer?))]
+           [v (contract ctc2 (contract ctc1 (vector 'dont-care) 'inner-pos 'inner-neg) 'pos 'neg)])
+      (vector-set! v 0 'foo))
+   "neg")
   )
