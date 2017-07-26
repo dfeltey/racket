@@ -115,10 +115,14 @@
 
 ;; convert a contract into a space-efficient leaf
 (define (convert-to-multi-leaf/c ctc blame)
-  (unless (contract-struct? ctc)
-    (error "wasn't a contract struct"))
+  (define cctc
+    (cond
+      [(contract-struct? ctc) ctc]
+      [else
+       (log-space-efficient-coerce-contract-info (format "~s" ctc))
+       (coerce-contract/f ctc)]))
   (multi-leaf/c
-   (list ((get/build-late-neg-projection ctc) blame))
+   (list ((get/build-late-neg-projection cctc) blame))
    (list ctc)
    (list blame)))
 
