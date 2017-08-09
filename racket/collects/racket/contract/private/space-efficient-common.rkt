@@ -86,7 +86,7 @@
 
 (define (build-space-efficient-contract-property
          #:has-space-efficient-support? [has-space-efficient-support? (lambda (_) #t)]
-         #:convert [convert (lambda (ctc) ctc)]
+         #:convert [convert (lambda (ctc blame) ctc)]
          #:try-merge [try-merge (lambda (new old) #f)]
          #:space-efficient-guard
          [space-efficient-guard
