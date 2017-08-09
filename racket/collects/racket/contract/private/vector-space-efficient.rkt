@@ -14,8 +14,6 @@
   (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs
             value-has-vector-space-efficient-support?))
 
-(define debug-bailouts #f)
-
 (struct vector-first-order-check (immutable length blame))
 (struct multi-vector multi-ho/c (first-order ref-ctcs set-ctcs))
 
@@ -28,20 +26,18 @@
     (check-vector/c val blame immutable length)))
 
 (define (contract-has-vector-space-efficient-support? ctc)
-  (define (bail reason)
-    (when debug-bailouts
-      (printf "contract bailing: ~a -- ~a\n" reason ctc))
-    #f)
   (or (multi-vector? ctc)
       (base-vectorof? ctc)
       (base-vector/c? ctc)
-      (bail "not a vector contract")))
+      (begin
+        (log-space-efficient-contract-bailout-info "vector: not a vector contract")
+        #f)))
 
 (define (value-has-vector-space-efficient-support? val chap-not-imp?)
-  (define (bail reason)
-    (when debug-bailouts
-      (printf "value bailing: ~a -- ~a\n" reason val))
-    #f)
+  (define-syntax-rule (bail reason)
+    (begin
+      (log-space-efficient-value-bailout-info (format "vector: ~a" reason))
+      #f))
   (and (or (vector? val)
            (bail "not a vector"))
        (or (if (has-impersonator-prop:unwrapped? val)

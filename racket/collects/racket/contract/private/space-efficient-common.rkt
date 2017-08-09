@@ -15,7 +15,9 @@
          merge
          guard-multi/c
          first-order-check-join
-         enter-space-efficient-mode)
+         enter-space-efficient-mode
+         log-space-efficient-value-bailout-info
+         log-space-efficient-contract-bailout-info)
 
 (module+ for-testing
   (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
@@ -35,6 +37,8 @@
            get-impersonator-prop:outer-wrapper-box))
 
 (define-logger space-efficient-coerce-contract)
+(define-logger space-efficient-value-bailout)
+(define-logger space-efficient-contract-bailout)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures

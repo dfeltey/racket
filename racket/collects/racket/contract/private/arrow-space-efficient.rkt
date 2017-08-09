@@ -79,13 +79,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Applicability checks
 
-(define debug-bailouts #f)
-
 (define (->-contract-has-space-efficient-support? ctc)
-  (define (bail reason)
-    (when debug-bailouts
-      (printf "contract bailing: ~a -- ~a\n" reason ctc))
-    #f)
+  (define-syntax-rule (bail reason)
+    (begin
+      (log-space-efficient-contract-bailout-info (format "arrow: ~a" reason))
+      #f))
   (cond [(multi->? ctc) ; already one
          #t]
         [(base->? ctc) ; only applies to regular arrow contracts (for now)
@@ -112,10 +110,10 @@
          #f]))
 
 (define (value-has-space-efficient-support? val chap-not-imp?)
-  (define (bail reason)
-    (when debug-bailouts
-      (printf "value bailing: ~a -- ~a\n" reason val))
-    #f)
+  (define-syntax-rule (bail reason)
+    (begin
+      (log-space-efficient-value-bailout-info (format "arrow: ~a" reason))
+      #f))
   (and (or (procedure? val)
            (bail "not a procedure"))
        ;; the interposition wrapper has to support a superset of the arity
