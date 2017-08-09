@@ -67,7 +67,8 @@
 (struct space-efficient-contract-property
   (has-space-efficient-support?
    convert
-   try-merge
+   try-merge-left
+   try-merge-right
    space-efficient-guard
    get-projection)
   #:omit-define-syntaxes)
@@ -87,7 +88,9 @@
 (define (build-space-efficient-contract-property
          #:has-space-efficient-support? [has-space-efficient-support? (lambda (_) #t)]
          #:convert [convert (lambda (ctc blame) ctc)]
-         #:try-merge [try-merge (lambda (new old) #f)]
+         #:try-merge [try-merge #f]
+         #:try-merge-left [try-merge-l #f]
+         #:try-merge-right [try-merge-r #f]
          #:space-efficient-guard
          [space-efficient-guard
           (lambda (ctc val)
@@ -96,10 +99,23 @@
          [get-projection
           (lambda (ctc)
             (lambda (val neg) (error "internal error: contract does not support `get-projection`" ctc)))])
+  (unless (or (and try-merge (not try-merge-l) (not try-merge-r))
+              (and (not try-merge) (or try-merge-l try-merge-r))
+              (and (not try-merge) (not try-merge-l) (not try-merge-r)))
+    (error
+     'build-space-efficient-contract-property
+     (string-append
+      "expected either the #:try-merge argument to not be #f or at least one of #:try-merge-left,"
+      " #:try-merge-right to not be #f, but not all three")))
+  (define try-merge-left
+    (or try-merge-l try-merge (lambda (new old) #f)))
+  (define try-merge-right
+    (or try-merge-r try-merge (lambda (new old) #f)))
   (space-efficient-contract-property
    has-space-efficient-support?
    convert
-   try-merge
+   try-merge-left
+   try-merge-right
    space-efficient-guard
    get-projection))
 
@@ -111,7 +127,7 @@
 (struct multi-leaf/c (proj-list contract-list blame-list)
   #:property prop:space-efficient-contract
   (build-space-efficient-contract-property
-   #:try-merge (lambda (new old) (and (multi-leaf/c? old) (join-multi-leaf/c new old)))
+   #:try-merge (lambda (new old) (and (multi-leaf/c? old) (multi-leaf/c? new) (join-multi-leaf/c new old)))
    #:space-efficient-guard
    (lambda (ctc val) (error "internal error: called space-efficient-guard on a leaf" ctc val))
    #:get-projection
@@ -220,9 +236,10 @@
 ;; This is true of the current s-e implementation, but if it ever changes
 ;; this function will neef to check both directions for merging
 (define (merge new-multi old-multi)
-  (define-values (new-try-merge new-proj) (get-merge-components new-multi))
-  (define-values (_ old-proj) (get-merge-components old-multi))
-  (or (new-try-merge new-multi old-multi)
+  (define-values (new-try-merge-left _1 new-proj) (get-merge-components new-multi))
+  (define-values (_2 old-try-merge-right old-proj) (get-merge-components old-multi))
+  (or (new-try-merge-left new-multi old-multi)
+      (old-try-merge-right new-multi old-multi) 
       (join-multi-leaf/c (multi->leaf new-multi new-proj)
                          (multi->leaf old-multi old-proj))))
 
@@ -231,7 +248,8 @@
     [(space-efficient-contract? multi)
      (define prop (get-space-efficient-contract-property multi))
      (values
-      (space-efficient-contract-property-try-merge prop)
+      (space-efficient-contract-property-try-merge-left prop)
+      (space-efficient-contract-property-try-merge-right prop)
       ((space-efficient-contract-property-get-projection prop) multi))]
     [else
      (values merge-fail #f)]))
