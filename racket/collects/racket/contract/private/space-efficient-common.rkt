@@ -252,7 +252,7 @@
       (space-efficient-contract-property-try-merge-right prop)
       ((space-efficient-contract-property-get-projection prop) multi))]
     [else
-     (values merge-fail #f)]))
+     (values merge-fail merge-fail #f)]))
       
 (define (merge-fail _1 _2) #f)
 
