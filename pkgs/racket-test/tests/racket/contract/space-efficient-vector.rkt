@@ -477,55 +477,59 @@
   ;; vectorof
   (contract-eval
    '(define (vectorof-has-num-contracts? v ref set)
-      (unless (has-impersonator-prop:multi/c? v)
-        (error "vectorof-has-num-contracts?: no space-efficient-contract"))
-      (define multi/c (car (get-impersonator-prop:multi/c v)))
-      (define ref/c (multi-vector-ref-ctcs multi/c))
-      (define set/c (multi-vector-set-ctcs multi/c))
-      (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
+      (with-handlers ([exn:fail? (lambda (e) (exn-message e))])
+        (unless (has-impersonator-prop:multi/c? v)
+          (error "vectorof-has-num-contracts?: no space-efficient-contract"))
+        (define multi/c (car (get-impersonator-prop:multi/c v)))
+        (define ref/c (multi-vector-ref-ctcs multi/c))
+        (define set/c (multi-vector-set-ctcs multi/c))
+        (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
         (printf "had ~a ref-projs\n\n" (length (multi-leaf/c-proj-list ref/c)))
         (error "vectorof-has-num-contracts?: wrong number of ref projections"))
-      (unless (= (length (multi-leaf/c-proj-list set/c)) set)
-        (error "vectorof-has-num-contracts?: wrong number of set projections"))
-      (unless (= (length (multi-leaf/c-contract-list ref/c)) ref)
-        (error "vectorof-has-num-contracts?: wrong number of ref contracts"))
-      (unless (= (length (multi-leaf/c-contract-list set/c)) set)
-        (error "vectorof-has-num-contracts?: wrong number of set contracts"))))
+        (unless (= (length (multi-leaf/c-proj-list set/c)) set)
+          (error "vectorof-has-num-contracts?: wrong number of set projections"))
+        (unless (= (length (multi-leaf/c-contract-list ref/c)) ref)
+          (error "vectorof-has-num-contracts?: wrong number of ref contracts"))
+        (unless (= (length (multi-leaf/c-contract-list set/c)) set)
+          (error "vectorof-has-num-contracts?: wrong number of set contracts"))
+        #t)))
 
   (contract-eval
    '(define (vector-can-combine? val ctc)
       (value-has-vector-space-efficient-support? val (chaperone-contract? ctc))))
 
   ;; vector/c
-    (contract-eval
+  (contract-eval
    '(define (vector/c-has-num-contracts? v refs sets)
-      (unless (has-impersonator-prop:multi/c? v)
-        (error "vector/c-has-num-contracts?: no space-efficient-contract"))
-      (define multi/c (car (get-impersonator-prop:multi/c v)))
-      (define ref-ctcs (multi-vector-ref-ctcs multi/c))
-      (define set-ctcs (multi-vector-set-ctcs multi/c))
-      (for ([ref (in-list refs)]
-            [ref/c (in-vector ref-ctcs)])
-        (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
-          (error "vector/c-has-num-contracts?: wrong number of ref projections"))
-        (unless (= (length (multi-leaf/c-contract-list ref/c)) ref)
-          (error "vector/c-has-num-contracts?: wrong number of ref contracts")))
-      (for ([set (in-list sets)]
-            [set/c (in-vector set-ctcs)])
-        (unless (= (length (multi-leaf/c-proj-list set/c)) set)
-          (error "vector/c-has-num-contracts?: wrong number of set projections"))
-        (unless (= (length (multi-leaf/c-contract-list set/c)) set)
-          (error "vector/c-has-num-contracts?: wrong number of set contracts")))))
-
+      (with-handlers ([exn:fail? (lambda (e) (exn-message e))])
+        (unless (has-impersonator-prop:multi/c? v)
+          (error "vectorof-has-num-contracts?: no space-efficient-contract"))
+        (define multi/c (car (get-impersonator-prop:multi/c v)))
+        (define ref-ctcs (multi-vector-ref-ctcs multi/c))
+        (define set-ctcs (multi-vector-set-ctcs multi/c))
+        (for ([ref (in-list refs)]
+              [ref/c (in-vector ref-ctcs)])
+          (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
+            (error "vector/c-has-num-contracts?: wrong number of ref projections"))
+          (unless (= (length (multi-leaf/c-contract-list ref/c)) ref)
+            (error "vector/c-has-num-contracts?: wrong number of ref contracts")))
+        (for ([set (in-list sets)]
+              [set/c (in-vector set-ctcs)])
+          (unless (= (length (multi-leaf/c-proj-list set/c)) set)
+            (error "vector/c-has-num-contracts?: wrong number of set projections"))
+          (unless (= (length (multi-leaf/c-contract-list set/c)) set)
+            (error "vector/c-has-num-contracts?: wrong number of set contracts")))
+        #t)))
+   
   (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
-
+  
   (contract-eval
    '(define (add-many-contracts n ctc val)
       (for/fold ([val val])
                 ([i (in-range n)])
         (contract ctc val 'pos 'neg))))
 
-  (test/spec-passed
+  (test-true
    'vecof-false-contracts
    '(let* ([v0 (contract (vectorof #f) (vector #f) 'pos 'neg)]
            [v1 (contract (vectorof #f) v0 'pos 'neg)]
@@ -533,7 +537,7 @@
            [v3 (contract (vectorof #f) v2 'pos 'neg)])
       (vectorof-has-num-contracts? v3 1 1)))
 
-  (test/spec-passed
+  (test-true
    'vecof-false-contracts
    '(let* ([v0 (contract (vector/c #f) (vector #f) 'pos 'neg)]
            [v1 (contract (vector/c #f) v0 'pos 'neg)]
@@ -541,20 +545,20 @@
            [v3 (contract (vector/c #f) v2 'pos 'neg)])
       (vector/c-has-num-contracts? v3 '(1) '(1))))
 
-  (test/spec-passed
+  (test-true
    'vecof-many-false-contracts
    '(vectorof-has-num-contracts? (add-many-contracts 1000 (vectorof #f) (vector #f)) 1 1))
 
-  (test/spec-passed
+  (test-true
    'vec/c-many-false-contracts
    '(vector/c-has-num-contracts? (add-many-contracts 1000 (vector/c #f) (vector #f)) '(1) '(1)))
 
-  (test/spec-passed
+  (test-true
    'vecof-num-contracts
    '(let* ([v (contract (vectorof pos) (contract (vectorof pos) (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vectorof-has-num-contracts? v 1 1)))
 
-  (test/spec-passed
+  (test-true
    'vecof-num-contracts-different-ref-set
    '(let* ([ctc1 (vectorof (>/c 0))]
            [ctc2 (vectorof real?)]
@@ -562,12 +566,12 @@
            [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
       (vectorof-has-num-contracts? v 1 2)))
 
-  (test/spec-passed
+  (test-true
    'vec/c-num-contracts
    '(let* ([v (contract (vector/c pos pos) (contract (vector/c pos pos) (vector 1 2) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector/c-has-num-contracts? v '(1 1) '(1 1))))
 
-  (test/spec-passed
+  (test-true
    'vec/c-num-contracts-different-ref-set
    '(let* ([ctc1 (vector/c (>/c 0) (>/c 0))]
            [ctc2 (vector/c real? real?)]
@@ -575,7 +579,7 @@
            [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
       (vector/c-has-num-contracts? v '(1 1) '(2 2))))
 
-  (test/spec-passed
+  (test-true
    'vec/c-num-contracts-different-ref-set-different-posns
    '(let* ([ctc1 (vector/c (>/c 0) real?)]
            [ctc2 (vector/c real? real?)]
@@ -583,7 +587,7 @@
            [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
       (vector/c-has-num-contracts? v '(1 1) '(2 1))))
 
-   (test/spec-passed
+   (test-true
    'vec/c-more-ref-than-set
    '(let* ([ctc2 (vector/c (>/c 0) real?)]
            [ctc1 (vector/c real? real?)]
@@ -594,14 +598,14 @@
   ;; TODO: a couple more has-num-contracts? tests with one contract sandwiching another for more interesting contract
   ;; merging
 
-  (test/spec-passed
+  (test-true
    'vecof-sandwich1
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof real?)]
            [v (contract ctc1 (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n) 'p 'n)])
       (vectorof-has-num-contracts? v 2 2)))
 
-  (test/spec-passed
+  (test-true
    'vec/c-sandwich1
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c real?)]
@@ -609,28 +613,28 @@
       (vector/c-has-num-contracts? v '(2) '(2))))
 
 
-  (test/spec-passed
+  (test-true
    'vecof-incompatible1
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof string?)]
            [v (contract ctc1 (contract ctc2 (vector 1) 'p 'n) 'p 'n)])
       (vectorof-has-num-contracts? v 2 2)))
 
-  (test/spec-passed
+  (test-true
    'vecof-incompatible2
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof string?)]
            [v (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n)])
       (vectorof-has-num-contracts? v 2 2)))
 
-  (test/spec-passed
+  (test-true
    'vec/c-incompatible1
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c string?)]
            [v (contract ctc1 (contract ctc2 (vector 1) 'p 'n) 'p 'n)])
       (vector/c-has-num-contracts? v '(2) '(2))))
 
-  (test/spec-passed
+  (test-true
    'vec/c-incompatible2
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c string?)]
@@ -898,11 +902,11 @@
                 unsorted
                 'pos 'neg)))
 
-  (test/spec-passed
+  (test-true
    'vecof-sorting
    '(let ()
       (my-sort unsorted+contracted)
-      (for ([v (in-vector unsorted+contracted)])
+      (for/and ([v (in-vector unsorted+contracted)])
         (vectorof-has-num-contracts? v 1 1))))
 
   (contract-eval
@@ -933,11 +937,11 @@
                 unsorted2
                 'pos 'neg)))
 
-  (test/spec-passed
+  (test-true
    'vecof-sorting
    '(let ()
       (my-sort unsorted+contracted-vector/c)
-      (for ([v (in-vector unsorted+contracted-vector/c)])
+      (for/and ([v (in-vector unsorted+contracted-vector/c)])
         (vector/c-has-num-contracts? v '(1) '(1)))))
 
   ;; bail out and switching bugs
@@ -997,8 +1001,9 @@
    "inner-pos")
 
   (contract-eval '(define (double-wrapped? x)
-                    (has-impersonator-prop:multi/c?
-                     (get-impersonator-prop:checking-wrapper x))))
+                    (and (has-impersonator-prop:checking-wrapper? x)
+                         (has-impersonator-prop:multi/c?
+                          (get-impersonator-prop:checking-wrapper x)))))
 
   (test-false
    'dont-multi-wrap
@@ -1199,7 +1204,7 @@
            (space-efficient? v1)))
    #t)
 
-  (test/spec-passed
+  (test-true
    'vecof+vec/c14
    '(let* ([ctc1 (vectorof (vector/c (>/c 0) (>/c 0)))]
            [ctc2 (vector/c (vectorof real?))]
@@ -1208,7 +1213,7 @@
            [v (vector-ref v2 0)])
       (vector/c-has-num-contracts? v '(1 1) '(2 2))))
 
-  (test/spec-passed
+  (test-true
    'vecof+vec/c15
    '(let* ([ctc1 (vectorof (vector/c real? real?))]
            [ctc2 (vector/c (vectorof (>/c 0)))]
