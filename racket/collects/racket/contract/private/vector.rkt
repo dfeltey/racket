@@ -367,7 +367,7 @@
          (for/list ([c (in-list elems)])
            ((get/build-late-neg-projection c) blame+ctxt)))
        (λ (val neg-party)
-         (check-vector/c val blame immutable (length elems))
+         (check-vector/c val blame immutable (length elems) neg-party)
          (for ([e (in-vector val)]
                [p (in-list val+np-acceptors)])
            (p e neg-party))
@@ -393,7 +393,7 @@
                                                      #:swap? #t)))])
            (λ (val neg-party)
              (define full-blame (blame-add-missing-party blame neg-party))
-             (check-vector/c val blame immutable elems-length)
+             (check-vector/c val blame immutable elems-length neg-party)
              (define blame+neg-party (cons blame neg-party))
              (if (and (immutable? val) (not (chaperone? val)))
                  (apply vector-immutable

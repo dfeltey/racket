@@ -28,9 +28,9 @@
        (fail val '(expected "an mutable vector" given: "~e") val))]
     [else (void)]))
 
-(define (check-vector/c val blame immutable length)
+(define (check-vector/c val blame immutable length [neg-party #f])
   (define (raise-blame val . args)
-    (apply raise-blame-error blame #:missing-party #f val args))
+    (apply raise-blame-error blame #:missing-party neg-party val args))
   (do-check-vectorof val raise-blame immutable)
   (unless (or (not length) (= (vector-length val) length))
     (raise-blame val
