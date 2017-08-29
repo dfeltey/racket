@@ -126,6 +126,7 @@
          (λ (#:name [name 'anonymous-chaperone-contract]
                     #:first-order [first-order (λ (x) #t)]
                     #:late-neg-projection [late-neg-projection #f]
+                    #:space-efficient-late-neg-projection [s-e-late-neg-projection #f]
                     #:val-first-projection [val-first-projection #f]
                     #:projection [projection #f]
                     #:stronger [stronger #f]
@@ -135,6 +136,8 @@
             #:first-order first-order
             #:late-neg-projection
             (maybe-add-wrapper add-late-neg-chaperone-check late-neg-projection)
+            #:space-efficient-late-neg-projection
+            (maybe-add-wrapper add-space-efficient-late-neg-chaperone-check s-e-late-neg-projection)
             #:val-first-projection
             (maybe-add-wrapper add-val-first-chaperone-check val-first-projection)
             #:projection
@@ -150,6 +153,7 @@
              #:first-order [get-first-order (λ (c) (λ (x) #t))]
              #:val-first-projection [val-first-proj #f]
              #:late-neg-projection [late-neg-proj #f]
+             #:space-efficient-late-neg-projection [s-e-late-neg-proj #f]
              #:projection [get-projection #f]
              #:stronger [stronger #f]
              #:generate [generate #f]
@@ -162,6 +166,8 @@
        (maybe-add-wrapper add-prop-val-first-chaperone-check val-first-proj)
        #:late-neg-projection
        (maybe-add-wrapper add-prop-late-neg-chaperone-check late-neg-proj)
+       #:space-efficient-late-neg-projection
+       (maybe-add-wrapper add-prop-space-efficient-late-neg-chaperone-check s-e-late-neg-proj)
        #:projection
        (maybe-add-wrapper add-prop-chaperone-check get-projection)
        #:stronger stronger
@@ -169,6 +175,20 @@
        #:exercise exercise
        #:list-contract? is-list-contract?))
     build-chaperone-contract-property))
+
+(define (add-prop-space-efficient-late-neg-chaperone-check get-s-e-late-neg)
+  (λ (c)
+    (add-space-efficient-late-neg-chaperone-check (get-s-e-late-neg c))))
+
+(define (add-space-efficient-late-neg-chaperone-check accepts-blame)
+  (λ (b)
+    (define-values (accepts-val-and-np s-e-ctc) (accepts-blame b))
+    (values
+     (λ (x neg-party)
+       (check-and-signal x
+                         (accepts-val-and-np x neg-party)
+                         'make-chaperone-contract::space-efficient-late-neg-projection))
+     s-e-ctc)))
 
 (define (add-prop-late-neg-chaperone-check get-late-neg)
   (λ (c)
@@ -220,6 +240,7 @@
          (λ (#:name [name 'anonymous-chaperone-contract]
                     #:first-order [first-order (λ (x) #t)]
                     #:late-neg-projection [late-neg-projection #f]
+                    #:space-efficient-late-neg-projection [s-e-late-neg-projection #f]
                     #:val-first-projection [val-first-projection #f]
                     #:projection [projection #f]
                     #:stronger [stronger #f]
@@ -228,6 +249,7 @@
             #:name name
             #:first-order first-order
             #:late-neg-projection (force-late-neg-eq late-neg-projection)
+            #:space-efficient-late-neg-projection (force-s-e-late-neg-eq s-e-late-neg-projection)
             #:val-first-projection (force-val-first-eq val-first-projection)
             #:projection (force-projection-eq projection)
             #:stronger stronger
@@ -239,6 +261,7 @@
          (λ (#:name [name (λ (c) 'anonymous-chaperone-contract)]
                     #:first-order [first-order (λ (c) (λ (x) #t))]
                     #:late-neg-projection [late-neg-projection #f]
+                    #:space-efficient-late-neg-projection [s-e-late-neg-projection #f]
                     #:val-first-projection [val-first-projection #f]
                     #:projection [projection #f]
                     #:stronger [stronger #f]
@@ -249,6 +272,8 @@
             #:first-order first-order
             #:late-neg-projection
             (and late-neg-projection (λ (c) (force-late-neg-eq (late-neg-projection c))))
+            #:space-efficient-late-neg-projection
+            (and s-e-late-neg-projection (λ (c) (force-s-e-late-neg-eq (s-e-late-neg-projection c))))
             #:val-first-projection
             (and val-first-projection (λ (c) (force-val-first-eq (val-first-projection c))))
             #:projection
@@ -265,6 +290,15 @@
          (λ (x neg-party)
            (accepts-val-and-np x neg-party)
            x))))
+
+(define (force-s-e-late-neg-eq accepts-blame)
+  (and accepts-blame
+       (λ (b)
+         (define-values (accepts-val-and-np s-e-ctc) (accepts-blame b))
+         (values
+          (λ (x neg-party)
+            (accepts-val-and-np x neg-party))
+          s-e-ctc))))
 
 (define (force-val-first-eq vfp)
   (and vfp

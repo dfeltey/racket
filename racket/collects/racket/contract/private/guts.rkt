@@ -31,6 +31,7 @@
          impersonator-prop:contracted
          impersonator-prop:blame
          impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped
+         impersonator-prop:space-efficient has-impersonator-prop:space-efficient? get-impersonator-prop:space-efficient
          has-contract? value-contract
          has-blame? value-blame
          log-n-wrappers
@@ -220,6 +221,12 @@
                 has-impersonator-prop:unwrapped?
                 get-impersonator-prop:unwrapped)
   (make-impersonator-property 'impersonator-prop:unwrapped))
+
+;; TODO: maybe this should be the same as multi/c or renamed ... ???
+(define-values (impersonator-prop:space-efficient
+                has-impersonator-prop:space-efficient?
+                get-impersonator-prop:space-efficient)
+  (make-impersonator-property 'impersonator-prop:space-efficient))
 
 (define-logger contract-wrapping)
 (define (log-n-wrappers kind val)
@@ -779,6 +786,11 @@
     [else
      (log-racket/contract-info "no late-neg-projection for ~s" ctc)
      (cond
+       [(contract-struct-space-efficient-late-neg-projection ctc) =>
+        (lambda (f)
+          (lambda (blame)
+            (define-values (proj _) (f blame))
+            proj))]
        [(contract-struct-projection ctc)
         =>
         (λ (projection)

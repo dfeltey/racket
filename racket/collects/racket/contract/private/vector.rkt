@@ -135,7 +135,7 @@
 (define (blame-add-element-of-context blame #:swap? [swap? #f])
   (blame-add-context blame "an element of" #:swap? swap?))
 
-(define (vectorof-late-neg-ho-projection chap-not-imp?)
+(define (vectorof-space-efficient-late-neg-ho-projection chap-not-imp?)
   (define chaperone-or-impersonate-vector
     (if chap-not-imp? chaperone-vector impersonate-vector))
   (λ (ctc)
@@ -145,9 +145,17 @@
     (λ (blame)
       (define pos-blame (blame-add-element-of-context blame))
       (define neg-blame (blame-add-element-of-context blame #:swap? #t))
-      (define vfp (get/build-late-neg-projection elem-ctc))
-      (define elem-pos-proj (vfp pos-blame))
-      (define elem-neg-proj (vfp neg-blame))
+      (define vfp (contract-struct-space-efficient-late-neg-projection elem-ctc))
+      (define-values (elem-pos-proj s-e-pos)
+        (if vfp
+            (vfp pos-blame)
+            (values ((get/build-late-neg-projection elem-ctc) pos-blame)  #f)))
+      (define-values (elem-neg-proj s-e-neg)
+        (if vfp
+            (vfp neg-blame)
+            (values ((get/build-late-neg-projection elem-ctc) neg-blame) #f)))
+      ;; FIXME: implement this
+      (define s-e-mergable  #f #;(build-s-e-vector s-e-pos s-e-neg blame)) ;; NEED BETTER NAME
       (define checked-ref (λ (neg-party)
                             (define blame+neg-party (cons pos-blame neg-party))
                             (λ (vec i val)
@@ -160,7 +168,8 @@
                               (with-contract-continuation-mark
                                 blame+neg-party
                                 (elem-neg-proj val neg-party)))))
-      (cond
+      (define late-neg-proj
+         (cond
         [(flat-contract? elem-ctc)
          (define p? (flat-contract-predicate elem-ctc))
          (λ (val neg-party)
@@ -189,6 +198,7 @@
                            (checked-ref neg-party)
                            (checked-set neg-party)
                            impersonator-prop:unwrapped val
+                           impersonator-prop:space-efficient (cons s-e-mergable neg-party)
                            impersonator-prop:contracted ctc
                            impersonator-prop:blame full-blame)))))]
         [else
@@ -212,8 +222,11 @@
                            (checked-ref neg-party)
                            (checked-set neg-party)
                            impersonator-prop:unwrapped val
+                           impersonator-prop:space-efficient (cons s-e-mergable neg-party)
                            impersonator-prop:contracted ctc
-                           impersonator-prop:blame full-blame)))))]))))
+                           impersonator-prop:blame full-blame)))))])
+         )
+      (values late-neg-proj s-e-mergable))))
 
 (define-values (prop:neg-blame-party prop:neg-blame-party? prop:neg-blame-party-get)
   (make-impersonator-property 'prop:neg-blame-party))
@@ -225,7 +238,7 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:late-neg-projection (vectorof-late-neg-ho-projection #t))
+   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #t))
   #:property prop:space-efficient-contract vectorof-space-efficient-support-property)
 
 (define-struct (impersonator-vectorof base-vectorof) ()
@@ -235,7 +248,7 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:late-neg-projection (vectorof-late-neg-ho-projection #f))
+   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #f))
   #:property prop:space-efficient-contract vectorof-space-efficient-support-property)
 
 (define-syntax (wrap-vectorof stx)
