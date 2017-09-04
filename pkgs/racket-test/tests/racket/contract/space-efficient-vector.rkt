@@ -479,7 +479,7 @@
    '(define (vectorof-has-num-contracts? v ref set)
       (unless (has-impersonator-prop:multi/c? v)
         (error "vectorof-has-num-contracts?: no space-efficient-contract"))
-      (define multi/c (get-impersonator-prop:multi/c v))
+      (define multi/c (car (get-impersonator-prop:multi/c v)))
       (define ref/c (multi-vector-ref-ctcs multi/c))
       (define set/c (multi-vector-set-ctcs multi/c))
       (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
@@ -500,8 +500,8 @@
     (contract-eval
    '(define (vector/c-has-num-contracts? v refs sets)
       (unless (has-impersonator-prop:multi/c? v)
-        (error "vectorof-has-num-contracts?: no space-efficient-contract"))
-      (define multi/c (get-impersonator-prop:multi/c v))
+        (error "vector/c-has-num-contracts?: no space-efficient-contract"))
+      (define multi/c (car (get-impersonator-prop:multi/c v)))
       (define ref-ctcs (multi-vector-ref-ctcs multi/c))
       (define set-ctcs (multi-vector-set-ctcs multi/c))
       (for ([ref (in-list refs)]
@@ -714,7 +714,7 @@
 
   ;; vectorof combine
   (test/spec-passed/result
-   'vector-can-combine-chaps
+   'vectorof-can-combine-chaps
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof real?)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])
@@ -763,7 +763,7 @@
 
   ;; vector/c combine
   (test/spec-passed/result
-   'vector-can-combine-chaps
+   'vector/c-can-combine-chaps
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c real?)]
            [v (contract ctc1 (vector 1) 'pos 'neg)])

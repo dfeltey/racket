@@ -11,8 +11,7 @@
          "arity-checking.rkt"
          (for-syntax racket/base))
 
-(provide ->-space-effificent-support-property
-         value-has-space-efficient-support?)
+(provide value-has-space-efficient-support?)
 (module+ for-testing
   (provide multi->? multi->-doms multi->-rng
            value-has-space-efficient-support?))
@@ -195,9 +194,10 @@
                      unsafe-impersonate-procedure)
                  val
                  (get-impersonator-prop:unwrapped val)))
-              (values (try-merge
+              (values #;(try-merge
                        ctc
                        (contract->space-efficient-contract orig-ctc orig-blame))
+                      #f
                       (make-checking-wrapper unwrapped))]
              [else
               ;; value is not contracted; applying a s-e subcontract directly
@@ -321,6 +321,7 @@
 ;; Conversion consists of simultaneously copying the structure of the
 ;; higher-order contract and propagating the blame to the leaves.
 ;; At the leaves we convert contracts to multi-leaf/c
+#;
 (define (ho/c->multi-> ctc blame)
   (define chap-not-imp? (chaperone-contract? ctc))
   (define doms (base->-doms ctc))
@@ -360,11 +361,7 @@
            (impersonator-multi->? old)
            impersonator-multi->)))
 
-(define ->-space-effificent-support-property
-  (build-space-efficient-contract-property
-   #:has-space-efficient-support? ->-contract-has-space-efficient-support?
-   #:convert ho/c->multi->))
-
+;; TODO: add the other pieces of this property
 (define ->-space-efficient-contract-property
   (build-space-efficient-contract-property
    #:try-merge try-merge

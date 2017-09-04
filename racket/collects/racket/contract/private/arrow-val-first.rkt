@@ -1580,16 +1580,13 @@
        (not (base->-post? that))))
      
 (define-struct (-> base->) ()
-  #:property prop:chaperone-contract (make-property #f)
-  #:property prop:space-efficient-contract ->-space-effificent-support-property)
+  #:property prop:chaperone-contract (make-property #f))
 
 (define-struct (predicate/c base->) ()
-  #:property prop:chaperone-contract (make-property #f)
-  #:property prop:space-efficient-contract ->-space-effificent-support-property)
+  #:property prop:chaperone-contract (make-property #f))
 
 (define-struct (impersonator-> base->) ()
-  #:property prop:contract (make-property #t)
-  #:property prop:space-efficient-contract ->-space-effificent-support-property)
+  #:property prop:contract (make-property #t))
 
 (define ->void-contract
   (let-syntax ([get-chaperone-constructor

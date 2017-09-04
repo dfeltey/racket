@@ -616,11 +616,9 @@
             (if is-impersonator? impersonate-procedure chaperone-procedure)))
       (define full-blame (blame-add-missing-party orig-blame neg-party))
       (cond
-        [(and (has-contract? val)
-              (contract-has-space-efficient-support? ctc)
-              (contract-has-space-efficient-support? (value-contract val))
-              (value-has-space-efficient-support? val chaperone?))
-         (guard-multi/c (contract->space-efficient-contract ctc full-blame) val)]
+        [(and #f ;; disbale space-efficient arrow contracts for now
+              #;(maybe-enter-space-efficient-mode s-e-mergable val neg-party))
+         => values]
         [chap/imp-func
          (log-n-wrappers "arrow-higher-order" val)
          (if (or post? (not rngs))

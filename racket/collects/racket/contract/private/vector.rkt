@@ -135,27 +135,45 @@
 (define (blame-add-element-of-context blame #:swap? [swap? #f])
   (blame-add-context blame "an element of" #:swap? swap?))
 
-(define (vectorof-space-efficient-late-neg-ho-projection chap-not-imp?)
+(define (build-proj+s-e-components prepared pos-blame neg-blame ctc)
+  (cond
+    [prepared
+     (define-values (pos-proj pos-s-e) (prepared pos-blame))
+     (define-values (neg-proj neg-s-e) (prepared neg-blame))
+     (values pos-proj
+             neg-proj
+             ;; (pos/neg)-s-e will be #f if there was no s-e structure
+             ;; so we need to turn the projections into leaves
+             ;; TODO: what to do about neg blame ...
+             (build-s-e-node pos-s-e pos-proj ctc pos-blame)
+             (build-s-e-node neg-s-e neg-proj ctc neg-blame))]
+    [else
+     (define lnp (get/build-late-neg-projection ctc))
+     (define pos-proj (lnp pos-blame))
+     (define neg-proj (lnp neg-blame))
+     (values pos-proj
+             neg-proj
+             (build-s-e-node #f pos-proj ctc pos-blame)
+             (build-s-e-node #f neg-proj ctc neg-blame))]))
+
+(define ((build-vectorof-projection s-e?) chap-not-imp?)
   (define chaperone-or-impersonate-vector
     (if chap-not-imp? chaperone-vector impersonate-vector))
   (λ (ctc)
     (define elem-ctc (base-vectorof-elem ctc))
     (define eager (base-vectorof-eager ctc))
     (define check (check-vectorof ctc))
+    (define vfp (contract-struct-space-efficient-late-neg-projection elem-ctc))
     (λ (blame)
       (define pos-blame (blame-add-element-of-context blame))
       (define neg-blame (blame-add-element-of-context blame #:swap? #t))
-      (define vfp (contract-struct-space-efficient-late-neg-projection elem-ctc))
-      (define-values (elem-pos-proj s-e-pos)
-        (if vfp
-            (vfp pos-blame)
-            (values ((get/build-late-neg-projection elem-ctc) pos-blame)  #f)))
-      (define-values (elem-neg-proj s-e-neg)
-        (if vfp
-            (vfp neg-blame)
-            (values ((get/build-late-neg-projection elem-ctc) neg-blame) #f)))
-      ;; FIXME: implement this
-      (define s-e-mergable  #f #;(build-s-e-vector s-e-pos s-e-neg blame)) ;; NEED BETTER NAME
+      (define-values (elem-pos-proj elem-neg-proj s-e-pos s-e-neg)
+        (build-proj+s-e-components vfp pos-blame neg-blame elem-ctc))
+      (define s-e-mergable
+        (let ([first-order-checks (build-vector-first-order-checks ctc blame)])
+          (if chap-not-imp?
+              (chaperone-multi-vector blame ctc (list first-order-checks) s-e-pos s-e-neg)
+              (impersonator-multi-vector blame ctc (list first-order-checks) s-e-pos s-e-neg))))
       (define checked-ref (λ (neg-party)
                             (define blame+neg-party (cons pos-blame neg-party))
                             (λ (vec i val)
@@ -188,11 +206,7 @@
                           (elem-pos-proj e neg-party)))
                       val)
                (begin (log-n-wrappers "immutable-vectorof-ho" val)
-                      (if (and (has-contract? val)
-                               (contract-has-space-efficient-support? ctc)
-                               (contract-has-space-efficient-support? (value-contract val))
-                               (value-has-vector-space-efficient-support? val chap-not-imp?))
-                          (guard-multi/c (contract->space-efficient-contract ctc full-blame) val)
+                      (or (maybe-enter-space-efficient-mode s-e-mergable val neg-party)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
@@ -212,11 +226,7 @@
                 (for/vector #:length (vector-length val) ([e (in-vector val)])
                   (elem-pos-proj e neg-party)))
                (begin (log-n-wrappers "mutable-vectorof-ho" val)
-                      (if (and (has-contract? val)
-                               (contract-has-space-efficient-support? ctc)
-                               (contract-has-space-efficient-support? (value-contract val))
-                               (value-has-vector-space-efficient-support? val chap-not-imp?))
-                          (guard-multi/c (contract->space-efficient-contract ctc full-blame) val)
+                      (or (maybe-enter-space-efficient-mode s-e-mergable val neg-party)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
@@ -224,9 +234,13 @@
                            impersonator-prop:unwrapped val
                            impersonator-prop:space-efficient (cons s-e-mergable neg-party)
                            impersonator-prop:contracted ctc
-                           impersonator-prop:blame full-blame)))))])
-         )
-      (values late-neg-proj s-e-mergable))))
+                           impersonator-prop:blame full-blame)))))]))
+      (if s-e?
+          (values late-neg-proj s-e-mergable)
+          late-neg-proj))))
+
+(define vectorof-late-neg-ho-projection (build-vectorof-projection #f))
+(define vectorof-space-efficient-late-neg-ho-projection (build-vectorof-projection #t))
 
 (define-values (prop:neg-blame-party prop:neg-blame-party? prop:neg-blame-party-get)
   (make-impersonator-property 'prop:neg-blame-party))
@@ -238,8 +252,8 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #t))
-  #:property prop:space-efficient-contract vectorof-space-efficient-support-property)
+   #:late-neg-projection (vectorof-late-neg-ho-projection #t)
+   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #t)))
 
 (define-struct (impersonator-vectorof base-vectorof) ()
   #:property prop:custom-write custom-write-property-proc
@@ -248,8 +262,8 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #f))
-  #:property prop:space-efficient-contract vectorof-space-efficient-support-property)
+   #:late-neg-projection (vectorof-late-neg-ho-projection #f)
+   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #f)))
 
 (define-syntax (wrap-vectorof stx)
   (syntax-case stx ()
@@ -386,24 +400,40 @@
            (p e neg-party))
          val)))))
 
-(define (vector/c-ho-late-neg-projection chap-not-imp?)
+(define ((build-vector/c-projection s-e?) chap-not-imp?)
   (define vector-wrapper (if chap-not-imp? chaperone-vector impersonate-vector))
   (λ (ctc)
      (let ([elem-ctcs (base-vector/c-elems ctc)]
            [immutable (base-vector/c-immutable ctc)])
        (define elems-length (length elem-ctcs))
+       (define projs
+         (for/list ([elem-ctc (in-list elem-ctcs)])
+           (contract-struct-space-efficient-late-neg-projection elem-ctc)))
        (λ (blame)
-         (let ([elem-pos-projs (for/vector #:length elems-length
-                                 ([c (in-list elem-ctcs)]
-                                  [i (in-naturals)])
-                                 ((get/build-late-neg-projection c)
-                                  (blame-add-context blame (format "the ~a element of" (n->th i)))))]
-               [elem-neg-projs (for/vector #:length elems-length
-                                 ([c (in-list elem-ctcs)]
-                                  [i (in-naturals)])
-                                 ((get/build-late-neg-projection c)
-                                  (blame-add-context blame (format "the ~a element of" (n->th i))
-                                                     #:swap? #t)))])
+         (define elem-pos-projs (make-vector elems-length #f))
+         (define elem-neg-projs (make-vector elems-length #f))
+         (define elem-s-e-poss (make-vector elems-length #f))
+         (define elem-s-e-negs (make-vector elems-length #f))
+         (for ([elem-prepared (in-list projs)]
+               [elem-ctc (in-list elem-ctcs)]
+               [i (in-naturals)])
+           (define pos-blame (blame-add-context blame (format "the ~a element of" (n->th i))))
+           (define neg-blame (blame-add-context blame (format "the ~a element of" (n->th i))
+                                                #:swap? #t))
+           (define-values (elem-pos-proj elem-neg-proj elem-s-e-pos elem-s-e-neg)
+             (build-proj+s-e-components elem-prepared pos-blame neg-blame elem-ctc))
+           (vector-set! elem-pos-projs i elem-pos-proj)
+           (vector-set! elem-neg-projs i elem-neg-proj)
+           (vector-set! elem-s-e-poss i elem-s-e-pos)
+           (vector-set! elem-s-e-negs i elem-s-e-neg))
+         (define first-order-checks (build-vector-first-order-checks ctc blame))
+         (define s-e-mergable
+           (if chap-not-imp?
+               (chaperone-multi-vector blame ctc (list first-order-checks)
+                                       elem-s-e-poss elem-s-e-negs)
+               (impersonator-multi-vector blame ctc (list first-order-checks)
+                                          elem-s-e-poss elem-s-e-negs)))
+         (define late-neg-proj
            (λ (val neg-party)
              (define full-blame (blame-add-missing-party blame neg-party))
              (check-vector/c val blame immutable elems-length neg-party)
@@ -414,11 +444,7 @@
                                    [i (in-naturals)])
                           ((vector-ref elem-pos-projs i) e neg-party)))
                  (begin (log-n-wrappers "mutable-vector/c-ho" val)
-                        (if (and (has-contract? val)
-                                 (contract-has-space-efficient-support? ctc)
-                                 (contract-has-space-efficient-support? (value-contract val))
-                                 (value-has-vector-space-efficient-support? val chap-not-imp?))
-                            (guard-multi/c (contract->space-efficient-contract ctc full-blame) val)
+                        (or (maybe-enter-space-efficient-mode s-e-mergable val neg-party)
                             (vector-wrapper
                              val
                              (λ (vec i val)
@@ -430,8 +456,15 @@
                                  blame+neg-party
                                  ((vector-ref elem-neg-projs i) val neg-party)))
                              impersonator-prop:unwrapped val
+                             impersonator-prop:space-efficient (cons s-e-mergable neg-party)
                              impersonator-prop:contracted ctc
-                             impersonator-prop:blame full-blame))))))))))
+                             impersonator-prop:blame full-blame))))))
+           (if s-e?
+               (values late-neg-proj s-e-mergable)
+               late-neg-proj)))))
+
+(define vector/c-ho-late-neg-projection (build-vector/c-projection #f))
+(define vector/c-space-efficient-late-neg-projection (build-vector/c-projection #t))
 
 (define-struct (chaperone-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc
@@ -440,8 +473,8 @@
    #:name vector/c-name
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
-   #:late-neg-projection (vector/c-ho-late-neg-projection #t))
-  #:property prop:space-efficient-contract vector/c-space-efficient-support-property)
+   #:late-neg-projection (vector/c-ho-late-neg-projection #t)
+   #:space-efficient-late-neg-projection (vector/c-space-efficient-late-neg-projection #t)))
 
 (define-struct (impersonator-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc
@@ -450,8 +483,8 @@
    #:name vector/c-name
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
-   #:late-neg-projection (vector/c-ho-late-neg-projection #f))
-  #:property prop:space-efficient-contract vector/c-space-efficient-support-property)
+   #:late-neg-projection (vector/c-ho-late-neg-projection #f)
+   #:space-efficient-late-neg-projection (vector/c-space-efficient-late-neg-projection #f)))
 
 (define-syntax (wrap-vector/c stx)
   (syntax-case stx ()
