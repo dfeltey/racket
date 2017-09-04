@@ -542,7 +542,8 @@
                  ;; fields of the 'ctc' struct
                  min-arity doms kwd-infos rest pre? rngs post?
                  plus-one-arity-function chaperone-constructor method?
-                 late-neg?)
+                 late-neg? s-e?)
+  (define has-s-e-support? (->-contract-has-space-efficient-support? ctc))
   (define optionals-length (- (length doms) min-arity))
   (define mtd? #f) ;; not yet supported for the new contracts
   (define okay-to-do-only-arity-check?
@@ -557,13 +558,24 @@
     (define rng-blame (arrow:blame-add-range-context orig-blame))
     (define swapped-domain (blame-add-context orig-blame "the domain of" #:swap? #t))
 
-    (define partial-doms
-      (for/list ([dom (in-list doms)]
-                 [n (in-naturals 1)])
-        ((get/build-late-neg-projection dom)
-         (blame-add-context orig-blame 
-                            (format "the ~a argument of" (n->th (if method? (sub1 n) n)))
-                            #:swap? #t))))
+    ;; if the ctc supports s-e mode, there are only positional args
+    (define-values (partial-doms s-e-doms)
+      (for/lists (projs ses)
+                 ([dom (in-list doms)]
+                  [n (in-naturals 1)])
+        (define dom-blame
+          (blame-add-context orig-blame
+                             (format "the ~a argument of" (n->th (if method? (sub1 n) n)))
+                             #:swap? #t))
+        (define prepared (contract-struct-space-efficient-late-neg-projection dom))
+        (cond
+          [prepared
+           (define-values (proj s-e) (prepared dom-blame))
+           (values proj (build-s-e-node s-e proj dom dom-blame))]
+          [else
+           (define proj ((get/build-late-neg-projection dom) dom-blame))
+           (values proj (build-s-e-node #f proj dom dom-blame))])))
+
     (define rest-blame
       (if (ellipsis-rest-arg-ctc? rest)
           (blame-swap orig-blame)
@@ -572,11 +584,23 @@
     (define partial-rest (and rest
                               ((get/build-late-neg-projection rest)
                                rest-blame)))
-    (define partial-ranges
-      (if rngs
-          (for/list ([rng (in-list rngs)])
-            ((get/build-late-neg-projection rng) rng-blame))
-          '()))
+    (define-values (partial-ranges maybe-s-e-ranges)
+      (cond
+        [rngs
+         (for/lists (proj s-e)
+                    ([rng (in-list rngs)])
+           (define prepared (contract-struct-space-efficient-late-neg-projection rng))
+           (cond
+             [prepared
+              (define-values (proj s-e) (prepared rng-blame))
+              (values proj (build-s-e-node s-e proj rng rng-blame))]
+             [else
+              (define proj ((get/build-late-neg-projection rng) rng-blame))
+              (values proj (build-s-e-node #f proj rng rng-blame))]))]
+        [else (values '() #f)]))
+
+    ;; if the ctc supports s-e mode there is exactly 1 range
+    (define s-e-range (and maybe-s-e-ranges (car maybe-s-e-ranges)))
     (define partial-kwds 
       (for/list ([kwd-info (in-list kwd-infos)]
                  [kwd (in-list kwd-infos)])
@@ -593,7 +617,9 @@
                          [kwd-info (in-list kwd-infos)]
                          #:unless (kwd-info-mandatory? kwd-info))
                 partial-kwd)))
-    
+    (define s-e-mergable
+      (and has-s-e-support?
+           (build-s-e-arrow s-e-doms s-e-range ctc orig-blame chaperone?)))
     (define the-args (append partial-doms
                              (if partial-rest (list partial-rest) '())
                              man-then-opt-partial-kwds
@@ -616,9 +642,7 @@
             (if is-impersonator? impersonate-procedure chaperone-procedure)))
       (define full-blame (blame-add-missing-party orig-blame neg-party))
       (cond
-        [(and #f ;; disbale space-efficient arrow contracts for now
-              #;(maybe-enter-space-efficient-mode s-e-mergable val neg-party))
-         => values]
+        [(maybe-enter-space-efficient-mode s-e-mergable val neg-party) => values]
         [chap/imp-func
          (log-n-wrappers "arrow-higher-order" val)
          (if (or post? (not rngs))
@@ -627,12 +651,14 @@
               chap/imp-func
               impersonator-prop:contracted ctc
               impersonator-prop:blame full-blame
+              impersonator-prop:space-efficient (cons s-e-mergable neg-party)
               impersonator-prop:unwrapped val)
              (chaperone-or-impersonate-procedure
               val
               chap/imp-func
               impersonator-prop:contracted ctc
               impersonator-prop:blame full-blame
+              impersonator-prop:space-efficient (cons s-e-mergable neg-party)
               impersonator-prop:application-mark
               (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))
               impersonator-prop:unwrapped val))]
@@ -647,12 +673,15 @@
               (f neg-party))]
            [else
             (successfully-got-the-right-kind-of-function val neg-party)]))
-       (if okay-to-do-only-arity-check?
-           (λ (val neg-party)
-             (cond
-               [(arrow:procedure-arity-exactly/no-kwds val min-arity) val]
-               [else (arrow-higher-order:lnp val neg-party)]))
-           arrow-higher-order:lnp)]
+       (cond
+         [okay-to-do-only-arity-check?
+          (define lnp
+            (λ (val neg-party)
+              (cond
+                [(arrow:procedure-arity-exactly/no-kwds val min-arity) val]
+                [else (arrow-higher-order:lnp val neg-party)])))
+          (if s-e? (values lnp s-e-mergable) lnp)]
+          [else (if s-e? (values arrow-higher-order:lnp s-e-mergable) arrow-higher-order:lnp)])]
       [else
        (define (arrow-higher-order:vfp val)
          (define-values (normal-proc proc-with-no-result-checking expected-number-of-results)

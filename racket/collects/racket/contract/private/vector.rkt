@@ -170,10 +170,7 @@
       (define-values (elem-pos-proj elem-neg-proj s-e-pos s-e-neg)
         (build-proj+s-e-components vfp pos-blame neg-blame elem-ctc))
       (define s-e-mergable
-        (let ([first-order-checks (build-vector-first-order-checks ctc blame)])
-          (if chap-not-imp?
-              (chaperone-multi-vector blame ctc (list first-order-checks) s-e-pos s-e-neg)
-              (impersonator-multi-vector blame ctc (list first-order-checks) s-e-pos s-e-neg))))
+        (build-s-e-vector s-e-pos s-e-neg ctc blame chap-not-imp?))
       (define checked-ref (λ (neg-party)
                             (define blame+neg-party (cons pos-blame neg-party))
                             (λ (vec i val)
@@ -426,13 +423,8 @@
            (vector-set! elem-neg-projs i elem-neg-proj)
            (vector-set! elem-s-e-poss i elem-s-e-pos)
            (vector-set! elem-s-e-negs i elem-s-e-neg))
-         (define first-order-checks (build-vector-first-order-checks ctc blame))
          (define s-e-mergable
-           (if chap-not-imp?
-               (chaperone-multi-vector blame ctc (list first-order-checks)
-                                       elem-s-e-poss elem-s-e-negs)
-               (impersonator-multi-vector blame ctc (list first-order-checks)
-                                          elem-s-e-poss elem-s-e-negs)))
+           (build-s-e-vector elem-s-e-poss elem-s-e-negs ctc blame chap-not-imp?))
          (define late-neg-proj
            (λ (val neg-party)
              (define full-blame (blame-add-missing-party blame neg-party))

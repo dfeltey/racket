@@ -6,9 +6,7 @@
          (only-in racket/unsafe/ops unsafe-chaperone-vector unsafe-impersonate-vector)
          (for-syntax racket/base))
 
-(provide chaperone-multi-vector
-         impersonator-multi-vector
-         build-vector-first-order-checks)
+(provide build-s-e-vector)
 
 (module+ for-testing
   (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs
@@ -75,6 +73,12 @@
            (eq? f1-immutable f2-immutable))
        (or (not f2-length)
            (and f1-length (= f1-length f2-length)))))
+
+(define (build-s-e-vector refs sets ctc blame chap?)
+  (define focs (build-vector-first-order-checks ctc blame))
+  (if chap?
+      (chaperone-multi-vector blame ctc (list focs) refs sets)
+      (impersonator-multi-vector blame ctc (list focs) refs sets)))
 
 (define (build-vector-first-order-checks ctc blame)
   (cond
@@ -199,7 +203,9 @@
            impersonator-prop:multi/c (cons merged-ctc new-neg)
            impersonator-prop:space-efficient (cons merged-ctc new-neg)
            impersonator-prop:contracted  (multi-ho/c-latest-ctc merged-ctc)
-           impersonator-prop:blame (multi-ho/c-latest-blame merged-ctc)))
+           impersonator-prop:blame (blame-add-missing-party
+                                    (multi-ho/c-latest-blame merged-ctc)
+                                    neg-party)))
         (set-box! b res)
         res]
        [else (bail-to-regular-wrapper ctc val neg-party)])]

@@ -11,10 +11,12 @@
          "arity-checking.rkt"
          (for-syntax racket/base))
 
-(provide value-has-space-efficient-support?)
+(provide value-has-arrow-space-efficient-support?
+         ->-contract-has-space-efficient-support?
+         build-s-e-arrow)
 (module+ for-testing
   (provide multi->? multi->-doms multi->-rng
-           value-has-space-efficient-support?))
+           value-has-arrow-space-efficient-support?))
 
 ;; General Strategy
 
@@ -69,7 +71,7 @@
 ;; contains all the information necessary to both (1) perform first order checks
 ;; for an arrow contract, and (2) determine which such checks are redundant and
 ;; can be eliminated
-(struct arrow-first-order-check (n-doms blame method?))
+(struct arrow-first-order-check (n-doms blame missing-party method?))
 ;; stronger really means "the same" here
 (define (arrow-first-order-check-stronger? x y)
   (= (arrow-first-order-check-n-doms x) (arrow-first-order-check-n-doms y)))
@@ -108,7 +110,7 @@
          (bail "not base arrow")
          #f]))
 
-(define (value-has-space-efficient-support? val chap-not-imp?)
+(define ((val-has-arrow-space-efficient-support? chap-not-imp?) val)
   (define-syntax-rule (bail reason)
     (begin
       (log-space-efficient-value-bailout-info (format "arrow: ~a" reason))
@@ -155,37 +157,40 @@
                                (impersonator-contract? (value-contract val))))])
            (bail "switching from imp to chap or vice versa"))))
 
+(define (value-has-arrow-space-efficient-support? val chap?)
+  ((val-has-arrow-space-efficient-support? chap?) val))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wrapper management and contract checking
 
 ;; (or/c contract? multi/c?) × α × boolean? → α
-(define (arrow-space-efficient-guard ctc val)
+(define (arrow-space-efficient-guard ctc val neg-party)
   ;; TODO: sometimes the first-order checks are redundant ...
-  (do-arrow-first-order-checks ctc val)
+  (do-arrow-first-order-checks ctc val neg-party)
   (define chap-not-imp? (chaperone-multi->? ctc))
   (cond
-    [(value-has-space-efficient-support? val chap-not-imp?)
+    [(value-has-arrow-space-efficient-support? val chap-not-imp?)
      (define blame (multi-ho/c-latest-blame ctc))
      (define (make-checking-wrapper unwrapped) ; add 2nd chaperone, see above
        (if chap-not-imp?
            (chaperone-procedure*   unwrapped arrow-wrapper)
            (impersonate-procedure* unwrapped arrow-wrapper)))
-     (define-values (merged-m/c checking-wrapper)
+     (define-values (merged-m/c new-neg checking-wrapper)
        (cond [(has-impersonator-prop:multi/c? val)
               ;; value is already in space-efficient mode; merge new contract in
               (unless (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting a checking wrapper" val))
-              (values (try-merge
-                       ctc
-                       (get-impersonator-prop:multi/c val))
+              (define prop (get-impersonator-prop:multi/c val))
+              (define-values (merged neg)
+                (try-merge ctc neg-party (car prop) (cdr prop)))
+              (values merged
+                      neg
                       (get-impersonator-prop:checking-wrapper val))]
              [(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
               ;; value is already contracted; switch to space-efficient mode
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
-              (define orig-ctc   (value-contract val))
-              (define orig-blame (value-blame    val))
+              (define prop (get-impersonator-prop:space-efficient val))
               ;; pretend we're the (once) contracted value, but bypass its checking
               ;; (1st chaperone, see above)
               (define unwrapped
@@ -194,16 +199,16 @@
                      unsafe-impersonate-procedure)
                  val
                  (get-impersonator-prop:unwrapped val)))
-              (values #;(try-merge
-                       ctc
-                       (contract->space-efficient-contract orig-ctc orig-blame))
-                      #f
+              (define-values (merged neg)
+                (try-merge ctc neg-party (car prop) (cdr prop)))
+              (values merged
+                      neg
                       (make-checking-wrapper unwrapped))]
              [else
               ;; value is not contracted; applying a s-e subcontract directly
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
-              (values ctc (make-checking-wrapper val))])) ; already "unwrapped"
+              (values ctc neg-party (make-checking-wrapper val))])) ; already "unwrapped"
      (cond
        [merged-m/c
         ;; do the actual checking and wrap with the 3rd chaperone (see above)
@@ -215,15 +220,18 @@
            #f ; property-only, so we can swap it in and out
            impersonator-prop:checking-wrapper  checking-wrapper
            impersonator-prop:outer-wrapper-box b
-           impersonator-prop:multi/c           merged-m/c
+           impersonator-prop:multi/c (cons merged-m/c new-neg)
+           impersonator-prop:space-efficient (cons merged-m/c new-neg)
            ;; for these, latest is fine (and the behavior in the absence of s-e)
-           impersonator-prop:contracted        (multi-ho/c-latest-ctc   merged-m/c)
-           impersonator-prop:blame             (multi-ho/c-latest-blame merged-m/c)))
+           impersonator-prop:contracted (multi-ho/c-latest-ctc   merged-m/c)
+           impersonator-prop:blame (blame-add-missing-party
+                                    (multi-ho/c-latest-blame merged-m/c)
+                                    neg-party)))
         (set-box! b res)
         res]
        [else
-        (bail-to-regular-wrapper ctc val)])]
-    [else (bail-to-regular-wrapper ctc val)]))
+        (bail-to-regular-wrapper ctc val neg-party)])]
+    [else (bail-to-regular-wrapper ctc val neg-party)]))
 
 ;; If requested, we can log the arities of the contracts that end up being
 ;; space-efficient. That can inform whether we should have arity-specific
@@ -246,16 +254,20 @@
      ;; Note: it would be more efficient to have arity-specific wrappers here,
      ;;   as opposed to using a rest arg.
      #`(λ (outermost-chaperone . args)
-         (define m/c
+         (define prop
            #,(if (syntax-e #'maybe-closed-over-m/c)
                  #'maybe-closed-over-m/c ; we did close over the contract
                  ;; otherwise, get it from the impersonator property
                  #'(get-impersonator-prop:multi/c outermost-chaperone)))
+         (define m/c (car prop))
+         (define neg (cdr prop))
          (define doms   (multi->-doms         m/c))
          (define rng    (multi->-rng          m/c))
-         (define blame  (multi-ho/c-latest-blame m/c)) ; latest is ok here
+         (define blame  (blame-add-missing-party
+                         (multi-ho/c-latest-blame m/c) ; latest is ok here
+                         neg))
          (define n-args (length args))
-         (define n-doms (vector-length doms))
+         (define n-doms (length doms))
          (log-space-efficient-contract-arrow-wrapper-arity-info
           (number->string n-doms))
          (unless (= n-args n-doms)
@@ -271,37 +283,41 @@
              (with-space-efficient-contract-continuation-mark
                (with-contract-continuation-mark
                  blame
-                 (guard-multi/c rng result)))))
+                 (guard-multi/c rng result neg)))))
          (apply values
                 rng-checker
-                (for/list ([dom (in-vector doms)]
+                (for/list ([dom (in-list doms)]
                            [arg (in-list args)])
                   (with-space-efficient-contract-continuation-mark
                     (with-contract-continuation-mark
                       blame
-                      (guard-multi/c dom arg))))))]))
+                      (guard-multi/c dom arg neg))))))]))
 
 (define arrow-wrapper (make-checking-wrapper #f))
 
 ;; create a regular checking wrapper from a space-efficient wrapper for a value
 ;; that can't use space-efficient wrapping
-(define (bail-to-regular-wrapper m/c val)
+(define (bail-to-regular-wrapper m/c val neg-party)
   (define chap-not-imp? (chaperone-multi->? m/c))
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
    (make-checking-wrapper m/c)
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
-   impersonator-prop:blame      (multi-ho/c-latest-blame m/c)
+   impersonator-prop:blame (blame-add-missing-party
+                            (multi-ho/c-latest-blame m/c)
+                            neg-party)
+   impersonator-prop:space-efficient #f
    impersonator-prop:unwrapped val))
 
-(define (do-arrow-first-order-checks m/c val)
+(define (do-arrow-first-order-checks m/c val neg-party)
   (define checks (multi->-first-order-checks m/c))
   (for ([c (in-list checks)])
     (define n-doms (arrow-first-order-check-n-doms c))
+    (define neg (arrow-first-order-check-missing-party c))
     (cond [(do-arity-checking
             (arrow-first-order-check-blame c)
             val
-            (for/list ([i (in-range n-doms)]) #f) ; has to have the right length
+            (for/list ([i (in-range n-doms)]) (or neg neg-party)) ; has to have the right length
             #f ; no rest arg
             n-doms ; min-arity = max-arity
             '() ; no keywords
@@ -310,8 +326,8 @@
 
 (define (get-projection ctc)
   (lambda (val neg-party)
-    (do-arrow-first-order-checks ctc val)
-    (bail-to-regular-wrapper ctc val)))
+    (do-arrow-first-order-checks ctc val neg-party)
+    (bail-to-regular-wrapper ctc val neg-party)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -335,23 +351,44 @@
    (contract->space-efficient-contract rng blame)
    (list (arrow-first-order-check (length doms) blame (base->-method? ctc)))))
 
+(define (build-s-e-arrow doms rng ctc blame chap?)
+  (define focs
+    (list (arrow-first-order-check (length doms) blame #f (base->-method? ctc))))
+  (if chap?
+      (chaperone-multi-> blame ctc doms rng focs)
+      (impersonator-multi-> blame ctc doms rng focs)))
+
 ;; merge two multi->
-(define (try-merge new-multi old-multi)
+(define (arrow-try-merge new-multi new-neg old-multi old-neg)
   (define constructor (get-constructor new-multi old-multi))
-  (and constructor
-       (constructor
-        (multi-ho/c-latest-blame new-multi)
-        (multi-ho/c-latest-ctc   new-multi)
-        ;; if old and new don't have the same arity, then one of them will *have*
-        ;; to fail its first order checks, so we're fine.
-        ;; (we don't support optional arguments)
-        (for/vector ([new (in-vector (multi->-doms new-multi))]
-                     [old (in-vector (multi->-doms old-multi))])
-          (merge old new))
-        (merge (multi->-rng new-multi) (multi->-rng old-multi))
-        (first-order-check-join (multi->-first-order-checks old-multi)
-                                (multi->-first-order-checks new-multi)
-                                arrow-first-order-check-stronger?))))
+  (define merged
+    (and constructor
+         (constructor
+          (multi-ho/c-latest-blame new-multi)
+          (multi-ho/c-latest-ctc   new-multi)
+          ;; if old and new don't have the same arity, then one of them will *have*
+          ;; to fail its first order checks, so we're fine.
+          ;; (we don't support optional arguments)
+          (for/list ([new (in-list (multi->-doms new-multi))]
+                     [old (in-list (multi->-doms old-multi))])
+            (define-values (merged _) (merge old old-neg new new-neg))
+            merged)
+          (let-values ([(merged _)
+                        (merge (multi->-rng new-multi) new-neg (multi->-rng old-multi) old-neg)])
+            merged)
+          (first-order-check-join
+           (add-f-o-neg-party (multi->-first-order-checks old-multi) old-neg)
+           (add-f-o-neg-party (multi->-first-order-checks new-multi) new-neg)
+           arrow-first-order-check-stronger?))))
+  (values merged #f))
+
+(define (add-f-o-neg-party focs neg-party)
+  (for/list ([foc (in-list focs)])
+    (define missing-party (arrow-first-order-check-missing-party foc))
+    (struct-copy
+     arrow-first-order-check
+     foc
+     [missing-party (or missing-party neg-party)])))
 
 (define (get-constructor new old)
   (or (and (chaperone-multi->? new)
@@ -362,13 +399,14 @@
            impersonator-multi->)))
 
 ;; TODO: add the other pieces of this property
-(define ->-space-efficient-contract-property
+(define (->-space-efficient-contract-property chap?)
   (build-space-efficient-contract-property
-   #:try-merge try-merge
+   #:try-merge arrow-try-merge
+   #:value-has-space-efficient-support? (val-has-arrow-space-efficient-support? chap?)
    #:space-efficient-guard arrow-space-efficient-guard
    #:get-projection get-projection))
 
 (struct chaperone-multi-> multi-> ()
-  #:property prop:space-efficient-contract ->-space-efficient-contract-property)
+  #:property prop:space-efficient-contract (->-space-efficient-contract-property #t))
 (struct impersonator-multi-> multi-> ()
-  #:property prop:space-efficient-contract ->-space-efficient-contract-property)
+  #:property prop:space-efficient-contract (->-space-efficient-contract-property #f))
