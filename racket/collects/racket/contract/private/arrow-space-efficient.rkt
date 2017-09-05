@@ -262,7 +262,7 @@
                  ;; otherwise, get it from the impersonator property
                  #'(get-impersonator-prop:multi/c outermost-chaperone)))
          (define m/c (car prop))
-         (define neg (cdr prop))
+         (define neg (or (multi-ho/c-missing-party m/c) (cdr prop)))
          (define doms   (multi->-doms         m/c))
          (define rng    (multi->-rng          m/c))
          (define blame  (blame-add-missing-party
@@ -301,13 +301,14 @@
 ;; that can't use space-efficient wrapping
 (define (bail-to-regular-wrapper m/c val neg-party)
   (define chap-not-imp? (chaperone-multi->? m/c))
+  (define neg (or (multi-ho/c-missing-party m/c) neg-party))
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
    (make-checking-wrapper (cons m/c neg-party))
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
    impersonator-prop:blame (blame-add-missing-party
                             (multi-ho/c-latest-blame m/c)
-                            neg-party)
+                            neg)
    impersonator-prop:space-efficient #f
    impersonator-prop:unwrapped val))
 
@@ -359,8 +360,8 @@
   (define focs
     (list (arrow-first-order-check (length doms) blame #f (base->-method? ctc))))
   (if chap?
-      (chaperone-multi-> blame ctc doms rng focs)
-      (impersonator-multi-> blame ctc doms rng focs)))
+      (chaperone-multi-> blame #f ctc doms rng focs)
+      (impersonator-multi-> blame #f ctc doms rng focs)))
 
 ;; merge two multi->
 (define (arrow-try-merge new-multi new-neg old-multi old-neg)
@@ -369,6 +370,7 @@
     (and constructor
          (constructor
           (multi-ho/c-latest-blame new-multi)
+          (or (multi-ho/c-missing-party new-multi) new-neg)
           (multi-ho/c-latest-ctc   new-multi)
           ;; if old and new don't have the same arity, then one of them will *have*
           ;; to fail its first order checks, so we're fine.

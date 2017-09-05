@@ -77,8 +77,8 @@
 (define (build-s-e-vector refs sets ctc blame chap?)
   (define focs (build-vector-first-order-checks ctc blame))
   (if chap?
-      (chaperone-multi-vector blame ctc (list focs) refs sets)
-      (impersonator-multi-vector blame ctc (list focs) refs sets)))
+      (chaperone-multi-vector blame #f ctc (list focs) refs sets)
+      (impersonator-multi-vector blame #f ctc (list focs) refs sets)))
 
 (define (build-vector-first-order-checks ctc blame)
   (cond
@@ -109,6 +109,7 @@
     (and constructor
          (constructor
           (multi-ho/c-latest-blame new-multi)
+          (or (multi-ho/c-missing-party new-multi) new-neg)
           (multi-ho/c-latest-ctc new-multi)
           (first-order-check-join (add-f-o-neg-party (multi-vector-first-order old-multi) old-neg)
                                   (add-f-o-neg-party (multi-vector-first-order new-multi) new-neg)
@@ -224,7 +225,7 @@
                  #'maybe-closed-over-m/c
                  #'(get-impersonator-prop:multi/c outermost)))
          (define m/c (car prop))
-         (define neg (cdr prop))
+         (define neg (or (multi-ho/c-missing-party m/c) (cdr prop)))
          (define field
            #,(if (syntax-e #'set?)
                  #'(multi-vector-set-ctcs m/c)
@@ -242,7 +243,8 @@
 
 (define (bail-to-regular-wrapper m/c val neg-party)
   (define chap-not-imp? (chaperone-multi-vector? m/c))
-  (define blame (blame-add-missing-party (multi-ho/c-latest-blame m/c) neg-party))
+  (define neg (or (multi-ho/c-missing-party m/c) neg-party))
+  (define blame (blame-add-missing-party (multi-ho/c-latest-blame m/c) neg))
   (define ctc (multi-ho/c-latest-ctc m/c))
   ((if chap-not-imp? chaperone-vector* impersonate-vector*)
    val

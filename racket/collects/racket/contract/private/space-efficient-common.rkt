@@ -121,7 +121,7 @@
 ;; Parent structure for higher order space-efficient contracts
 ;; which must keep track of the latest blame and latest contract
 ;; applied
-(struct multi-ho/c (latest-blame latest-ctc))
+(struct multi-ho/c (latest-blame missing-party latest-ctc))
 
 (struct multi-leaf/c (proj-list contract-list blame-list missing-party-list)
   #:property prop:space-efficient-contract
