@@ -73,8 +73,8 @@
    '(define (has-num-contracts? f dom rng)
       (unless (has-impersonator-prop:multi/c? f)
         (error "has-num-contracts?: no space-efficient contract"))
-      (define multi/c  (get-impersonator-prop:multi/c f))
-      (define domain/c (vector-ref (multi->-doms multi/c) 0))
+      (define multi/c  (car (get-impersonator-prop:multi/c f)))
+      (define domain/c (car (multi->-doms multi/c)))
       (define range/c  (multi->-rng  multi/c))
       (unless (= (length (multi-leaf/c-proj-list domain/c)) dom)
         (error "has-num-contracts?: wrong number of domain projections"))
@@ -311,7 +311,7 @@
                (raise-blame-error (blame-add-missing-party blame neg-party) x "eh"))
              x))))))
   (contract-eval '(define (can-combine? val ctc)
-                    (value-has-space-efficient-support? val (chaperone-contract? ctc))))
+                    (value-has-arrow-space-efficient-support? val (chaperone-contract? ctc))))
 
   (contract-eval '(define ic
                     (contract (-> (-> c1 c1) (-> c1 c1))

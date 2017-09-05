@@ -173,18 +173,22 @@
              [(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
-              (define prop (get-impersonator-prop:space-efficient val))
               (define unwrapped ;; un-contracted (since it is wrapped in a chaperone)
                 ((if chap-not-imp?
                      unsafe-chaperone-vector
                      unsafe-impersonate-vector)
                  val
                  (get-impersonator-prop:unwrapped val)))
-              (define-values (merged neg)
-                (try-merge ctc neg-party (car prop) (cdr prop)))
-              (values merged
-                      neg
-                      (make-checking-wrapper unwrapped))]
+              (define checking-wrapper (make-checking-wrapper unwrapped))
+              (cond
+                [(has-impersonator-prop:space-efficient? val)
+                 (define prop
+                   (or (get-impersonator-prop:space-efficient val) (cons #f #f)))
+                 (define-values (merged neg)
+                   (try-merge ctc neg-party (car prop) (cdr prop)))
+                 (values merged neg checking-wrapper)]
+                [else ;; no space-efficient prop to merge with so bail
+                 (values #f neg-party checking-wrapper)])]
              [else
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))

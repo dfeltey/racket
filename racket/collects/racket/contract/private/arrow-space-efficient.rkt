@@ -190,20 +190,22 @@
               ;; value is already contracted; switch to space-efficient mode
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
-              (define prop (get-impersonator-prop:space-efficient val))
-              ;; pretend we're the (once) contracted value, but bypass its checking
-              ;; (1st chaperone, see above)
               (define unwrapped
                 ((if chap-not-imp?
                      unsafe-chaperone-procedure
                      unsafe-impersonate-procedure)
                  val
                  (get-impersonator-prop:unwrapped val)))
-              (define-values (merged neg)
-                (try-merge ctc neg-party (car prop) (cdr prop)))
-              (values merged
-                      neg
-                      (make-checking-wrapper unwrapped))]
+              (define checking-wrapper (make-checking-wrapper unwrapped))
+              (cond
+                [(has-impersonator-prop:space-efficient? val)
+                 (define prop
+                   (or (get-impersonator-prop:space-efficient val) (cons #f #f)))
+                 (define-values (merged neg)
+                   (try-merge ctc neg-party (car prop) (cdr prop)))
+                 (values merged neg checking-wrapper)]
+                [else ;; no space-efficient prop to merge with so bail
+                 (values #f neg-party checking-wrapper)])]
              [else
               ;; value is not contracted; applying a s-e subcontract directly
               (when (has-impersonator-prop:checking-wrapper? val)
@@ -301,7 +303,7 @@
   (define chap-not-imp? (chaperone-multi->? m/c))
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
-   (make-checking-wrapper m/c)
+   (make-checking-wrapper (cons m/c neg-party))
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
    impersonator-prop:blame (blame-add-missing-party
                             (multi-ho/c-latest-blame m/c)
@@ -313,11 +315,13 @@
   (define checks (multi->-first-order-checks m/c))
   (for ([c (in-list checks)])
     (define n-doms (arrow-first-order-check-n-doms c))
+    (define partial-blame (arrow-first-order-check-blame c))
     (define neg (arrow-first-order-check-missing-party c))
+    (define blame (blame-add-missing-party partial-blame (or neg neg-party)))
     (cond [(do-arity-checking
-            (arrow-first-order-check-blame c)
+            blame
             val
-            (for/list ([i (in-range n-doms)]) (or neg neg-party)) ; has to have the right length
+            (for/list ([i (in-range n-doms)]) #f) ; has to have the right length
             #f ; no rest arg
             n-doms ; min-arity = max-arity
             '() ; no keywords

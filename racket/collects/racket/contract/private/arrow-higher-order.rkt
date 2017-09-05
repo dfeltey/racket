@@ -598,9 +598,6 @@
               (define proj ((get/build-late-neg-projection rng) rng-blame))
               (values proj (build-s-e-node #f proj rng rng-blame))]))]
         [else (values '() #f)]))
-
-    ;; if the ctc supports s-e mode there is exactly 1 range
-    (define s-e-range (and maybe-s-e-ranges (car maybe-s-e-ranges)))
     (define partial-kwds 
       (for/list ([kwd-info (in-list kwd-infos)]
                  [kwd (in-list kwd-infos)])
@@ -619,7 +616,7 @@
                 partial-kwd)))
     (define s-e-mergable
       (and has-s-e-support?
-           (build-s-e-arrow s-e-doms s-e-range ctc orig-blame chaperone?)))
+           (build-s-e-arrow s-e-doms (car maybe-s-e-ranges) ctc orig-blame chaperone?)))
     (define the-args (append partial-doms
                              (if partial-rest (list partial-rest) '())
                              man-then-opt-partial-kwds

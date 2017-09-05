@@ -280,8 +280,9 @@
       ((space-efficient-contract-property-get-projection prop) multi))]
     [else
      (values merge-fail merge-fail #f)]))
-      
-(define (merge-fail _1 _2) #f)
+
+;; TODO: should this return one of the blames as the second return value?
+(define (merge-fail _1 _2 _3 _4) (values #f #f))
 
 (define (guard-multi/c multi val neg-party)
   (unless (space-efficient-contract? multi)
