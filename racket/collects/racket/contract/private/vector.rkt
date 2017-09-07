@@ -135,11 +135,11 @@
 (define (blame-add-element-of-context blame #:swap? [swap? #f])
   (blame-add-context blame "an element of" #:swap? swap?))
 
-(define (build-proj+s-e-components prepared pos-blame neg-blame ctc)
+(define (build-proj+s-e-components vfp pos-blame neg-blame ctc)
   (cond
-    [prepared
-     (define-values (pos-proj pos-s-e) (prepared pos-blame))
-     (define-values (neg-proj neg-s-e) (prepared neg-blame))
+    [vfp
+     (define-values (pos-proj pos-s-e) (vfp pos-blame))
+     (define-values (neg-proj neg-s-e) (vfp neg-blame))
      (values pos-proj
              neg-proj
              ;; (pos/neg)-s-e will be #f if there was no s-e structure
@@ -169,7 +169,7 @@
       (define neg-blame (blame-add-element-of-context blame #:swap? #t))
       (define-values (elem-pos-proj elem-neg-proj s-e-pos s-e-neg)
         (build-proj+s-e-components vfp pos-blame neg-blame elem-ctc))
-      (define s-e-mergable
+      (define s-e-vector
         (build-s-e-vector s-e-pos s-e-neg ctc blame chap-not-imp?))
       (define checked-ref (λ (neg-party)
                             (define blame+neg-party (cons pos-blame neg-party))
@@ -203,13 +203,13 @@
                           (elem-pos-proj e neg-party)))
                       val)
                (begin (log-n-wrappers "immutable-vectorof-ho" val)
-                      (or (maybe-enter-space-efficient-mode s-e-mergable val neg-party)
+                      (or (maybe-enter-space-efficient-mode s-e-vector val neg-party)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
                            (checked-set neg-party)
                            impersonator-prop:unwrapped val
-                           impersonator-prop:space-efficient (cons s-e-mergable neg-party)
+                           impersonator-prop:space-efficient (cons s-e-vector neg-party)
                            impersonator-prop:contracted ctc
                            impersonator-prop:blame full-blame)))))]
         [else
@@ -223,17 +223,18 @@
                 (for/vector #:length (vector-length val) ([e (in-vector val)])
                   (elem-pos-proj e neg-party)))
                (begin (log-n-wrappers "mutable-vectorof-ho" val)
-                      (or (maybe-enter-space-efficient-mode s-e-mergable val neg-party)
+                      (or ;; inline this ... (specialize)
+                       (maybe-enter-space-efficient-mode s-e-vector val neg-party)
                           (chaperone-or-impersonate-vector
                            val
                            (checked-ref neg-party)
                            (checked-set neg-party)
                            impersonator-prop:unwrapped val
-                           impersonator-prop:space-efficient (cons s-e-mergable neg-party)
+                           impersonator-prop:space-efficient (cons s-e-vector neg-party)
                            impersonator-prop:contracted ctc
                            impersonator-prop:blame full-blame)))))]))
       (if s-e?
-          (values late-neg-proj s-e-mergable)
+          (values late-neg-proj s-e-vector)
           late-neg-proj))))
 
 (define vectorof-late-neg-ho-projection (build-vectorof-projection #f))

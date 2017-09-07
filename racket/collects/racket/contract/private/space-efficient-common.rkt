@@ -289,6 +289,7 @@
     (error "internal error: not a space-efficient contract" multi))
   (cond
     [(multi-leaf/c? multi)
+     ;; make the leaf case generic
      (apply-proj-list (multi-leaf/c-proj-list multi)
                       (multi-leaf/c-missing-party-list multi)
                       val
@@ -315,6 +316,7 @@
 
 (define (maybe-enter-space-efficient-mode s-e val neg-party)
   (and (has-impersonator-prop:space-efficient? val)
+       ;; try deleting this
        (get-impersonator-prop:space-efficient val)
        (value-has-space-efficient-support? s-e val)
        (guard-multi/c s-e val neg-party)))

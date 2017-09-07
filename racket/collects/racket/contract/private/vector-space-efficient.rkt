@@ -55,6 +55,7 @@
                       chap-not-imp?
                       (not chap-not-imp?))]
                  [else
+                  ;; avoid calling value-contract here
                   (or (not (value-contract val))
                       (if chap-not-imp?
                           (chaperone-contract?    (value-contract val))
@@ -74,11 +75,11 @@
        (or (not f2-length)
            (and f1-length (= f1-length f2-length)))))
 
-(define (build-s-e-vector refs sets ctc blame chap?)
+(define (build-s-e-vector s-e-pos s-e-neg ctc blame chap?)
   (define focs (build-vector-first-order-checks ctc blame))
   (if chap?
-      (chaperone-multi-vector blame #f ctc (list focs) refs sets)
-      (impersonator-multi-vector blame #f ctc (list focs) refs sets)))
+      (chaperone-multi-vector blame #f ctc (list focs) s-e-pos s-e-neg)
+      (impersonator-multi-vector blame #f ctc (list focs) s-e-pos s-e-neg)))
 
 (define (build-vector-first-order-checks ctc blame)
   (cond
@@ -151,29 +152,35 @@
            (impersonator-multi-vector? old)
            impersonator-multi-vector)))
 
-(define (vector-space-efficient-guard ctc val neg-party)
+(define (vector-space-efficient-guard s-e val neg-party)
   ;; TODO: sometimes the first-order check are redundant ...
-  (do-vector-first-order-checks ctc val neg-party)
-  (define chap-not-imp? (chaperone-multi-vector? ctc))
+  (do-vector-first-order-checks s-e val neg-party)
+  (define chap-not-imp? (chaperone-multi-vector? s-e))
   (cond
+    ;; don't check this twice
     [((val-has-vec-s-e-support? chap-not-imp?) val)
-     (define blame (multi-ho/c-latest-blame ctc))
+     ;; no bound occurences
+     (define blame (multi-ho/c-latest-blame s-e))
      (define (make-checking-wrapper unwrapped)
        (define chap/imp (if chap-not-imp? chaperone-vector* impersonate-vector*))
        (chap/imp unwrapped ref-wrapper set-wrapper))
      (define-values (merged-ctc new-neg checking-wrapper)
        (cond [(has-impersonator-prop:multi/c? val)
+              ;; TODO: maybe unify multi/c and space-efficient props
               (unless (has-impersonator-prop:checking-wrapper? val)
+                ;; FIXME: call to error
                 (error "internal error: expecting a checking wrapper" val))
               (define prop (get-impersonator-prop:multi/c val))
+              ;; try to make decisions once
               (define-values (merged neg)
-                (try-merge ctc neg-party (car prop) (cdr prop)))
+                (try-merge s-e neg-party (car prop) (cdr prop)))
               (values merged
                       neg
                       (get-impersonator-prop:checking-wrapper val))]
              [(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
+              ;; no left-left
               (define unwrapped ;; un-contracted (since it is wrapped in a chaperone)
                 ((if chap-not-imp?
                      unsafe-chaperone-vector
@@ -183,17 +190,19 @@
               (define checking-wrapper (make-checking-wrapper unwrapped))
               (cond
                 [(has-impersonator-prop:space-efficient? val)
+                 ;; rearrange this, if we know it doesn't have the prop:s-e
+                 ;; maybe this goes away if we don't need to mask the property
                  (define prop
                    (or (get-impersonator-prop:space-efficient val) (cons #f #f)))
                  (define-values (merged neg)
-                   (try-merge ctc neg-party (car prop) (cdr prop)))
+                   (try-merge s-e neg-party (car prop) (cdr prop)))
                  (values merged neg checking-wrapper)]
                 [else ;; no space-efficient prop to merge with so bail
                  (values #f neg-party checking-wrapper)])]
              [else
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
-              (values ctc neg-party (make-checking-wrapper val))]))
+              (values s-e neg-party (make-checking-wrapper val))]))
      (cond
        [merged-ctc
         (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
@@ -213,8 +222,8 @@
                                     neg-party)))
         (set-box! b res)
         res]
-       [else (bail-to-regular-wrapper ctc val neg-party)])]
-    [else (bail-to-regular-wrapper ctc val neg-party)]))
+       [else (bail-to-regular-wrapper s-e val neg-party)])]
+    [else (bail-to-regular-wrapper s-e val neg-party)]))
 
 (define-syntax (make-vectorof-checking-wrapper stx)
   (syntax-case stx ()
