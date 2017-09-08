@@ -39,7 +39,7 @@
       #f))
   (and (or (vector? val)
            (bail "not a vector"))
-       (or (if (has-impersonator-prop:unwrapped? val)
+       #;(or (if (has-impersonator-prop:unwrapped? val)
                (not (impersonator? (get-impersonator-prop:unwrapped val)))
                #t)
            (bail "already chaperoned"))
@@ -177,7 +177,7 @@
               (values merged
                       neg
                       (get-impersonator-prop:checking-wrapper val))]
-             [(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
+             #;[(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
               ;; no left-left

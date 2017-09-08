@@ -130,7 +130,7 @@
        ;; unsafe-chaperone-procedure does not respect the chaperone-procedure*
        ;; protocol, so it's not safe to use it on something that's already
        ;; chaperoned with it (before it was contracted)
-       (or (if (has-impersonator-prop:unwrapped? val)
+       #;(or (if (has-impersonator-prop:unwrapped? val)
                (not (procedure-impersonator*? (get-impersonator-prop:unwrapped val)))
                #t)
            (bail "already chaperoned"))
@@ -186,7 +186,7 @@
               (values merged
                       neg
                       (get-impersonator-prop:checking-wrapper val))]
-             [(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
+             #;[(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
               ;; value is already contracted; switch to space-efficient mode
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))

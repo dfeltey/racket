@@ -628,6 +628,7 @@
               (if partial-rest (list partial-rest) '())))
     (define blame-party-info (arrow:get-blame-party-info orig-blame))
     (define (successfully-got-the-right-kind-of-function val neg-party)
+      (define contract-count (get-contract-count val))
       (define-values (chap/imp-func use-unsafe-chaperone-procedure?)
         (apply chaperone-constructor
                orig-blame val
@@ -639,7 +640,9 @@
             (if is-impersonator? impersonate-procedure chaperone-procedure)))
       (define full-blame (blame-add-missing-party orig-blame neg-party))
       (cond
-        [(maybe-enter-space-efficient-mode s-e-mergable val neg-party) => values]
+        [(and
+          (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+          (maybe-enter-space-efficient-mode s-e-mergable val neg-party)) => values]
         [chap/imp-func
          (log-n-wrappers "arrow-higher-order" val)
          (if (or post? (not rngs))
@@ -647,6 +650,7 @@
               val
               chap/imp-func
               impersonator-prop:contracted ctc
+              impersonator-prop:contract-count (add1 contract-count)
               impersonator-prop:blame full-blame
               impersonator-prop:space-efficient (cons s-e-mergable neg-party)
               impersonator-prop:unwrapped val)
@@ -654,6 +658,7 @@
               val
               chap/imp-func
               impersonator-prop:contracted ctc
+              impersonator-prop:contract-count (add1 contract-count)
               impersonator-prop:blame full-blame
               impersonator-prop:space-efficient (cons s-e-mergable neg-party)
               impersonator-prop:application-mark

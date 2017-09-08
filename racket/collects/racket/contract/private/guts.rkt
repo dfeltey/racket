@@ -32,6 +32,10 @@
          impersonator-prop:blame
          impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped
          impersonator-prop:space-efficient has-impersonator-prop:space-efficient? get-impersonator-prop:space-efficient
+         impersonator-prop:contract-count
+         get-contract-count
+         SPACE-EFFICIENT-LIMIT
+
          has-contract? value-contract
          has-blame? value-blame
          log-n-wrappers
@@ -91,6 +95,18 @@
 
          false/c-contract
          true/c-contract)
+
+(define SPACE-EFFICIENT-LIMIT 10)
+
+(define-values (impersonator-prop:contract-count
+                has-impersonator-prop:contract-count?
+                get-impersonator-prop:contact-count)
+  (make-impersonator-property 'impersonator-prop:contract-count))
+
+(define (get-contract-count val)
+  (if (has-impersonator-prop:contract-count? val)
+      (get-impersonator-prop:contact-count val)
+      0))
 
 (define (contract-custom-write-property-proc stct port mode)
   (define (write-prefix)

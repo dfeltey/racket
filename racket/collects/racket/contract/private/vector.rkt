@@ -188,6 +188,7 @@
         [(flat-contract? elem-ctc)
          (define p? (flat-contract-predicate elem-ctc))
          (λ (val neg-party)
+           (define contract-count (get-contract-count val))
            (define full-blame (blame-add-missing-party blame neg-party))
            (define (raise-blame val . args) 
              (apply raise-blame-error blame #:missing-party neg-party val args))
@@ -203,17 +204,22 @@
                           (elem-pos-proj e neg-party)))
                       val)
                (begin (log-n-wrappers "immutable-vectorof-ho" val)
-                      (or (maybe-enter-space-efficient-mode s-e-vector val neg-party)
-                          (chaperone-or-impersonate-vector
-                           val
-                           (checked-ref neg-party)
-                           (checked-set neg-party)
-                           impersonator-prop:unwrapped val
-                           impersonator-prop:space-efficient (cons s-e-vector neg-party)
-                           impersonator-prop:contracted ctc
-                           impersonator-prop:blame full-blame)))))]
+                      (or
+                       (and
+                        (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+                        (maybe-enter-space-efficient-mode s-e-vector val neg-party))
+                       (chaperone-or-impersonate-vector
+                        val
+                        (checked-ref neg-party)
+                        (checked-set neg-party)
+                        impersonator-prop:unwrapped val
+                        impersonator-prop:space-efficient (cons s-e-vector neg-party)
+                        impersonator-prop:contract-count (add1 contract-count)
+                        impersonator-prop:contracted ctc
+                        impersonator-prop:blame full-blame)))))]
         [else
          (λ (val neg-party)
+           (define contract-count (get-contract-count val))
            (define full-blame (blame-add-missing-party blame neg-party))
            (define (raise-blame val . args) 
              (apply raise-blame-error blame #:missing-party neg-party val args))
@@ -224,15 +230,18 @@
                   (elem-pos-proj e neg-party)))
                (begin (log-n-wrappers "mutable-vectorof-ho" val)
                       (or ;; inline this ... (specialize)
-                       (maybe-enter-space-efficient-mode s-e-vector val neg-party)
-                          (chaperone-or-impersonate-vector
-                           val
-                           (checked-ref neg-party)
-                           (checked-set neg-party)
-                           impersonator-prop:unwrapped val
-                           impersonator-prop:space-efficient (cons s-e-vector neg-party)
-                           impersonator-prop:contracted ctc
-                           impersonator-prop:blame full-blame)))))]))
+                       (and
+                        (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+                        (maybe-enter-space-efficient-mode s-e-vector val neg-party))
+                       (chaperone-or-impersonate-vector
+                        val
+                        (checked-ref neg-party)
+                        (checked-set neg-party)
+                        impersonator-prop:unwrapped val
+                        impersonator-prop:space-efficient (cons s-e-vector neg-party)
+                        impersonator-prop:contract-count (add1 contract-count)
+                        impersonator-prop:contracted ctc
+                        impersonator-prop:blame full-blame)))))]))
       (if s-e?
           (values late-neg-proj s-e-vector)
           late-neg-proj))))
@@ -428,6 +437,7 @@
            (build-s-e-vector elem-s-e-poss elem-s-e-negs ctc blame chap-not-imp?))
          (define late-neg-proj
            (λ (val neg-party)
+             (define contract-count (get-contract-count val))
              (define full-blame (blame-add-missing-party blame neg-party))
              (check-vector/c val blame immutable elems-length neg-party)
              (define blame+neg-party (cons blame neg-party))
@@ -437,19 +447,23 @@
                                    [i (in-naturals)])
                           ((vector-ref elem-pos-projs i) e neg-party)))
                  (begin (log-n-wrappers "mutable-vector/c-ho" val)
-                        (or (maybe-enter-space-efficient-mode s-e-mergable val neg-party)
-                            (vector-wrapper
-                             val
-                             (λ (vec i val)
-                               (with-contract-continuation-mark
-                                 blame+neg-party
-                                 ((vector-ref elem-pos-projs i) val neg-party)))
-                             (λ (vec i val)
-                               (with-contract-continuation-mark
-                                 blame+neg-party
-                                 ((vector-ref elem-neg-projs i) val neg-party)))
-                             impersonator-prop:unwrapped val
-                             impersonator-prop:space-efficient (cons s-e-mergable neg-party)
+                        (or
+                         (and
+                          (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+                          (maybe-enter-space-efficient-mode s-e-mergable val neg-party))
+                         (vector-wrapper
+                          val
+                          (λ (vec i val)
+                            (with-contract-continuation-mark
+                              blame+neg-party
+                              ((vector-ref elem-pos-projs i) val neg-party)))
+                          (λ (vec i val)
+                            (with-contract-continuation-mark
+                              blame+neg-party
+                              ((vector-ref elem-neg-projs i) val neg-party)))
+                          impersonator-prop:unwrapped val
+                          impersonator-prop:contract-count (add1 contract-count)
+                          impersonator-prop:space-efficient (cons s-e-mergable neg-party)
                              impersonator-prop:contracted ctc
                              impersonator-prop:blame full-blame))))))
            (if s-e?
