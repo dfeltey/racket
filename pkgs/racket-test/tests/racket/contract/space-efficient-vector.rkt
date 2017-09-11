@@ -4,6 +4,12 @@
 (parameterize ([current-contract-namespace
                 (make-basic-contract-namespace
                  'racket/contract)])
+
+  (contract-eval
+   '(define (add-many-contracts n ctc val [pos 'pos] [neg 'neg])
+      (for/fold ([val val])
+                ([i (in-range n)])
+        (contract ctc val pos neg))))
   
   (contract-eval '(define ctc (vectorof integer?)))
   (contract-eval '(define (wrap x) (contract ctc x 'pos 'neg)))
@@ -28,14 +34,14 @@
   (test/spec-failed
    'vecof-bail-not-a-vector
    '(let* ([ctc (vectorof (vectorof integer?))]
-           [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc (add-many-contracts 11 ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    "inner-pos")
 
   (test/spec-failed
    'vec/c-bail-not-a-vector
    '(let* ([ctc (vector/c (vector/c integer?))]
-           [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc (add-many-contracts 11 ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    "inner-pos")
 
@@ -43,7 +49,7 @@
    'vec/c-different-lengths1
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c integer? integer?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    "inner-pos")
 
@@ -51,7 +57,7 @@
    'vec/c-different-lengths2
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c integer? integer?)]
-           [v (contract ctc2 (contract ctc1 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc2 (add-many-contracts 11 ctc1 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    'pos)
 
@@ -59,7 +65,7 @@
    'vec/c-different-lengths3
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c integer? integer?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-set! v 0 7))
    "inner-pos")
 
@@ -67,7 +73,7 @@
    'vec/c-different-lengths4
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c integer? integer?)]
-           [v (contract ctc2 (contract ctc1 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc2 (add-many-contracts 11 ctc1 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-set! v 0 7))
    'pos)
 
@@ -77,76 +83,79 @@
   ;; If the flat? argument is #t, then the resulting contract is a flat contract, and the c argument must also be a flat contract.
   ;; Such flat contracts will be unsound if applied to mutable vectors, as they will not check future operations on the vector.
   (test/spec-passed 
-	'vec-space-efficient-flat-passed
-	'(let* ([ctc 	(vectorof integer? #:flat? #t)]
-                [v 	(contract 
-                   		ctc 
-				(make-vector 10 42) 'pos 'neg )])
-	(vector-ref v 1)))
-
+   'vec-space-efficient-flat-passed
+   '(let* ([ctc 	(vectorof integer? #:flat? #t)]
+           [v 	(add-many-contracts 11
+                                    ctc 
+                                    (make-vector 10 42) 'pos 'neg )])
+      (vector-ref v 1)))
+  
   (test/spec-failed
-        'vec-space-efficient-flat-failed!
-        '(let* ([ctc    (vectorof integer? #:flat? #t)]
-                [v      (contract 
-                                ctc 
-                                (make-vector 10 "42") 'pos 'neg )])
-        'oeps)
-	"pos")
-
+   'vec-space-efficient-flat-failed!
+   '(let* ([ctc    (vectorof integer? #:flat? #t)]
+           [v      (add-many-contracts 11
+                                       ctc 
+                                       (make-vector 10 "42") 'pos 'neg )])
+      'oeps)
+   "pos")
+  
   ;;Should pass the test because we indicate that it is a flat contract
   (test/spec-passed
-	'vec-space-efficient-flat-set!
-	'(let* ([ctc 	(vectorof integer? #:flat? #t)]
-                [v 	(contract 
-                   		ctc 
-				(make-vector 10 42) 'pos 'neg )])
-	(vector-set! v 1 "24")))
-
+   'vec-space-efficient-flat-set!
+   '(let* ([ctc 	(vectorof integer? #:flat? #t)]
+           [v 	(add-many-contracts
+                 11
+                 ctc 
+                 (make-vector 10 42) 'pos 'neg )])
+      (vector-set! v 1 "24")))
+  
   ;If the immutable argument is #t and the c argument is a flat contract and the eager argument is #t, the result will be a flat contract. 
   (contract-eval  '(define ctc-flat (vectorof integer? #:immutable #t #:eager #t)))
   (test-true 'is-flat '(flat-contract? ctc-flat))
-
+  
   (test/spec-failed
-	'vec-space-efficient-flat-set!
-	'(let* ([ctc 	(vectorof integer? #:immutable #t #:eager #t)]
-                [v 	(contract 
-                   		ctc 
-				(make-vector 10 42) 'pos 'neg )])
-	'should-fail)
-	"pos")
-
+   'vec-space-efficient-flat-set!
+   '(let* ([ctc 	(vectorof integer? #:immutable #t #:eager #t)]
+           [v 	(add-many-contracts
+                 11
+                 ctc 
+                 (make-vector 10 42) 'pos 'neg )])
+      'should-fail)
+   "pos")
+  
   (test/spec-passed
-	'vec-space-efficient-flat-set!
-	'(let* ([ctc 	(vectorof integer? #:immutable #t #:eager #t)]
-                [v 	(contract 
-                   		ctc 
-				(vector-immutable 10 42) 'pos 'neg )])
-	(vector-ref v 1)))
-
+   'vec-space-efficient-flat-set!
+   '(let* ([ctc 	(vectorof integer? #:immutable #t #:eager #t)]
+           [v 	(add-many-contracts
+                 11
+                 ctc 
+                 (vector-immutable 10 42) 'pos 'neg )])
+      (vector-ref v 1)))
+  
    ;If the c argument is a chaperone contract, then the result will be a chaperone contract.
    (contract-eval '(define ctc-chap (vectorof (-> integer? integer?) #:immutable #t #:eager #t )))
    (test-true 'is-chaperone '(chaperone-contract? ctc-chap))
 
 
   (test/spec-passed
-        'vec-space-efficient-vector-chap
-        '(let* ([ctc-chap    (vectorof (-> integer? integer?) #:immutable #t #:eager #t)]
-                [v      (contract 
-                                ctc-chap 
-                                (vector-immutable (lambda (x) x)  (lambda (x) (* x x))) 'pos 'neg )])
-        ((vector-ref v 1) 10)))
-
+   'vec-space-efficient-vector-chap
+   '(let* ([ctc-chap    (vectorof (-> integer? integer?) #:immutable #t #:eager #t)]
+           [v      (add-many-contracts
+                    11
+                    ctc-chap 
+                    (vector-immutable (lambda (x) x)  (lambda (x) (* x x))) 'pos 'neg )])
+      ((vector-ref v 1) 10)))
+  
    (test/spec-failed
-        'vec-space-efficient-vector-chap-fail
-        '(let* ([ctc-chap    (vectorof (-> integer? integer?) #:immutable #t #:eager #t)]
-                [v      (contract 
-                                ctc-chap 
-                                (vector-immutable (lambda (x) "42")) 'pos 'neg )])
-        ((vector-ref v 0) 10))
-	"pos")
-   
- 
-	
+    'vec-space-efficient-vector-chap-fail
+    '(let* ([ctc-chap    (vectorof (-> integer? integer?) #:immutable #t #:eager #t)]
+            [v      (add-many-contracts
+                     11
+                     ctc-chap 
+                     (vector-immutable (lambda (x) "42")) 'pos 'neg )])
+       ((vector-ref v 0) 10))
+    "pos")
+
   ;; End basic keyword arguments
   ;; ***********************************************
 
@@ -157,14 +166,14 @@
    '(let* ([ctc (vectorof (vectorof integer?))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 0) (vector 1) (vector 2)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 0) (vector 1) (vector 2)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref (vector-ref v 1) 0)))
 
   (test/spec-failed
    'vec-space-efficient6a
    '(let* ([ctc (vectorof (vectorof integer?))]
-           [v (contract ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)])
+           [v (add-many-contracts 11 ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)])
       (vector-ref (vector-ref v 0) 0))
    "inner-pos")
   
@@ -173,7 +182,7 @@
    '(let* ([ctc (vectorof (vectorof integer?))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref (vector-ref v 0) 0))
    "inner-pos")
@@ -183,7 +192,7 @@
    '(let* ([ctc (vectorof (vectorof integer?))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! (vector-ref v 0) 0 'bad))
    'neg)
@@ -193,7 +202,7 @@
    '(let* ([ctc (vectorof (vectorof integer?))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! v 0 (vector 'bad))
       (vector-ref (vector-ref v 0) 0))
@@ -206,7 +215,7 @@
            [ctc2 (vectorof (vectorof positive?))]
            [v (contract
                ctc1
-               (contract ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! (vector-ref v 0) 0 -1))
    "inner-neg")
@@ -217,7 +226,7 @@
            [ctc2 (vectorof (vectorof positive?))]
            [v (contract
                ctc1
-               (contract ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! (vector-ref v 0) 0 1/2))
    'neg)
@@ -228,7 +237,7 @@
            [ctc2 (vectorof (vectorof positive?))]
            [v (contract
                ctc1
-               (contract ctc2 (vector (vector 1/2)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc2 (vector (vector 1/2)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref (vector-ref v 0) 0))
    'pos)
@@ -239,7 +248,7 @@
            [ctc2 (vectorof (vectorof positive?))]
            [v (contract
                ctc1
-               (contract ctc2 (vector (vector -1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc2 (vector (vector -1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref (vector-ref v 0) 0))
    "inner-pos")
@@ -250,7 +259,7 @@
    '(let* ([ctc [vectorof (vectorof integer?)]]
            [v (contract
                ctc
-               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! v 0 'bad))
    'neg)
@@ -260,7 +269,7 @@
    '(let* ([ctc (vectorof (vectorof integer? #:immutable #t))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref v 0))
    "inner-pos")
@@ -268,7 +277,7 @@
   (test/spec-passed
    'vectorof-impersonator
    '(let* ([ctc (vectorof (make-contract #:late-neg-projection (lambda (b) (lambda (x n) 'foo))))]
-           [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc (add-many-contracts 11 ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0)))
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -282,7 +291,7 @@
    '(let* ([ctc (vector/c (vector/c integer?))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 1 2)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 1 2)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref v 0))
    "inner-pos")
@@ -292,14 +301,14 @@
    '(let* ([ctc (vector/c (vector/c integer?))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 0)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 0)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref (vector-ref v 0) 0)))
 
   (test/spec-failed
    'vector/c-space-efficient2
    '(let* ([ctc (vector/c (vector/c integer?))]
-           [v (contract ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)])
+           [v (add-many-contracts 11 ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)])
       (vector-ref (vector-ref v 0) 0))
    "inner-pos")
 
@@ -308,7 +317,7 @@
    '(let* ([ctc (vector/c (vector/c integer?))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 'bad)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref (vector-ref v 0) 0))
    "inner-pos")
@@ -318,7 +327,7 @@
    '(let* ([ctc (vector/c (vector/c integer?))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! (vector-ref v 0) 0 'bad))
    'neg)
@@ -328,7 +337,7 @@
    '(let* ([ctc (vector/c (vector/c integer?))]
            [v (contract
                ctc
-               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! v 0 (vector 'bad))
       (vector-ref (vector-ref v 0) 0))
@@ -341,7 +350,7 @@
            [ctc2 (vector/c (vector/c positive?))]
            [v (contract
                ctc1
-               (contract ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! (vector-ref v 0) 0 -1))
    "inner-neg")
@@ -352,7 +361,7 @@
            [ctc2 (vector/c (vector/c positive?))]
            [v (contract
                ctc1
-               (contract ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc2 (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! (vector-ref v 0) 0 1/2))
    'neg)
@@ -363,7 +372,7 @@
            [ctc2 (vector/c (vector/c positive?))]
            [v (contract
                ctc1
-               (contract ctc2 (vector (vector 1/2)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc2 (vector (vector 1/2)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref (vector-ref v 0) 0))
    'pos)
@@ -374,7 +383,7 @@
            [ctc2 (vector/c (vector/c positive?))]
            [v (contract
                ctc1
-               (contract ctc2 (vector (vector -1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc2 (vector (vector -1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-ref (vector-ref v 0) 0))
    "inner-pos")
@@ -385,7 +394,7 @@
    '(let* ([ctc [vector/c (vector/c integer?)]]
            [v (contract
                ctc
-               (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector (vector 1)) 'inner-pos 'inner-neg)
                'pos 'neg)])
       (vector-set! v 0 'bad))
    'neg)
@@ -395,7 +404,7 @@
      '(let* ([ctc (vector/c (vector/c integer? #:immutable #t))]
              [v (contract
                  ctc
-                 (contract ctc (vector (vector 1)) 'inner-pos 'inner-neg)
+                 (add-many-contracts 11 ctc (vector (vector 1)) 'inner-pos 'inner-neg)
                  'pos 'neg)])
         (vector-ref v 0))
      "inner-pos")
@@ -403,7 +412,7 @@
   (test/spec-passed
    'vector/c-impersonator
    '(let* ([ctc (vector/c (make-contract #:late-neg-projection (lambda (b) (lambda (x n) 'foo))))]
-           [v (contract ctc (contract ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc (add-many-contracts 11 ctc (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0)))
 
   (test/spec-failed
@@ -411,7 +420,7 @@
    '(let* ([ctc (vector/c (-> integer? integer?))]
            [v (contract
                ctc
-               (contract ctc (vector add1) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector add1) 'inner-pos 'inner-neg)
                'pos 'neg)])
       ((vector-ref v 0) 1.5))
    "neg")
@@ -421,7 +430,7 @@
    '(let* ([ctc (vectorof (-> integer? integer?))]
            [v (contract
                ctc
-               (contract ctc (vector add1) 'inner-pos 'inner-neg)
+               (add-many-contracts 11 ctc (vector add1) 'inner-pos 'inner-neg)
                'pos 'neg)])
       ((vector-ref v 0) 1.5))
    "neg")
@@ -429,25 +438,29 @@
   ;; space-efficient continuation marks
 
   (contract-eval
-   '(define (has-space-efficient-mark? v)
-      (define marks (current-continuation-marks))
-      (define res (continuation-mark-set-first marks space-efficient-contract-continuation-mark-key))
-      res))
+   '(define (make-has-space-efficient-mark? b)
+      (lambda (v)
+        (define marks (current-continuation-marks))
+        (define res (continuation-mark-set-first marks space-efficient-contract-continuation-mark-key))
+        (set-box! b (or (unbox b) res))
+        #t)))
 
-  (test/spec-passed
+  (test-true
    'space-efficient-mark-present
-   '(let* ([ctc (vectorof has-space-efficient-mark?)]
-           [v (contract ctc (contract ctc (vector 1) 'pos 'neg) 'pos 'neg)])
-      (vector-ref v 0)))
+   '(let* ([b (box #f)]
+           [ctc (vectorof (make-has-space-efficient-mark? b))]
+           [v (add-many-contracts 12 ctc (vector 1))])
+      (vector-ref v 0)
+      (unbox b)))
 
   (test/spec-passed/result
    'space-efficient-mark-absent
-   '(let* ([ctc (vectorof has-space-efficient-mark?)]
+   '(let* ([b (box #f)]
+           [ctc (vectorof (make-has-space-efficient-mark? b))]
            [v (contract ctc (vector 1) 'pos 'neg)])
-      (with-handlers ([exn:fail:contract:blame? (lambda (x) 'passed)])
-        (vector-ref v 0)))
-   'passed
-   1)
+      (vector-ref v 0)
+      (unbox b))
+   #f)
 
   (test/spec-failed
    'vector/c-bailout
@@ -455,7 +468,8 @@
            [ctc2 (vector/c (-> integer?))]
            [v (contract
                ctc2
-               (contract
+               (add-many-contracts
+                11
                 ctc1
                 (vector (vector 1 2))
                 'inner-pos 'inner-neg)
@@ -523,27 +537,15 @@
    
   (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
   
-  (contract-eval
-   '(define (add-many-contracts n ctc val)
-      (for/fold ([val val])
-                ([i (in-range n)])
-        (contract ctc val 'pos 'neg))))
-
   (test-true
    'vecof-false-contracts
-   '(let* ([v0 (contract (vectorof #f) (vector #f) 'pos 'neg)]
-           [v1 (contract (vectorof #f) v0 'pos 'neg)]
-           [v2 (contract (vectorof #f) v1 'pos 'neg)]
-           [v3 (contract (vectorof #f) v2 'pos 'neg)])
-      (vectorof-has-num-contracts? v3 1 1)))
+   '(let* ([cv (add-many-contracts 11 (vectorof #f) (vector #f))])
+      (vectorof-has-num-contracts? cv 1 1)))
 
   (test-true
-   'vecof-false-contracts
-   '(let* ([v0 (contract (vector/c #f) (vector #f) 'pos 'neg)]
-           [v1 (contract (vector/c #f) v0 'pos 'neg)]
-           [v2 (contract (vector/c #f) v1 'pos 'neg)]
-           [v3 (contract (vector/c #f) v2 'pos 'neg)])
-      (vector/c-has-num-contracts? v3 '(1) '(1))))
+   'vec/c-false-contracts
+   '(let* ([cv (add-many-contracts 11 (vector/c #f) (vector #f))])
+      (vector/c-has-num-contracts? cv '(1) '(1))))
 
   (test-true
    'vecof-many-false-contracts
@@ -555,27 +557,27 @@
 
   (test-true
    'vecof-num-contracts
-   '(let* ([v (contract (vectorof pos) (contract (vectorof pos) (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+   '(let* ([v (add-many-contracts 11 (vectorof pos) (vector 1))])
       (vectorof-has-num-contracts? v 1 1)))
 
   (test-true
    'vecof-num-contracts-different-ref-set
    '(let* ([ctc1 (vectorof (>/c 0))]
            [ctc2 (vectorof real?)]
-           [v1 (contract ctc1 (contract ctc1 (vector 1) 'inner-pos 'inner-neg) 'inner-pos 'inner-neg)]
+           [v1 (add-many-contracts 11 ctc1 (vector 1))]
            [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
       (vectorof-has-num-contracts? v 1 2)))
 
   (test-true
    'vec/c-num-contracts
-   '(let* ([v (contract (vector/c pos pos) (contract (vector/c pos pos) (vector 1 2) 'inner-pos 'inner-neg) 'pos 'neg)])
+   '(let* ([v (add-many-contracts 11 (vector/c pos pos) (vector 1 2))])
       (vector/c-has-num-contracts? v '(1 1) '(1 1))))
 
   (test-true
    'vec/c-num-contracts-different-ref-set
    '(let* ([ctc1 (vector/c (>/c 0) (>/c 0))]
            [ctc2 (vector/c real? real?)]
-           [v1 (contract ctc1 (contract ctc1 (vector 1 2) 'inner-pos 'inner-neg) 'inner-pos 'inner-neg)]
+           [v1 (add-many-contracts 11 ctc1 (vector 1 2))]
            [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
       (vector/c-has-num-contracts? v '(1 1) '(2 2))))
 
@@ -583,7 +585,7 @@
    'vec/c-num-contracts-different-ref-set-different-posns
    '(let* ([ctc1 (vector/c (>/c 0) real?)]
            [ctc2 (vector/c real? real?)]
-           [v1 (contract ctc1 (contract ctc1 (vector 1 2) 'inner-pos 'inner-neg) 'inner-pos 'inner-neg)]
+           [v1 (add-many-contracts 11 ctc1 (vector 1 2))]
            [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
       (vector/c-has-num-contracts? v '(1 1) '(2 1))))
 
@@ -591,7 +593,7 @@
    'vec/c-more-ref-than-set
    '(let* ([ctc2 (vector/c (>/c 0) real?)]
            [ctc1 (vector/c real? real?)]
-           [v1 (contract ctc1 (contract ctc1 (vector 1 2) 'inner-pos 'inner-neg) 'inner-pos 'inner-neg)]
+           [v1 (add-many-contracts 11 ctc1 (vector 1 2))]
            [v (contract ctc2 (contract ctc2 v1 'pos 'neg) 'pos 'neg)])
       (vector/c-has-num-contracts? v '(2 1) '(1 1))))
 
@@ -602,14 +604,16 @@
    'vecof-sandwich1
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof real?)]
-           [v (contract ctc1 (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n) 'p 'n)])
+           [v1 (add-many-contracts 11 ctc1 (vector 1))]
+           [v (contract ctc1 (contract ctc2 v1 'p 'n) 'p 'n)])
       (vectorof-has-num-contracts? v 2 2)))
 
   (test-true
    'vec/c-sandwich1
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c real?)]
-           [v (contract ctc1 (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n) 'p 'n)])
+           [v1 (add-many-contracts 11 ctc1 (vector 1))]
+           [v (contract ctc1 (contract ctc2 v1 'p 'n) 'p 'n)])
       (vector/c-has-num-contracts? v '(2) '(2))))
 
 
@@ -617,56 +621,60 @@
    'vecof-incompatible1
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof string?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'p 'n) 'p 'n)])
+           [v1 (add-many-contracts 11 ctc2 (vector 1))]
+           [v (contract ctc1 v1 'p 'n)])
       (vectorof-has-num-contracts? v 2 2)))
 
   (test-true
    'vecof-incompatible2
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof string?)]
-           [v (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n)])
+           [v1 (add-many-contracts 11 ctc1 (vector 1))]
+           [v (contract ctc2 v1 'p 'n)])
       (vectorof-has-num-contracts? v 2 2)))
 
   (test-true
    'vec/c-incompatible1
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c string?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'p 'n) 'p 'n)])
+           [v1 (add-many-contracts 11 ctc2 (vector 1))]
+           [v (contract ctc1 v1 'p 'n)])
       (vector/c-has-num-contracts? v '(2) '(2))))
 
   (test-true
    'vec/c-incompatible2
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c string?)]
-           [v (contract ctc2 (contract ctc1 (vector 1) 'p 'n) 'p 'n)])
+           [v1 (add-many-contracts 11 ctc1 (vector 1))]
+           [v (contract ctc2 v1 'p 'n)])
       (vector/c-has-num-contracts? v '(2) '(2))))
 
   (test/spec-failed
    'vecof-incompatible1-blame1
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof string?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    "inner-pos")
   (test/spec-failed
    'vecof-incompatible1-blame2
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof string?)]
-           [v (contract ctc1 (contract ctc2 (vector "foo") 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector "foo") 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    'pos)
   (test/spec-failed
    'vecof-incompatible1-blame3
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof string?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-set! v 0 "foo"))
    'neg)
   (test/spec-failed
    'vecof-incompatible1-blame4
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof string?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-set! v 0 2))
    "inner-neg")
 
@@ -674,28 +682,28 @@
    'vec/c-incompatible1-blame1
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c string?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    "inner-pos")
   (test/spec-failed
    'vec/c-incompatible1-blame2
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c string?)]
-           [v (contract ctc1 (contract ctc2 (vector "foo") 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector "foo") 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    'pos)
   (test/spec-failed
    'vec/c-incompatible1-blame3
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c string?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-set! v 0 "foo"))
    'neg)
   (test/spec-failed
    'vec/c-incompatible1-blame4
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c string?)]
-           [v (contract ctc1 (contract ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-set! v 0 2))
    "inner-neg")
 
@@ -721,7 +729,7 @@
    'vectorof-can-combine-chaps
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vectorof real?)]
-           [v (contract ctc1 (vector 1) 'pos 'neg)])
+           [v (add-many-contracts 11 ctc1 (vector 1) 'pos 'neg)])
       (vector-can-combine? v ctc2))
    #t)
 
@@ -729,7 +737,7 @@
    'vectorof-can-combine-imps
    '(let* ([ctc1 (vectorof imp-ctc1)]
            [ctc2 (vectorof imp-ctc2)]
-           [v (contract ctc1 (vector 1) 'pos 'neg)])
+           [v (add-many-contracts 11 ctc1 (vector 1) 'pos 'neg)])
       (vector-can-combine? v ctc2))
    #t)
 
@@ -737,7 +745,7 @@
    'vectorof-cant-mix-chap-imp
    '(let* ([ctc1 (vectorof chap-ctc)]
            [ctc2 (vectorof imp-ctc1)]
-           [v (contract ctc1 (vector 1) 'pos 'neg)])
+           [v (add-many-contracts 11 ctc1 (vector 1) 'pos 'neg)])
       (vector-can-combine? v ctc2))
    #f)
 
@@ -745,22 +753,14 @@
    'vectorof-cant-mix-imp-chap
    '(let* ([ctc1 (vectorof imp-ctc1)]
            [ctc2 (vectorof chap-ctc)]
-           [v (contract ctc1 (vector 1) 'pos 'neg)])
+           [v (add-many-contracts 11 ctc1 (vector 1) 'pos 'neg)])
       (vector-can-combine? v ctc2))
-   #f)
-
-  (test/spec-passed/result
-   'vectorof-cant-merge-if-already-chaperoned
-   '(let* ([ctc (vectorof integer?)]
-           [v1 (chaperone-vector (vector 1) #f #f)]
-           [v (contract ctc v1 'pos 'neg)])
-      (vector-can-combine? v ctc))
    #f)
 
   (test/spec-passed/result
    'vectorof-cant-merge-if-chaperoned-in-se-mode
    '(let* ([ctc (vectorof integer?)]
-           [v1 (contract ctc (contract ctc (vector 1) 'pos 'neg) 'pos 'neg)]
+           [v1 (add-many-contracts 11 ctc (vector 1) 'pos 'neg)]
            [v (chaperone-vector v1 #f #f)])
       (vector-can-combine? v ctc))
    #f)
@@ -770,7 +770,7 @@
    'vector/c-can-combine-chaps
    '(let* ([ctc1 (vector/c integer?)]
            [ctc2 (vector/c real?)]
-           [v (contract ctc1 (vector 1) 'pos 'neg)])
+           [v (add-many-contracts 11 ctc1 (vector 1) 'pos 'neg)])
       (vector-can-combine? v ctc2))
    #t)
 
@@ -778,7 +778,7 @@
    'vector/c-can-combine-imps
    '(let* ([ctc1 (vector/c imp-ctc1)]
            [ctc2 (vector/c imp-ctc2)]
-           [v (contract ctc1 (vector 1) 'pos 'neg)])
+           [v (add-many-contracts 11 ctc1 (vector 1) 'pos 'neg)])
       (vector-can-combine? v ctc2))
    #t)
 
@@ -786,7 +786,7 @@
    'vector/c-cant-mix-chap-imp
    '(let* ([ctc1 (vector/c chap-ctc)]
            [ctc2 (vector/c imp-ctc1)]
-           [v (contract ctc1 (vector 1) 'pos 'neg)])
+           [v (add-many-contracts 11 ctc1 (vector 1) 'pos 'neg)])
       (vector-can-combine? v ctc2))
    #f)
 
@@ -794,22 +794,14 @@
    'vector/c-cant-mix-imp-chap
    '(let* ([ctc1 (vector/c imp-ctc1)]
            [ctc2 (vector/c chap-ctc)]
-           [v (contract ctc1 (vector 1) 'pos 'neg)])
+           [v (add-many-contracts 11 ctc1 (vector 1) 'pos 'neg)])
       (vector-can-combine? v ctc2))
-   #f)
-
-  (test/spec-passed/result
-   'vector/c-cant-merge-if-already-chaperoned
-   '(let* ([ctc (vector/c integer?)]
-           [v1 (chaperone-vector (vector 1) #f #f)]
-           [v (contract ctc v1 'pos 'neg)])
-      (vector-can-combine? v ctc))
    #f)
 
   (test/spec-passed/result
    'vector/c-cant-merge-if-chaperoned-in-se-mode
    '(let* ([ctc (vector/c integer?)]
-           [v1 (contract ctc (contract ctc (vector 1) 'pos 'neg) 'pos 'neg)]
+           [v1 (add-many-contracts 11 ctc (contract ctc (vector 1) 'pos 'neg) 'pos 'neg)]
            [v (chaperone-vector v1 #f #f)])
       (vector-can-combine? v ctc))
    #f)
@@ -819,11 +811,13 @@
    '(define many-layers
       (contract (vectorof even?)
                 (chaperone-vector
-                 (contract (vectorof exact-integer?)
-                           (contract (vectorof positive?)
-                                     (vector 2)
-                                     'pos1 'neg1)
-                           'pos2 'neg2)
+                 (add-many-contracts
+                  11
+                  (vectorof exact-integer?)
+                  (contract (vectorof positive?)
+                            (vector 2)
+                            'pos1 'neg1)
+                  'pos2 'neg2)
                  #f
                  #f)
                 'pos3 'neg3)))
@@ -845,15 +839,17 @@
    '(define many-layers/c
       (contract (vector/c even?)
                 (chaperone-vector
-                 (contract (vector/c exact-integer?)
-                           (contract (vector/c positive?)
-                                     (vector 2)
-                                     'pos1 'neg1)
-                           'pos2 'neg2)
+                 (add-many-contracts
+                  11
+                  (vector/c exact-integer?)
+                  (contract (vector/c positive?)
+                            (vector 2)
+                            'pos1 'neg1)
+                  'pos2 'neg2)
                  #f
                  #f)
                 'pos3 'neg3)))
-
+  
   (test/spec-failed
    'many-layers/c-neg1
    '(vector-set! many-layers/c 0 0)
@@ -898,9 +894,9 @@
 
   (contract-eval
    '(define unsorted+contracted
-      (contract (vectorof (vectorof integer?))
-                unsorted
-                'pos 'neg)))
+      (add-many-contracts 11 (vectorof (vectorof integer?))
+                          unsorted
+                          'pos 'neg)))
 
   (test-true
    'vecof-sorting
@@ -924,18 +920,19 @@
 
   (contract-eval
    '(define unsorted+contracted-vector/c
-      (contract (vector/c (vector/c integer?)
-                          (vector/c integer?)
-                          (vector/c integer?)
-                          (vector/c integer?)
-                          (vector/c integer?)
-                          (vector/c integer?)
-                          (vector/c integer?)
-                          (vector/c integer?)
-                          (vector/c integer?)
-                          (vector/c integer?))
-                unsorted2
-                'pos 'neg)))
+      (add-many-contracts 11
+                          (vector/c (vector/c integer?)
+                                    (vector/c integer?)
+                                    (vector/c integer?)
+                                    (vector/c integer?)
+                                    (vector/c integer?)
+                                    (vector/c integer?)
+                                    (vector/c integer?)
+                                    (vector/c integer?)
+                                    (vector/c integer?)
+                                    (vector/c integer?))
+                          unsorted2
+                          'pos 'neg)))
 
   (test-true
    'vecof-sorting
@@ -953,7 +950,8 @@
    '(let* ([grid/c (vectorof (vectorof (object/c)))]
            [grid (contract
                   grid/c
-                  (contract
+                  (add-many-contracts
+                   11
                    grid/c
                    (vector (vector (new object%)))
                    'inner-pos 'inner-neg)
@@ -966,7 +964,8 @@
            [grid/c (vectorof (vectorof (object/c)))]
            [grid (contract
                   grid/c
-                  (contract
+                  (add-many-contracts
+                   11
                    grid/c
                    (vector v)
                    'inner-pos 'inner-neg)
@@ -979,7 +978,8 @@
    '(let* ([grid/c (vector/c (vector/c (object/c)))]
            [grid (contract
                   grid/c
-                  (contract
+                  (add-many-contracts
+                   11
                    grid/c
                    (vector (vector (new object%)))
                    'inner-pos 'inner-neg)
@@ -992,7 +992,8 @@
            [grid/c (vector/c (vector/c (object/c)))]
            [grid (contract
                   grid/c
-                  (contract
+                  (add-many-contracts
+                   11
                    grid/c
                    (vector v)
                    'inner-pos 'inner-neg)
@@ -1008,7 +1009,7 @@
   (test-false
    'dont-multi-wrap
    '(let* ([ctc (vectorof (vectorof integer?))]
-           [v (contract ctc (contract ctc (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v (contract ctc (add-many-contracts 11 ctc (vector (vector 1)) 'ip 'in) 'p 'n)]
            [v2 (contract (vectorof any/c) v 'p2 'n2)])
       (double-wrapped? v2)))
 
@@ -1017,9 +1018,11 @@
    'vectorof+box/c-different-blame
    '(let* ([ctc1 (vectorof (box/c integer?))]
            [v (contract ctc1
-                        (contract ctc1
-                                  (vector (box 1))
-                                  'inner-pos 'inner-neg)
+                        (add-many-contracts
+                         11
+                         ctc1
+                         (vector (box 1))
+                         'inner-pos 'inner-neg)
                         'pos 'neg)])
       (set-box! (vector-ref v 0) 1.1))
    "neg")
@@ -1028,7 +1031,7 @@
    'vectorof+box/c-same-blame
    '(let* ([ctc1 (vectorof (box/c real? any/c))]
            [ctc2 (vectorof (box/c (>/c 0) any/c))]
-           [v (contract ctc1 (contract ctc2 (vector (box 1))
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector (box 1))
                                        'pos 'neg) 'pos 'neg)])
       (set-box! (vector-ref v 0) -1))
    "neg")
@@ -1037,7 +1040,7 @@
    'vectorof+box/c-same-blame2
    '(let* ([ctc1 (vectorof (box/c real? any/c))]
            [ctc2 (vectorof (box/c (>/c 0) any/c))]
-           [v (contract ctc2 (contract ctc1 (vector (box 1))
+           [v (contract ctc2 (add-many-contracts 11 ctc1 (vector (box 1))
                                        'pos 'neg) 'pos 'neg)])
       (set-box! (vector-ref v 0) -1))
    "neg")
@@ -1045,14 +1048,14 @@
   (test/spec-failed
    'vectorof+box
    '(let* ([ctc (vectorof (box/c integer?))]
-           [v (contract ctc (contract ctc (vector (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc (add-many-contracts 11 ctc (vector (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
       (set-box! (vector-ref v 0) 1.5))
    "neg")
 
   (test/spec-failed
    'vector/c+box
    '(let* ([ctc (vector/c (box/c integer?))]
-           [v (contract ctc (contract ctc (vector (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc (add-many-contracts 11 ctc (vector (box 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
       (set-box! (vector-ref v 0) 1.5))
    "neg")
 
@@ -1061,7 +1064,7 @@
    'vecof+vec/c1
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vector/c integer? integer?)]
-           [v (contract ctc1 (contract ctc2 (vector 1 2) 'ip 'in) 'p 'n)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1 2) 'ip 'in) 'p 'n)])
       (and (vector/c-has-num-contracts? v '(1 1) '(1 1))
            (space-efficient? v)))
    #t)
@@ -1070,7 +1073,7 @@
    'vecof+vec/c2
    '(let* ([ctc2 (vectorof integer?)]
            [ctc1 (vector/c integer? integer?)]
-           [v (contract ctc1 (contract ctc2 (vector 1 2) 'ip 'in) 'p 'n)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1 2) 'ip 'in) 'p 'n)])
       (and (vector/c-has-num-contracts? v '(1 1) '(1 1))
            (space-efficient? v)))
    #t)
@@ -1079,7 +1082,7 @@
    'vecof+vec/c3
    '(let* ([ctc1 (vectorof integer?)]
            [ctc2 (vector/c integer? integer?)]
-           [v (contract ctc1 (contract ctc2 (vector 1 2 3) 'ip 'in) 'p 'n)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1 2 3) 'ip 'in) 'p 'n)])
       v)
    "ip")
 
@@ -1087,7 +1090,7 @@
    'vecof+vec/c4
    '(let* ([ctc2 (vectorof integer?)]
            [ctc1 (vector/c integer? integer?)]
-           [v (contract ctc1 (contract ctc2 (vector 1 2 3) 'ip 'in) 'p 'n)])
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector 1 2 3) 'ip 'in) 'p 'n)])
       v)
    "p")
 
@@ -1095,7 +1098,7 @@
    'vecof+vec/c5
    '(let* ([ctc2 (vectorof (vector/c integer?))]
            [ctc1 (vector/c (vector/c integer?))]
-           [v (contract ctc1 (contract ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
            [v1 (vector-ref v 0)])
       (and (vector/c-has-num-contracts? v1 '(1) '(1))
            (space-efficient? v)
@@ -1106,7 +1109,7 @@
    'vecof+vec/c6
    '(let* ([ctc1 (vectorof (vector/c integer?))]
            [ctc2 (vector/c (vector/c integer?))]
-           [v (contract ctc1 (contract ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
            [v1 (vector-ref v 0)])
       (and (vector/c-has-num-contracts? v1 '(1) '(1))
            (space-efficient? v)
@@ -1117,7 +1120,7 @@
    'vecof+vec/c7
    '(let* ([ctc1 (vectorof (vector/c integer?))]
            [ctc2 (vector/c (vectorof integer?))]
-           [v (contract ctc1 (contract ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
            [v1 (vector-ref v 0)])
       (and (vector/c-has-num-contracts? v1 '(1) '(1))
            (space-efficient? v)
@@ -1128,7 +1131,7 @@
    'vecof+vec/c8
    '(let* ([ctc2 (vectorof (vector/c integer?))]
            [ctc1 (vector/c (vectorof integer?))]
-           [v (contract ctc1 (contract ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
+           [v (contract ctc1 (add-many-contracts 11 ctc2 (vector (vector 1)) 'ip 'in) 'p 'n)]
            [v1 (vector-ref v 0)])
       (and (vector/c-has-num-contracts? v1 '(1) '(1))
            (space-efficient? v)
@@ -1142,7 +1145,7 @@
            [v
             (contract
              ctc1
-             (contract ctc2 (vector (vector (vector 1 2))) 'ip 'in)
+             (add-many-contracts 11 ctc2 (vector (vector (vector 1 2))) 'ip 'in)
              'p 'n)]
            [v0 (vector-ref v 0)])
       (vector-ref v0 0))
@@ -1155,7 +1158,7 @@
            [v
             (contract
              ctc2
-             (contract ctc1 (vector (vector (vector 1 2))) 'ip 'in)
+             (add-many-contracts 11 ctc1 (vector (vector (vector 1 2))) 'ip 'in)
              'p 'n)]
            [v0 (vector-ref v 0)])
       (vector-ref v0 0))
@@ -1168,7 +1171,7 @@
            [v
             (contract
              ctc1
-             (contract ctc2 (vector (vector (vector 1))) 'ip 'in)
+             (add-many-contracts 11 ctc2 (vector (vector (vector 1))) 'ip 'in)
              'p 'n)]
            [v0 (vector-ref v 0)])
       (vector-set! v0 0 (vector 2 3)))
@@ -1181,7 +1184,7 @@
            [v
             (contract
              ctc2
-             (contract ctc1 (vector (vector (vector 1))) 'ip 'in)
+             (add-many-contracts 11 ctc1 (vector (vector (vector 1))) 'ip 'in)
              'p 'n)]
            [v0 (vector-ref v 0)])
       (vector-set! v0 0 (vector 2 3)))
@@ -1194,7 +1197,7 @@
            [v
             (contract
              ctc1
-             (contract ctc2 (vector (vector (vector 1))) 'ip 'in)
+             (add-many-contracts 11 ctc2 (vector (vector (vector 1))) 'ip 'in)
              'p 'n)]
            [v0 (vector-ref v 0)]
            [v1 (vector-ref v0 0)])
@@ -1208,8 +1211,8 @@
    'vecof+vec/c14
    '(let* ([ctc1 (vectorof (vector/c (>/c 0) (>/c 0)))]
            [ctc2 (vector/c (vectorof real?))]
-           [v1 (contract ctc1 (contract ctc1 (vector (vector 1 2)) 'ip 'in) 'ip 'in)]
-           [v2 (contract ctc2 (contract ctc2 v1 'p 'n) 'p 'n)]
+           [v1 (add-many-contracts 11 ctc1 (vector (vector 1 2)) 'ip 'in)]
+           [v2 (add-many-contracts 11  ctc2 v1 'p 'n)]
            [v (vector-ref v2 0)])
       (vector/c-has-num-contracts? v '(1 1) '(2 2))))
 
@@ -1217,8 +1220,8 @@
    'vecof+vec/c15
    '(let* ([ctc1 (vectorof (vector/c real? real?))]
            [ctc2 (vector/c (vectorof (>/c 0)))]
-           [v1 (contract ctc1 (contract ctc1 (vector (vector 1 2)) 'ip 'in) 'ip 'in)]
-           [v2 (contract ctc2 (contract ctc2 v1 'p 'n) 'p 'n)]
+           [v1 (add-many-contracts 11 ctc1 (vector (vector 1 2)) 'ip 'in)]
+           [v2 (add-many-contracts 11 ctc2 v1 'p 'n)]
            [v (vector-ref v2 0)])
       (vector/c-has-num-contracts? v '(2 2) '(1 1))))
 
@@ -1226,7 +1229,7 @@
    'vecof+chap+non-s-e
    '(let ()
       (define ctc (vectorof (-> integer?)))
-      (define v (contract ctc (contract ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
+      (define v (contract ctc (add-many-contracts 11 ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
       (define my/c
         (make-chaperone-contract
          #:late-neg-projection
@@ -1267,7 +1270,7 @@
     'vecof+chap+non-s-e-ok
     '(let ()
        (define ctc (vectorof (-> integer? integer?)))
-       (define v (contract ctc (contract ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
+       (define v (contract ctc (add-many-contracts 11 ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
        (define f (contract my->/c (lambda (x) 23) 'pf 'nf))
        (vector-set! v 0 f)
        ((vector-ref v 0) 1)))
@@ -1276,7 +1279,7 @@
     'vecof+chap+non-s-e-blame-neg
     '(let ()
        (define ctc (vectorof (-> integer? integer?)))
-       (define v (contract ctc (contract ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
+       (define v (contract ctc (add-many-contracts 11 ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
        (define f (contract my->/c (lambda (x) 23) 'pf 'nf))
        (vector-set! v 0 f)
        ((vector-ref v 0) 1.1))
@@ -1286,7 +1289,7 @@
     'vecof+chap+non-s-e-blame-pos
     '(let ()
        (define ctc (vectorof (-> integer? integer?)))
-       (define v (contract ctc (contract ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
+       (define v (contract ctc (add-many-contracts 11 ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
        (define f (contract my->/c (lambda (x) 2.3) 'pf 'nf))
        (vector-set! v 0 f)
        ((vector-ref v 0) 1))
@@ -1296,7 +1299,7 @@
    'vecof+->-insert-contracted-non-s-e
    '(let ()
       (define ctc (vectorof (-> integer?)))
-      (define v (contract ctc (contract ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
+      (define v (contract ctc (add-many-contracts 11 ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
       (define f (contract
                  (case-> (-> integer?)
                          (-> (values integer? integer?)))
@@ -1308,7 +1311,7 @@
    'vec/c+->-insert-contracted-non-s-e
    '(let ()
       (define ctc (vector/c (-> integer?)))
-      (define v (contract ctc (contract ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
+      (define v (contract ctc (add-many-contracts 11 ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
       (define f (contract
                  (case-> (-> integer?)
                          (-> (values integer? integer?)))
@@ -1320,7 +1323,7 @@
    'vecof+->-insert-contracted-non-s-e-fail-blame-pos
    '(let ()
       (define ctc (vectorof (-> integer?)))
-      (define v (contract ctc (contract ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
+      (define v (contract ctc (add-many-contracts 11 ctc (vector (lambda () 1)) 'ip 'in) 'p 'n))
       (define f (contract
                  (case-> (-> integer?)
                          (-> (values integer? integer?)))
@@ -1334,7 +1337,7 @@
    'vecof+->-insert-contracted-non-s-e-fail-blame-neg
    '(let ()
       (define ctc (vectorof (-> integer? integer?)))
-      (define v (contract ctc (contract ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
+      (define v (contract ctc (add-many-contracts 11 ctc (vector (lambda (x) 1)) 'ip 'in) 'p 'n))
       (define f (contract
                  (case-> (-> integer? integer?)
                          (-> integer? (values integer? integer?)))
@@ -1348,7 +1351,11 @@
    'vector-symbol-multi-pos1
    '(let* ([ctc1 (vectorof (vectorof integer?))]
            [ctc2 (vectorof symbol?)]
-           [v (contract ctc2 (contract ctc1 (vector (vector 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract
+               ctc2
+               (add-many-contracts
+                11
+                ctc1 (vector (vector 1)) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    "pos")
 
@@ -1356,7 +1363,7 @@
    'vector-symbol-multi-pos2
    '(let* ([ctc1 (vectorof (vectorof integer?))]
            [ctc2 (vectorof symbol?)]
-           [v (contract ctc2 (contract ctc1 (vector 'foo) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract ctc2 (add-many-contracts 11 ctc1 (vector 'foo) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-ref v 0))
    "inner-pos")
 
@@ -1364,7 +1371,9 @@
    'vector-symbol-multi-neg1
    '(let* ([ctc1 (vectorof symbol?)]
            [ctc2 (vectorof (vectorof integer?))]
-           [v (contract ctc2 (contract ctc1 (vector 'dont-care) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract
+               ctc2
+               (add-many-contracts 11 ctc1 (vector 'dont-care) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-set! v 0 (vector 1)))
    "inner-neg")
 
@@ -1372,7 +1381,9 @@
    'vector-symbol-multi-neg2
    '(let* ([ctc1 (vectorof symbol?)]
            [ctc2 (vectorof (vectorof integer?))]
-           [v (contract ctc2 (contract ctc1 (vector 'dont-care) 'inner-pos 'inner-neg) 'pos 'neg)])
+           [v (contract
+               ctc2
+               (add-many-contracts 11 ctc1 (vector 'dont-care) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-set! v 0 'foo))
    "neg")
   )
