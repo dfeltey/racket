@@ -5,6 +5,7 @@
          "prop.rkt"
          "rand.rkt"
          "generate-base.rkt"
+         "space-efficient-common.rkt"
          "../../private/math-predicates.rkt"
          racket/pretty
          racket/list
@@ -31,7 +32,6 @@
          impersonator-prop:contracted
          impersonator-prop:blame
          impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped
-         impersonator-prop:space-efficient has-impersonator-prop:space-efficient? get-impersonator-prop:space-efficient
          impersonator-prop:contract-count
          get-contract-count
          SPACE-EFFICIENT-LIMIT
@@ -76,6 +76,7 @@
          contract-late-neg-projection   ;; might return #f (if none)
          get/build-val-first-projection ;; builds one if necc., using contract-projection
          get/build-late-neg-projection
+         get/build-space-efficient-late-neg-projection
          warn-about-val-first?
 
          contract-name
@@ -237,12 +238,6 @@
                 has-impersonator-prop:unwrapped?
                 get-impersonator-prop:unwrapped)
   (make-impersonator-property 'impersonator-prop:unwrapped))
-
-;; TODO: maybe this should be the same as multi/c or renamed ... ???
-(define-values (impersonator-prop:space-efficient
-                has-impersonator-prop:space-efficient?
-                get-impersonator-prop:space-efficient)
-  (make-impersonator-property 'impersonator-prop:space-efficient))
 
 (define-logger contract-wrapping)
 (define (log-n-wrappers kind val)
@@ -796,6 +791,15 @@
 
 (define-logger racket/contract)
 
+(define (get/build-space-efficient-late-neg-projection ctc)
+  (cond
+    [(contract-struct-space-efficient-late-neg-projection ctc) => values]
+    [else
+     (define lnp (get/build-late-neg-projection ctc))
+     (λ (blame)
+       (values (lnp blame)
+               (build-multi-leaf lnp ctc blame)))]))
+
 (define (get/build-late-neg-projection ctc)
   (cond
     [(contract-struct-late-neg-projection ctc) => values]
@@ -818,7 +822,7 @@
        [else
         (first-order->late-neg-projection (contract-struct-first-order ctc)
                                           (contract-struct-name ctc))])]))
-
+     
 (define (projection->late-neg-projection proj)
   (λ (b)
     (λ (x neg-party)

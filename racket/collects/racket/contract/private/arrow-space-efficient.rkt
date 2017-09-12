@@ -11,12 +11,12 @@
          "arity-checking.rkt"
          (for-syntax racket/base))
 
-(provide value-has-arrow-space-efficient-support?
+(provide val-has-arrow-space-efficient-support?
+         arrow-space-efficient-guard
          ->-contract-has-space-efficient-support?
          build-s-e-arrow)
 (module+ for-testing
-  (provide multi->? multi->-doms multi->-rng
-           value-has-arrow-space-efficient-support?))
+  (provide multi->? multi->-doms multi->-rng))
 
 ;; General Strategy
 
@@ -110,7 +110,9 @@
          (bail "not base arrow")
          #f]))
 
-(define ((val-has-arrow-space-efficient-support? chap-not-imp?) val)
+
+;; FIXME: Need 2 versions of this function
+(define (val-has-arrow-space-efficient-support? chap-not-imp? val)
   (define-syntax-rule (bail reason)
     (begin
       (log-space-efficient-value-bailout-info (format "arrow: ~a" reason))
@@ -120,20 +122,16 @@
        ;; the interposition wrapper has to support a superset of the arity
        ;; of the function it's wrapping, and ours can't support optional
        ;; args, keywords, etc. so just bail out in these cases
-       (or (integer? (procedure-arity val)) ; no optional arguments
+       (or (integer? (procedure-arity val))
            (bail "has optional args"))
        (or (let-values ([(man opt) (procedure-keywords val)]) ; no keyword arguments
              (and (null? man) (null? opt)))
            (bail "has keyword args"))
        (or (equal? (procedure-result-arity val) 1)
            (bail "can't prove single-return-value"))
-       ;; unsafe-chaperone-procedure does not respect the chaperone-procedure*
-       ;; protocol, so it's not safe to use it on something that's already
-       ;; chaperoned with it (before it was contracted)
-       #;(or (if (has-impersonator-prop:unwrapped? val)
-               (not (procedure-impersonator*? (get-impersonator-prop:unwrapped val)))
-               #t)
-           (bail "already chaperoned"))
+
+       ;; TODO: lift this out as safe-for-space-efficient 
+       
        ;; we also can't use this optimization on a value that has been
        ;; chaperoned by a 3rd party since it's been contracted
        ;; (because this optimization relies on replacing wrappers, which
@@ -144,21 +142,14 @@
            (bail "has been chaperoned since last contracted"))
        ;; can't switch from chaperone wrappers to impersonator wrappers, and
        ;; vice versa. if we would bail out of the optimization
-       (or (cond [(has-impersonator-prop:checking-wrapper? val)
-                  (define checking-wrapper
-                    (get-impersonator-prop:checking-wrapper val))
-                  (if (chaperone? checking-wrapper)
-                      chap-not-imp?
-                      (not chap-not-imp?))]
-                 [else
-                  (or (not (value-contract val))
-                           (if chap-not-imp?
-                               (chaperone-contract?    (value-contract val))
-                               (impersonator-contract? (value-contract val))))])
+       (or (cond
+             [(has-impersonator-prop:checking-wrapper? val)
+              (define checking-wrapper
+                (get-impersonator-prop:checking-wrapper val))
+              (equal? (chaperone? checking-wrapper)
+                      chap-not-imp?)]
+             [else #t])
            (bail "switching from imp to chap or vice versa"))))
-
-(define (value-has-arrow-space-efficient-support? val chap?)
-  ((val-has-arrow-space-efficient-support? chap?) val))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wrapper management and contract checking
@@ -169,12 +160,7 @@
   (do-arrow-first-order-checks ctc val neg-party)
   (define chap-not-imp? (chaperone-multi->? ctc))
   (cond
-    [(value-has-arrow-space-efficient-support? val chap-not-imp?)
-     (define blame (multi-ho/c-latest-blame ctc))
-     (define (make-checking-wrapper unwrapped) ; add 2nd chaperone, see above
-       (if chap-not-imp?
-           (chaperone-procedure*   unwrapped arrow-wrapper)
-           (impersonate-procedure* unwrapped arrow-wrapper)))
+    [(val-has-arrow-space-efficient-support? val chap-not-imp?)
      (define-values (merged-m/c new-neg checking-wrapper)
        (cond [(has-impersonator-prop:multi/c? val)
               ;; value is already in space-efficient mode; merge new contract in
@@ -186,31 +172,11 @@
               (values merged
                       neg
                       (get-impersonator-prop:checking-wrapper val))]
-             #;[(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
-              ;; value is already contracted; switch to space-efficient mode
-              (when (has-impersonator-prop:checking-wrapper? val)
-                (error "internal error: expecting no checking wrapper" val))
-              (define unwrapped
-                ((if chap-not-imp?
-                     unsafe-chaperone-procedure
-                     unsafe-impersonate-procedure)
-                 val
-                 (get-impersonator-prop:unwrapped val)))
-              (define checking-wrapper (make-checking-wrapper unwrapped))
-              (cond
-                [(has-impersonator-prop:space-efficient? val)
-                 (define prop
-                   (or (get-impersonator-prop:space-efficient val) (cons #f #f)))
-                 (define-values (merged neg)
-                   (try-merge ctc neg-party (car prop) (cdr prop)))
-                 (values merged neg checking-wrapper)]
-                [else ;; no space-efficient prop to merge with so bail
-                 (values #f neg-party checking-wrapper)])]
              [else
               ;; value is not contracted; applying a s-e subcontract directly
               (when (has-impersonator-prop:checking-wrapper? val)
                 (error "internal error: expecting no checking wrapper" val))
-              (values ctc neg-party (make-checking-wrapper val))])) ; already "unwrapped"
+              (values ctc neg-party (make-checking-wrapper val chap-not-imp?))])) ; already "unwrapped"
      (cond
        [merged-m/c
         ;; do the actual checking and wrap with the 3rd chaperone (see above)
@@ -235,6 +201,43 @@
         (bail-to-regular-wrapper ctc val neg-party)])]
     [else (bail-to-regular-wrapper ctc val neg-party)]))
 
+;; TODO: what should the name of this function be ....
+(define (add-space-efficient-wrapper s-e val neg-party chap-not-imp?)
+  (define-values (merged-s-e new-neg checking-wrapper)
+    (cond
+      [(has-impersonator-prop:checking-wrapper? val)
+       (define s-e-prop (get-impersonator-prop:space-efficient val))
+       (define-values (merged-s-e new-neg)
+         ;; TODO: can this fail if we've got this far?
+         (try-merge s-e neg-party (car s-e-prop) (cdr s-e-prop)))
+       (values merged-s-e
+               new-neg
+               (get-impersonator-prop:checking-wrapper val))]
+      [else
+       (values s-e neg-party (make-checking-wrapper val chap-not-imp?))]))
+  (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
+  (define blame (multi-ho/c-latest-blame merged-s-e))
+  (define b (box #f))
+  (define res
+    (chap/imp
+     checking-wrapper
+     #f
+     impersonator-prop:checking-wrapper checking-wrapper
+     impersonator-prop:outer-wrapper-box b
+     impersonator-prop:space-efficient (cons merged-s-e new-neg)
+     impersonator-prop:contracted blame
+     impersonator-prop:blame (blame-add-missing-party blame neg-party)))
+  (set-box! b res)
+  res)
+     
+               
+       
+
+(define (make-checking-wrapper unwrapped chap-not-imp?)
+  (if chap-not-imp?
+      (chaperone-procedure* unwrapped arrow-wrapper)
+      (impersonate-procedure* unwrapped arrow-wrapper)))
+
 ;; If requested, we can log the arities of the contracts that end up being
 ;; space-efficient. That can inform whether we should have arity-specific
 ;; wrappers, and if so, for which arities.
@@ -250,7 +253,7 @@
 ;;   and can't use the space-efficient machinery (but since subcontracts
 ;;   always start-out as space-efficient, they can't bail out via the
 ;;   checks in arrow-higher-order, so we need to handle them here)))
-(define-syntax (make-checking-wrapper stx)
+(define-syntax (make-interposition-procedure stx)
   (syntax-case stx ()
     [(_ maybe-closed-over-m/c)
      ;; Note: it would be more efficient to have arity-specific wrappers here,
@@ -295,7 +298,7 @@
                       blame
                       (guard-multi/c dom arg neg))))))]))
 
-(define arrow-wrapper (make-checking-wrapper #f))
+(define arrow-wrapper (make-interposition-procedure #f))
 
 ;; create a regular checking wrapper from a space-efficient wrapper for a value
 ;; that can't use space-efficient wrapping
@@ -304,7 +307,7 @@
   (define neg (or (multi-ho/c-missing-party m/c) neg-party))
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
-   (make-checking-wrapper (cons m/c neg-party))
+   (make-interposition-procedure (cons m/c neg-party))
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
    impersonator-prop:blame (blame-add-missing-party
                             (multi-ho/c-latest-blame m/c)
@@ -327,7 +330,7 @@
             n-doms ; min-arity = max-arity
             '() ; no keywords
             (arrow-first-order-check-method? c))
-           => (lambda (fail) (fail #f))])))
+           => (lambda (fail) (fail (or neg neg-party)))])))
 
 (define (get-projection ctc)
   (lambda (val neg-party)
@@ -408,7 +411,7 @@
 (define (->-space-efficient-contract-property chap?)
   (build-space-efficient-contract-property
    #:try-merge arrow-try-merge
-   #:value-has-space-efficient-support? (val-has-arrow-space-efficient-support? chap?)
+   #:value-has-space-efficient-support? (λ (val) (val-has-arrow-space-efficient-support? chap? val))
    #:space-efficient-guard arrow-space-efficient-guard
    #:get-projection get-projection))
 

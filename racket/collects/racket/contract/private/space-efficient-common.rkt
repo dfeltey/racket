@@ -2,10 +2,11 @@
 
 ;; Common functionality used by all space-efficient contracts
 
-(require "prop.rkt" "guts.rkt" "blame.rkt")
+(require "prop.rkt"  "blame.rkt")
 
 (provide (struct-out multi-ho/c)
          (struct-out multi-leaf/c)
+         build-multi-leaf
          prop:space-efficient-contract
          build-space-efficient-contract-property
          space-efficient-contract?
@@ -17,7 +18,11 @@
          log-space-efficient-value-bailout-info
          log-space-efficient-contract-bailout-info
          build-s-e-node
-         maybe-enter-space-efficient-mode)
+         maybe-enter-space-efficient-mode
+         impersonator-prop:space-efficient
+         has-impersonator-prop:space-efficient?
+         get-impersonator-prop:space-efficient
+         value-safe-for-space-efficient-mode?)
 
 (module+ for-testing
   (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
@@ -60,6 +65,13 @@
                 has-impersonator-prop:outer-wrapper-box?
                 get-impersonator-prop:outer-wrapper-box)
   (make-impersonator-property 'impersonator-prop:outer-wrapper-box))
+
+;; TODO: maybe this should be the same as multi/c or renamed ... ???
+(define-values (impersonator-prop:space-efficient
+                has-impersonator-prop:space-efficient?
+                get-impersonator-prop:space-efficient)
+  (make-impersonator-property 'impersonator-prop:space-efficient))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -140,7 +152,10 @@
 (define (build-s-e-node s-e proj ctc blame)
   (or s-e
       ;; TODO: need to be sure that ctc is a contract-struct
-      (multi-leaf/c (list proj) (list ctc) (list blame) (list #f))))
+      (build-multi-leaf proj ctc blame)))
+
+(define (build-multi-leaf proj ctc blame)
+  (multi-leaf/c (list proj) (list ctc) (list blame) (list #f)))
 
 
 ;; FIXME: Handle the late-neg passed argument ...
@@ -181,7 +196,7 @@
                 [new-missing-party (in-list new-missing-party-list)])
          (and new-ctc
               (cond
-                [(flat-contract? old-ctc)
+                [(flat-contract-struct? old-ctc)
                  (contract-struct-stronger? new-ctc old-ctc)]
                 [else
                  (define new-complete-blame (blame-add-missing-party new-blame (or new-missing-party new-neg)))
@@ -314,9 +329,35 @@
                                   #:implies stronger?)))
             old)))
 
+;; TODO: remove this
 (define (maybe-enter-space-efficient-mode s-e val neg-party)
   (and (has-impersonator-prop:space-efficient? val)
        ;; try deleting this
        (get-impersonator-prop:space-efficient val)
        (value-has-space-efficient-support? s-e val)
        (guard-multi/c s-e val neg-party)))
+
+(define (value-safe-for-space-efficient-mode? val chap-not-imp?)
+  (define-syntax-rule (bail reason)
+    (begin
+      (log-space-efficient-value-bailout-info (format "not-space-efficient: ~a" reason))
+      #f))
+  (and
+   ;; we also can't use this optimization on a value that has been
+   ;; chaperoned by a 3rd party since it's been contracted
+   ;; (because this optimization relies on replacing wrappers, which
+   ;; would drop this 3rd-party chaperone)
+   (or (if (has-impersonator-prop:outer-wrapper-box? val)
+           (eq? val (unbox (get-impersonator-prop:outer-wrapper-box val)))
+           #t)
+       (bail "has been chaperoned since last contracted"))
+   ;; can't switch from chaperone wrappers to impersonator wrappers, and
+   ;; vice versa. if we would bail out of the optimization
+   (or (cond
+         [(has-impersonator-prop:checking-wrapper? val)
+          (define checking-wrapper
+            (get-impersonator-prop:checking-wrapper val))
+          (equal? (chaperone? checking-wrapper)
+                  chap-not-imp?)]
+         [else #t])
+       (bail "switching from imp to chap or vice versa"))))

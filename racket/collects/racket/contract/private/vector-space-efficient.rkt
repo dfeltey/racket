@@ -6,7 +6,7 @@
          (only-in racket/unsafe/ops unsafe-chaperone-vector unsafe-impersonate-vector)
          (for-syntax racket/base))
 
-(provide build-s-e-vector)
+(provide build-s-e-vector vector-space-efficient-guard)
 
 (module+ for-testing
   (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs
@@ -32,7 +32,7 @@
         (log-space-efficient-contract-bailout-info "vector: not a vector contract")
         #f)))
 
-(define ((val-has-vec-s-e-support? chap-not-imp?) val)
+(define (val-has-vec-s-e-support? chap-not-imp? val)
   (define-syntax-rule (bail reason)
     (begin
       (log-space-efficient-value-bailout-info (format "vector: ~a" reason))
@@ -63,7 +63,7 @@
            (bail "switching from imp to chap or vice versa"))))
 
 (define (value-has-vector-space-efficient-support? val chap-not-imp?)
-  ((val-has-vec-s-e-support? chap-not-imp?) val))
+  (val-has-vec-s-e-support? chap-not-imp? val))
 
 (define (vector-first-order-check-stronger? f1 f2)
   (define f1-immutable (vector-first-order-check-immutable f1))
@@ -272,7 +272,7 @@
 (define (vector-space-efficient-contract-property chap-not-imp?)
   (build-space-efficient-contract-property
    #:try-merge vector-try-merge
-   #:value-has-space-efficient-support? (val-has-vec-s-e-support? chap-not-imp?)
+   #:value-has-space-efficient-support? (lambda (val) (val-has-vec-s-e-support? chap-not-imp? val))
    #:space-efficient-guard vector-space-efficient-guard
    #:get-projection get-projection))
 

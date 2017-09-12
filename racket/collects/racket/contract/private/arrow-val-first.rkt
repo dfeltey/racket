@@ -1525,24 +1525,8 @@
                (base->-plus-one-arity-function ->stct)
                (base->-chaperone-constructor ->stct)
                (base->-method? ->stct)
-               #f
                #f)))
-  (define late-neg-proj
-    (λ (->stct)
-      (->-proj is-impersonator? ->stct
-               (base->-min-arity ->stct)
-               (base->-doms ->stct)
-               (base->-kwd-infos ->stct)
-               (base->-rest ->stct)
-               (base->-pre? ->stct)
-               (base->-rngs ->stct)
-               (base->-post? ->stct)
-               (base->-plus-one-arity-function ->stct)
-               (base->-chaperone-constructor ->stct)
-               (base->-method? ->stct)
-               #t
-               #f)))
-  (define s-e-late-neg-proj
+  (define space-efficient-late-neg-proj
     (λ (->stct)
       (->-proj chaperone? ->stct
                (base->-min-arity ->stct)
@@ -1555,7 +1539,6 @@
                (base->-plus-one-arity-function ->stct)
                (base->-chaperone-constructor ->stct)
                (base->-method? ->stct)
-               #t
                #t)))
   (build-X-property
    #:name (base->-name #|print-as-method-if-method|# #t)
@@ -1571,8 +1554,7 @@
    #:generate ->-generate
    #:exercise ->-exercise
    #:val-first-projection val-first-proj
-   #:late-neg-projection late-neg-proj
-   #:space-efficient-late-neg-projection s-e-late-neg-proj))
+   #:space-efficient-late-neg-projection space-efficient-late-neg-proj))
 
 (define (->-stronger this that)
   (and (base->? that)
