@@ -798,7 +798,7 @@
      (define lnp (get/build-late-neg-projection ctc))
      (λ (blame)
        (values (lnp blame)
-               (build-multi-leaf lnp ctc blame)))]))
+               (build-space-efficient-leaf lnp ctc blame)))]))
 
 (define (get/build-late-neg-projection ctc)
   (cond

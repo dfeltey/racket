@@ -12,6 +12,7 @@
          (prefix-in arrow: "arrow-common.rkt")
          "arrow-space-efficient.rkt"
          "space-efficient-common.rkt"
+         (submod "space-efficient-common.rkt" properties)
          (only-in racket/unsafe/ops
                   unsafe-chaperone-procedure
                   unsafe-impersonate-procedure))
@@ -632,6 +633,8 @@
         [(and
           has-s-e-support?
           (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+          ;; TODO: this check is too strong here, really just need to check
+          ;; that the value can safely enter s-e mode
           (val-has-arrow-space-efficient-support? chaperone? val)
           (add-arrow-space-efficient-wrapper s-e-mergable val neg-party chaperone?)) => values]
         [chap/imp-func
@@ -666,11 +669,11 @@
               (cond
                 [(arrow:procedure-arity-exactly/no-kwds val min-arity) val]
                 [else (arrow-higher-order:lnp val neg-party)])))
-          (values lnp (or s-e-mergable (build-multi-leaf lnp ctc orig-blame)))]
+          (values lnp (or s-e-mergable (build-space-efficient-leaf lnp ctc orig-blame)))]
          [else
           (values
            arrow-higher-order:lnp
-           (or s-e-mergable (build-multi-leaf arrow-higher-order:lnp ctc orig-blame)))])]
+           (or s-e-mergable (build-space-efficient-leaf arrow-higher-order:lnp ctc orig-blame)))])]
       [else
        (define (arrow-higher-order:vfp val)
          (define-values (normal-proc proc-with-no-result-checking expected-number-of-results)

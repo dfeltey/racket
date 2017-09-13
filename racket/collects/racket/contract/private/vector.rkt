@@ -6,6 +6,7 @@
          "blame.rkt"
          "misc.rkt"
          "space-efficient-common.rkt"
+         (submod "space-efficient-common.rkt" properties)
          "vector-common.rkt"
          "vector-space-efficient.rkt")
 

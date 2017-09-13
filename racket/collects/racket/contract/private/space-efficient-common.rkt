@@ -6,7 +6,7 @@
 
 (provide (struct-out multi-ho/c)
          (struct-out multi-leaf/c)
-         build-multi-leaf
+         build-space-efficient-leaf
          prop:space-efficient-contract
          build-space-efficient-contract-property
          space-efficient-contract?
@@ -15,11 +15,7 @@
          first-order-check-join
          log-space-efficient-value-bailout-info
          log-space-efficient-contract-bailout-info
-         build-s-e-node
-         impersonator-prop:space-efficient
-         has-impersonator-prop:space-efficient?
-         get-impersonator-prop:space-efficient
-         value-safe-for-space-efficient-mode?)
+          value-safe-for-space-efficient-mode?)
 
 (module+ for-testing
   (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
@@ -38,7 +34,6 @@
            has-impersonator-prop:space-efficient?
            get-impersonator-prop:space-efficient))
 
-(define-logger space-efficient-coerce-contract)
 (define-logger space-efficient-value-bailout)
 (define-logger space-efficient-contract-bailout)
 (define-logger space-efficient-merging)
@@ -102,8 +97,8 @@
    get-projection))
 
 ;; Parent structure for higher order space-efficient contracts
-;; which must keep track of the latest blame and latest contract
-;; applied
+;; which must keep track of the latest blame and missing party
+;; and latest contract applied
 (struct multi-ho/c (latest-blame missing-party latest-ctc))
 
 (struct multi-leaf/c (proj-list contract-list blame-list missing-party-list)
@@ -125,17 +120,9 @@
      (lambda (val neg-party)
        (error "internal error: tried to apply a leaf as a projection" ctc)))))
 
-;; TODO: how to deal with missing blame ???
-(define (build-s-e-node s-e proj ctc blame)
-  (or s-e
-      ;; TODO: need to be sure that ctc is a contract-struct
-      (build-multi-leaf proj ctc blame)))
-
-(define (build-multi-leaf proj ctc blame)
+(define (build-space-efficient-leaf proj ctc blame)
   (multi-leaf/c (list proj) (list ctc) (list blame) (list #f)))
 
-
-;; FIXME: Handle the late-neg passed argument ...
 ;; Allow the bailout to be passed as an optional to avoid
 ;; an extra indirection through the property when possible
 (define (multi->leaf c neg-party [bail #f])
@@ -164,9 +151,8 @@
 
 (define (leaf-implied-by-one? new-contract-list new-blame-list new-missing-party-list new-neg
                               old-ctc old-blame old-missing-party old-neg)
-  (define old-complete-blame (blame-add-missing-party old-blame (or old-missing-party old-neg)))
-  (define old-blame-pos (blame-positive old-complete-blame))
-  (define old-blame-neg (blame-negative old-complete-blame))
+  (define old-blame-pos (or (blame-positive old-blame) old-missing-party old-neg))
+  (define old-blame-neg (or (blame-negative old-blame) old-missing-party old-neg))
   (and old-ctc
        (for/or ([new-ctc (in-list new-contract-list)]
                 [new-blame (in-list new-blame-list)]
@@ -176,11 +162,12 @@
                 [(flat-contract-struct? old-ctc)
                  (contract-struct-stronger? new-ctc old-ctc)]
                 [else
-                 (define new-complete-blame (blame-add-missing-party new-blame (or new-missing-party new-neg)))
+                 (define new-blame-pos (or (blame-positive new-blame) new-missing-party new-neg))
+                 (define new-blame-neg (or (blame-negative new-blame) new-missing-party new-neg))
                  (and (contract-struct-stronger? new-ctc old-ctc)
                       (contract-struct-stronger? old-ctc new-ctc)
-                      (equal? (blame-positive new-complete-blame) old-blame-pos)
-                      (equal? (blame-negative new-complete-blame) old-blame-neg))])))))
+                      (equal? new-blame-pos old-blame-pos)
+                      (equal? new-blame-neg old-blame-neg))])))))
 
 ;; join two multi-leaf contracts
 (define (join-multi-leaf/c old-multi old-neg new-multi new-neg)

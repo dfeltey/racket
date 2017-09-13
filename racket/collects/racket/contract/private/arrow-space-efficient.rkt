@@ -91,22 +91,24 @@
         [(base->? ctc) ; only applies to regular arrow contracts (for now)
          (define doms (base->-doms ctc))
          (define rngs (base->-rngs ctc))
-         (and (or doms
-                  (bail "no doms"))
-              (or (= (length doms) (base->-min-arity ctc)) ; no optional args
-                  (bail "has optional args"))
-              (or (null? (base->-kwd-infos ctc)) ; no keyword args
-                  (bail "has keyword args"))
-              (or (not (base->-rest ctc)) ; no rest arg
-                  (bail "has rest arg"))
-              (or (not (base->-pre? ctc)) ; no pre-condition
-                  (bail "has pre-condition"))
-              (or (not (base->-post? ctc)) ; no post-condition
-                  (bail "has post-condition"))
-              (or rngs
-                  (bail "no rngs"))
-              (or (= (length rngs) 1)
-                  (bail "multiple return values")))]
+         (and
+          ;; TODO: we can probably handle the no doms case for a contract
+          (or doms
+              (bail "no doms"))
+          (or (= (length doms) (base->-min-arity ctc)) ; no optional args
+              (bail "has optional args"))
+          (or (null? (base->-kwd-infos ctc)) ; no keyword args
+              (bail "has keyword args"))
+          (or (not (base->-rest ctc)) ; no rest arg
+              (bail "has rest arg"))
+          (or (not (base->-pre? ctc)) ; no pre-condition
+              (bail "has pre-condition"))
+          (or (not (base->-post? ctc)) ; no post-condition
+              (bail "has post-condition"))
+          (or rngs
+              (bail "no rngs"))
+          (or (= (length rngs) 1)
+              (bail "multiple return values")))]
         [else
          (bail "not base arrow")
          #f]))
@@ -123,11 +125,16 @@
        ;; the interposition wrapper has to support a superset of the arity
        ;; of the function it's wrapping, and ours can't support optional
        ;; args, keywords, etc. so just bail out in these cases
+
+       ;; TODO: I think we can actually support optional arguments without any additional work
+       ;; here ... so maybe this check can be removed
        (or (integer? (procedure-arity val))
            (bail "has optional args"))
        (or (let-values ([(man opt) (procedure-keywords val)]) ; no keyword arguments
              (and (null? man) (null? opt)))
            (bail "has keyword args"))
+
+       ;; TODO: we can maybe support non single return value functions
        (or (equal? (procedure-result-arity val) 1)
            (bail "can't prove single-return-value"))
 
@@ -155,7 +162,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wrapper management and contract checking
 
-;; (or/c contract? multi/c?) × α × boolean? → α
+;; space-efficient? × α × (or/c blame? #f) → α
 (define (arrow-space-efficient-guard s-e val neg-party)
   ;; TODO: sometimes the first-order checks are redundant ...
   (do-arrow-first-order-checks s-e val neg-party)
@@ -165,16 +172,12 @@
      (add-arrow-space-efficient-wrapper s-e val neg-party chap-not-imp?)]
     [else (bail-to-regular-wrapper s-e val neg-party)]))
 
-;; TODO: what should the name of this function be ....
 (define (add-arrow-space-efficient-wrapper s-e val neg-party chap-not-imp?)
   (define-values (merged-s-e new-neg checking-wrapper)
     (cond
       [(has-impersonator-prop:checking-wrapper? val)
        (define s-e-prop (get-impersonator-prop:space-efficient val))
        (define-values (merged-s-e new-neg)
-         ;; TODO: can this fail if we've got this far?
-         ;; this is specialized because that makes sense in the current
-         ;; implementation ...
          (arrow-try-merge s-e neg-party (car s-e-prop) (cdr s-e-prop)))
        (values merged-s-e
                new-neg
