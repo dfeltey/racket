@@ -6,7 +6,9 @@
          (only-in racket/unsafe/ops unsafe-chaperone-vector unsafe-impersonate-vector)
          (for-syntax racket/base))
 
-(provide build-s-e-vector vector-space-efficient-guard)
+(provide build-s-e-vector
+         vector-space-efficient-guard
+         add-vector-space-efficient-wrapper)
 
 (module+ for-testing
   (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs
@@ -157,73 +159,44 @@
   (do-vector-first-order-checks s-e val neg-party)
   (define chap-not-imp? (chaperone-multi-vector? s-e))
   (cond
-    ;; don't check this twice
-    [((val-has-vec-s-e-support? chap-not-imp?) val)
-     ;; no bound occurences
-     (define blame (multi-ho/c-latest-blame s-e))
-     (define (make-checking-wrapper unwrapped)
-       (define chap/imp (if chap-not-imp? chaperone-vector* impersonate-vector*))
-       (chap/imp unwrapped ref-wrapper set-wrapper))
-     (define-values (merged-ctc new-neg checking-wrapper)
-       (cond [(has-impersonator-prop:multi/c? val)
-              ;; TODO: maybe unify multi/c and space-efficient props
-              (unless (has-impersonator-prop:checking-wrapper? val)
-                ;; FIXME: call to error
-                (error "internal error: expecting a checking wrapper" val))
-              (define prop (get-impersonator-prop:multi/c val))
-              ;; try to make decisions once
-              (define-values (merged neg)
-                (try-merge s-e neg-party (car prop) (cdr prop)))
-              (values merged
-                      neg
-                      (get-impersonator-prop:checking-wrapper val))]
-             #;[(and (has-contract? val) (has-impersonator-prop:unwrapped? val))
-              (when (has-impersonator-prop:checking-wrapper? val)
-                (error "internal error: expecting no checking wrapper" val))
-              ;; no left-left
-              (define unwrapped ;; un-contracted (since it is wrapped in a chaperone)
-                ((if chap-not-imp?
-                     unsafe-chaperone-vector
-                     unsafe-impersonate-vector)
-                 val
-                 (get-impersonator-prop:unwrapped val)))
-              (define checking-wrapper (make-checking-wrapper unwrapped))
-              (cond
-                [(has-impersonator-prop:space-efficient? val)
-                 ;; rearrange this, if we know it doesn't have the prop:s-e
-                 ;; maybe this goes away if we don't need to mask the property
-                 (define prop
-                   (or (get-impersonator-prop:space-efficient val) (cons #f #f)))
-                 (define-values (merged neg)
-                   (try-merge s-e neg-party (car prop) (cdr prop)))
-                 (values merged neg checking-wrapper)]
-                [else ;; no space-efficient prop to merge with so bail
-                 (values #f neg-party checking-wrapper)])]
-             [else
-              (when (has-impersonator-prop:checking-wrapper? val)
-                (error "internal error: expecting no checking wrapper" val))
-              (values s-e neg-party (make-checking-wrapper val))]))
-     (cond
-       [merged-ctc
-        (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
-        (define b (box #f))
-        (define res
-          (chap/imp
-           checking-wrapper
-           #f
-           #f
-           impersonator-prop:checking-wrapper checking-wrapper
-           impersonator-prop:outer-wrapper-box b
-           impersonator-prop:multi/c (cons merged-ctc new-neg)
-           impersonator-prop:space-efficient (cons merged-ctc new-neg)
-           impersonator-prop:contracted  (multi-ho/c-latest-ctc merged-ctc)
-           impersonator-prop:blame (blame-add-missing-party
-                                    (multi-ho/c-latest-blame merged-ctc)
-                                    neg-party)))
-        (set-box! b res)
-        res]
-       [else (bail-to-regular-wrapper s-e val neg-party)])]
+    [(val-has-vec-s-e-support? chap-not-imp? val)
+     (add-vector-space-efficient-wrapper s-e val neg-party chap-not-imp?)]
     [else (bail-to-regular-wrapper s-e val neg-party)]))
+
+(define (add-vector-space-efficient-wrapper s-e val neg-party chap-not-imp?)
+  (define-values (merged-s-e new-neg checking-wrapper)
+    (cond
+      [(has-impersonator-prop:checking-wrapper? val)
+       (define s-e-prop (get-impersonator-prop:space-efficient val))
+       (define-values (merged-s-e new-neg)
+         (vector-try-merge s-e neg-party (car s-e-prop) (cdr s-e-prop)))
+       (values merged-s-e
+               new-neg
+               (get-impersonator-prop:checking-wrapper val))]
+      [else
+       (values s-e neg-party (make-checking-wrapper val chap-not-imp?))]))
+  (cond
+    [merged-s-e
+     (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
+     (define b (box #f))
+     (define res
+       (chap/imp
+        checking-wrapper
+        #f
+        #f
+        impersonator-prop:checking-wrapper checking-wrapper
+        impersonator-prop:outer-wrapper-box b
+        impersonator-prop:space-efficient (cons merged-s-e new-neg)
+        impersonator-prop:contracted (multi-ho/c-latest-ctc merged-s-e)
+        impersonator-prop:blame (blame-add-missing-party (multi-ho/c-latest-blame merged-s-e) neg-party)))
+     (set-box! b res)
+     res]
+    [else (bail-to-regular-wrapper s-e val neg-party)]))
+
+(define (make-checking-wrapper unwrapped chap-not-imp?)
+  (if chap-not-imp?
+      (chaperone-vector* unwrapped ref-wrapper set-wrapper)
+      (impersonate-vector* unwrapped ref-wrapper set-wrapper)))
 
 (define-syntax (make-vectorof-checking-wrapper stx)
   (syntax-case stx ()
@@ -232,20 +205,20 @@
          (define prop
            #,(if (syntax-e #'maybe-closed-over-m/c)
                  #'maybe-closed-over-m/c
-                 #'(get-impersonator-prop:multi/c outermost)))
+                 #'(get-impersonator-prop:space-efficient outermost)))
          (define m/c (car prop))
          (define neg (or (multi-ho/c-missing-party m/c) (cdr prop)))
          (define field
            #,(if (syntax-e #'set?)
                  #'(multi-vector-set-ctcs m/c)
                  #'(multi-vector-ref-ctcs m/c)))
-         (define ctc
+         (define s-e
            (if (vector? field) (vector-ref field i) field))
          (define blame (blame-add-missing-party (multi-ho/c-latest-blame m/c) neg))
          (with-space-efficient-contract-continuation-mark
            (with-contract-continuation-mark
              blame
-             (guard-multi/c ctc elt neg))))]))
+             (space-efficient-guard s-e elt neg))))]))
 
 (define ref-wrapper (make-vectorof-checking-wrapper #f #f))
 (define set-wrapper (make-vectorof-checking-wrapper #t #f))
@@ -272,7 +245,6 @@
 (define (vector-space-efficient-contract-property chap-not-imp?)
   (build-space-efficient-contract-property
    #:try-merge vector-try-merge
-   #:value-has-space-efficient-support? (lambda (val) (val-has-vec-s-e-support? chap-not-imp? val))
    #:space-efficient-guard vector-space-efficient-guard
    #:get-projection get-projection))
 

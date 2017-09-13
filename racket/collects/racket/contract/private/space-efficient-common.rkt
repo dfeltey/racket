@@ -10,15 +10,12 @@
          prop:space-efficient-contract
          build-space-efficient-contract-property
          space-efficient-contract?
-         ;value-has-space-efficient-support?
          merge
-         try-merge
-         guard-multi/c
+         space-efficient-guard
          first-order-check-join
          log-space-efficient-value-bailout-info
          log-space-efficient-contract-bailout-info
          build-s-e-node
-         maybe-enter-space-efficient-mode
          impersonator-prop:space-efficient
          has-impersonator-prop:space-efficient?
          get-impersonator-prop:space-efficient
@@ -26,7 +23,6 @@
 
 (module+ for-testing
   (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list
-           has-impersonator-prop:multi/c? get-impersonator-prop:multi/c
            get-impersonator-prop:checking-wrapper
            has-impersonator-prop:checking-wrapper?))
 
@@ -35,12 +31,12 @@
   (provide impersonator-prop:checking-wrapper
            has-impersonator-prop:checking-wrapper?
            get-impersonator-prop:checking-wrapper
-           impersonator-prop:multi/c
-           has-impersonator-prop:multi/c?
-           get-impersonator-prop:multi/c
            impersonator-prop:outer-wrapper-box
            has-impersonator-prop:outer-wrapper-box?
-           get-impersonator-prop:outer-wrapper-box))
+           get-impersonator-prop:outer-wrapper-box
+           impersonator-prop:space-efficient
+           has-impersonator-prop:space-efficient?
+           get-impersonator-prop:space-efficient))
 
 (define-logger space-efficient-coerce-contract)
 (define-logger space-efficient-value-bailout)
@@ -55,18 +51,12 @@
                 has-impersonator-prop:checking-wrapper?
                 get-impersonator-prop:checking-wrapper)
   (make-impersonator-property 'impersonator-prop:checking-wrapper))
-(define-values (impersonator-prop:multi/c
-                has-impersonator-prop:multi/c?
-                get-impersonator-prop:multi/c)
-  (make-impersonator-property 'impersonator-prop:multi/c))
 ;; reference to the outermost chaperone used by the space-efficient contracts
 ;; needed to detect whether anyone but us is chaperoning values
 (define-values (impersonator-prop:outer-wrapper-box
                 has-impersonator-prop:outer-wrapper-box?
                 get-impersonator-prop:outer-wrapper-box)
   (make-impersonator-property 'impersonator-prop:outer-wrapper-box))
-
-;; TODO: maybe this should be the same as multi/c or renamed ... ???
 (define-values (impersonator-prop:space-efficient
                 has-impersonator-prop:space-efficient?
                 get-impersonator-prop:space-efficient)
@@ -79,9 +69,7 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct space-efficient-contract-property
-  (try-merge-left
-   try-merge-right
-   value-has-s-e-support?
+  (try-merge
    space-efficient-guard
    get-projection)
   #:omit-define-syntaxes)
@@ -100,9 +88,6 @@
 
 (define (build-space-efficient-contract-property
          #:try-merge [try-merge #f]
-         #:try-merge-left [try-merge-l #f]
-         #:try-merge-right [try-merge-r #f]
-         #:value-has-space-efficient-support? [value-has-s-e-support? #f]
          #:space-efficient-guard
          [space-efficient-guard
           (lambda (ctc val)
@@ -111,22 +96,8 @@
          [get-projection
           (lambda (ctc)
             (lambda (val neg) (error "internal error: contract does not support `get-projection`" ctc)))])
-  (unless (or (and try-merge (not try-merge-l) (not try-merge-r))
-              (and (not try-merge) (or try-merge-l try-merge-r))
-              (and (not try-merge) (not try-merge-l) (not try-merge-r)))
-    (error
-     'build-space-efficient-contract-property
-     (string-append
-      "expected either the #:try-merge argument to not be #f or at least one of #:try-merge-left,"
-      " #:try-merge-right to not be #f, but not all three")))
-  (define try-merge-left
-    (or try-merge-l try-merge (lambda (new old) #f)))
-  (define try-merge-right
-    (or try-merge-r try-merge (lambda (new old) #f)))
   (space-efficient-contract-property
-   try-merge-left
-   try-merge-right
-   (or value-has-s-e-support? (lambda (val) #f))
+   (or try-merge (lambda (_1 _2 _3 _4) #f))
    space-efficient-guard
    get-projection))
 
@@ -144,9 +115,15 @@
                     (join-multi-leaf/c new new-neg old old-neg)]
                    [else (values #f #f)]))
    #:space-efficient-guard
-   (lambda (ctc val) (error "internal error: called space-efficient-guard on a leaf" ctc val))
+   (lambda (s-e val neg-party)
+     (apply-proj-list (multi-leaf/c-proj-list s-e)
+                      (multi-leaf/c-missing-party-list s-e)
+                      val
+                      neg-party))
    #:get-projection
-   (lambda (ctc) (lambda (val neg-party) (error "internal error: tried to apply a leaf as a projection" ctc)))))
+   (lambda (ctc)
+     (lambda (val neg-party)
+       (error "internal error: tried to apply a leaf as a projection" ctc)))))
 
 ;; TODO: how to deal with missing blame ???
 (define (build-s-e-node s-e proj ctc blame)
@@ -245,72 +222,26 @@
     [else
      (cons (car l1) (fast-append (cdr l1) l2))]))
 
-
-;; value-has-space-efficient-support? : space-efficient? any/c -> boolean?
-;; Returns #t if the value can be guarded with this s-e contract
-(define (value-has-space-efficient-support? s-e val)
-  (and (space-efficient-contract? s-e)
-       (let* ([prop (get-space-efficient-contract-property s-e)]
-              [has-space-efficient-support?
-               (space-efficient-contract-property-value-has-s-e-support? prop)])
-         (has-space-efficient-support? val))))
-
 ;; Assuming that merging is symmetric, ie old-can-merge? iff new-can-merge?
 ;; This is true of the current s-e implementation, but if it ever changes
 ;; this function will neef to check both directions for merging
-(define ((make-merge build-leaf?) new-multi new-neg old-multi old-neg)
+(define (merge new-s-e new-neg old-s-e old-neg)
+  (define-values (new-try-merge new-proj) (get-merge-components new-s-e))
+  (define-values (_ old-proj) (get-merge-components old-s-e))
+  (define-values (merged-s-e new-neg) (new-try-merge new-s-e new-neg old-s-e old-neg))
   (cond
-    ;; NOTE: is it safe to just use the new-neg blame if the contract structures are the same?
-    [(eq? new-multi old-multi)
-     (log-space-efficient-merging-info (format "eq?-neg-blame: ~s" (eq? new-neg old-neg)))
-     (values new-multi new-neg)]
+    [merged-s-e (values merged-s-e new-neg)]
     [else
-     (log-space-efficient-merging-info "distinct contracts")
-     (define-values (new-try-merge-left _1 new-proj) (get-merge-components new-multi))
-     (define-values (_2 old-try-merge-right old-proj) (get-merge-components old-multi))
-     (define-values (left-merge left-neg) (new-try-merge-left new-multi new-neg old-multi old-neg))
-     (cond
-       [left-merge (values left-merge left-neg)]
-       [else
-        (define-values (right-merge right-neg) (old-try-merge-right new-multi new-neg old-multi old-neg))
-        (cond
-          [right-merge (values right-merge right-neg)]
-          [build-leaf?
-           (join-multi-leaf/c (multi->leaf new-multi new-neg new-proj)
-                              new-neg
-                              (multi->leaf old-multi old-neg old-proj)
-                              old-neg)]
-          [else (values #f #f)])])]))
-
-(define merge (make-merge #t))
-(define try-merge (make-merge #f))
+     (join-multi-leaf/c (multi->leaf new-s-e new-neg new-proj)
+                        new-neg
+                        (multi->leaf old-s-e old-neg old-proj)
+                        old-neg)]))
 
 (define (get-merge-components multi)
-  (cond
-    [(space-efficient-contract? multi)
-     (define prop (get-space-efficient-contract-property multi))
-     (values
-      (space-efficient-contract-property-try-merge-left prop)
-      (space-efficient-contract-property-try-merge-right prop)
-      ((space-efficient-contract-property-get-projection prop) multi))]
-    [else
-     (values merge-fail merge-fail #f)]))
-
-;; TODO: should this return one of the blames as the second return value?
-(define (merge-fail _1 _2 _3 _4) (values #f #f))
-
-(define (guard-multi/c multi val neg-party)
-  (unless (space-efficient-contract? multi)
-    (error "internal error: not a space-efficient contract" multi))
-  (cond
-    [(multi-leaf/c? multi)
-     ;; make the leaf case generic
-     (apply-proj-list (multi-leaf/c-proj-list multi)
-                      (multi-leaf/c-missing-party-list multi)
-                      val
-                      neg-party)]
-    [else
-     (space-efficient-guard multi val neg-party)]))
+  (define prop (get-space-efficient-contract-property multi))
+  (values
+   (space-efficient-contract-property-try-merge prop)
+   ((space-efficient-contract-property-get-projection prop) multi)))
 
 (define (space-efficient-guard multi val neg-party)
   (define prop (get-space-efficient-contract-property multi))
@@ -328,14 +259,6 @@
                                   new-checks old
                                   #:implies stronger?)))
             old)))
-
-;; TODO: remove this
-(define (maybe-enter-space-efficient-mode s-e val neg-party)
-  (and (has-impersonator-prop:space-efficient? val)
-       ;; try deleting this
-       (get-impersonator-prop:space-efficient val)
-       (value-has-space-efficient-support? s-e val)
-       (guard-multi/c s-e val neg-party)))
 
 (define (value-safe-for-space-efficient-mode? val chap-not-imp?)
   (define-syntax-rule (bail reason)

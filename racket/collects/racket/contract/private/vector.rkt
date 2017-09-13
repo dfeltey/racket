@@ -186,7 +186,8 @@
                         (or
                          (and
                           (contract-count . >= . SPACE-EFFICIENT-LIMIT)
-                          (maybe-enter-space-efficient-mode s-e-vector val neg-party))
+                          ;; FIXME: need to check for s-e support on val here ...
+                          (add-vector-space-efficient-wrapper s-e-vector val neg-party))
                          (chaperone-or-impersonate-vector
                           val
                           (checked-ref neg-party)
@@ -211,7 +212,8 @@
                         (or ;; inline this ... (specialize)
                          (and
                           (contract-count . >= . SPACE-EFFICIENT-LIMIT)
-                          (maybe-enter-space-efficient-mode s-e-vector val neg-party))
+                          ;; FIXME: need to check for s-e support on val here ...
+                          (add-vector-space-efficient-wrapper s-e-vector val neg-party))
                          (chaperone-or-impersonate-vector
                           val
                           (checked-ref neg-party)
@@ -423,7 +425,8 @@
                       (and
                        (contract-count . >= . SPACE-EFFICIENT-LIMIT)
                        (value-safe-for-space-efficient-mode? val chap-not-imp?)
-                       (vector-space-efficient-guard s-e-mergable val neg-party))
+                       ;; FIXME: check for space-efficient support on value ...
+                       (add-vector-space-efficient-wrapper s-e-mergable val neg-party))
                       (vector-wrapper
                        val
                        (λ (vec i val)

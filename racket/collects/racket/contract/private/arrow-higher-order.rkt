@@ -633,46 +633,21 @@
           has-s-e-support?
           (contract-count . >= . SPACE-EFFICIENT-LIMIT)
           (val-has-arrow-space-efficient-support? chaperone? val)
-          (arrow-space-efficient-guard s-e-mergable val neg-party)) => values]
+          (add-arrow-space-efficient-wrapper s-e-mergable val neg-party chaperone?)) => values]
         [chap/imp-func
          (log-n-wrappers "arrow-higher-order" val)
-         (if has-s-e-support?
-             (if (or post? (not rngs))
-                 (chaperone-or-impersonate-procedure
-                  val
-                  chap/imp-func
-                  impersonator-prop:contracted ctc
-                  impersonator-prop:contract-count (add1 contract-count)
-                  impersonator-prop:blame full-blame
-                  impersonator-prop:space-efficient s-e-prop
-                  impersonator-prop:unwrapped val)
-                 (chaperone-or-impersonate-procedure
-                  val
-                  chap/imp-func
-                  impersonator-prop:contracted ctc
-                  impersonator-prop:contract-count (add1 contract-count)
-                  impersonator-prop:blame full-blame
-                  impersonator-prop:space-efficient s-e-prop
-                  impersonator-prop:application-mark
-                  (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))
-                  impersonator-prop:unwrapped val))
-             (if (or post? (not rngs))
-                 (chaperone-or-impersonate-procedure
-                  val
-                  chap/imp-func
-                  impersonator-prop:contracted ctc
-                  impersonator-prop:contract-count (add1 contract-count)
-                  impersonator-prop:blame full-blame
-                  impersonator-prop:unwrapped val)
-                 (chaperone-or-impersonate-procedure
-                  val
-                  chap/imp-func
-                  impersonator-prop:contracted ctc
-                  impersonator-prop:contract-count (add1 contract-count)
-                  impersonator-prop:blame full-blame
-                  impersonator-prop:application-mark
-                  (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))
-                  impersonator-prop:unwrapped val)))]
+         (add-conditioned-args
+          (chaperone-or-impersonate-procedure
+           val
+           chap/imp-func
+           impersonator-prop:contracted ctc
+           impersonator-prop:contract-count (add1 contract-count)
+           impersonator-prop:blame full-blame
+           impersonator-prop:unwrapped val)
+          [has-s-e-support? impersonator-prop:space-efficient s-e-prop]
+          #:not [(or post? (not rngs))
+                 impersonator-prop:application-mark
+                 (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))])]
         [else val]))
     (cond
       [late-neg?

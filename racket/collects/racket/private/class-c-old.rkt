@@ -1714,9 +1714,9 @@
                           impersonator-prop:unwrapped (if (has-impersonator-prop:unwrapped? post-proj)
                                                           (get-impersonator-prop:unwrapped  post-proj)
                                                           orig)
-                          (append (if (has-impersonator-prop:multi/c? post-proj)
-                                      (list impersonator-prop:multi/c
-                                            (get-impersonator-prop:multi/c post-proj))
+                          (append (if (has-impersonator-prop:space-efficient? post-proj)
+                                      (list impersonator-prop:space-efficient
+                                            (get-impersonator-prop:space-efficient post-proj))
                                       '())
                                   (if (has-impersonator-prop:checking-wrapper? post-proj)
                                       (list impersonator-prop:checking-wrapper
