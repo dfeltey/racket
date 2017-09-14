@@ -143,7 +143,7 @@
     (define elem-ctc (base-vectorof-elem ctc))
     (define eager (base-vectorof-eager ctc))
     (define check (check-vectorof ctc))
-    (define vfp (get/build-space-efficient-late-neg-projection ctc))
+    (define vfp (get/build-space-efficient-late-neg-projection elem-ctc))
     (λ (blame)
       (define pos-blame (blame-add-element-of-context blame))
       (define neg-blame (blame-add-element-of-context blame #:swap? #t))
