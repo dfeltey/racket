@@ -797,8 +797,9 @@
     [else
      (define lnp (get/build-late-neg-projection ctc))
      (λ (blame)
-       (values (lnp blame)
-               (build-space-efficient-leaf lnp ctc blame)))]))
+       (define proj (lnp blame))
+       (values proj
+               (build-space-efficient-leaf proj ctc blame)))]))
 
 (define (get/build-late-neg-projection ctc)
   (cond

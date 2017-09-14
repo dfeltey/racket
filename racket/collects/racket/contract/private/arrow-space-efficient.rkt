@@ -257,7 +257,6 @@
    impersonator-prop:blame (blame-add-missing-party
                             (multi-ho/c-latest-blame m/c)
                             neg)
-   impersonator-prop:space-efficient #f
    impersonator-prop:unwrapped val))
 
 (define (do-arrow-first-order-checks m/c val neg-party)

@@ -215,9 +215,9 @@
 (define (merge new-s-e new-neg old-s-e old-neg)
   (define-values (new-try-merge new-proj) (get-merge-components new-s-e))
   (define-values (_ old-proj) (get-merge-components old-s-e))
-  (define-values (merged-s-e new-neg) (new-try-merge new-s-e new-neg old-s-e old-neg))
+  (define-values (merged-s-e merged-neg) (new-try-merge new-s-e new-neg old-s-e old-neg))
   (cond
-    [merged-s-e (values merged-s-e new-neg)]
+    [merged-s-e (values merged-s-e merged-neg)]
     [else
      (join-multi-leaf/c (multi->leaf new-s-e new-neg new-proj)
                         new-neg

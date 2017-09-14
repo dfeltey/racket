@@ -191,7 +191,6 @@
    (make-vectorof-checking-wrapper #t (cons m/c neg-party))
    impersonator-prop:contracted ctc
    impersonator-prop:blame blame
-   impersonator-prop:space-efficient #f
    impersonator-prop:unwrapped val))
 
 (define (get-projection ctc)

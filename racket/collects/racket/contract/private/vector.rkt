@@ -188,7 +188,7 @@
                          (and
                           (contract-count . >= . SPACE-EFFICIENT-LIMIT)
                           (value-safe-for-space-efficient-mode? val chap-not-imp?)
-                          (add-vector-space-efficient-wrapper s-e-vector val neg-party))
+                          (add-vector-space-efficient-wrapper s-e-vector val neg-party chap-not-imp?))
                          (chaperone-or-impersonate-vector
                           val
                           (checked-ref neg-party)
@@ -214,7 +214,7 @@
                          (and
                           (contract-count . >= . SPACE-EFFICIENT-LIMIT)
                           (value-safe-for-space-efficient-mode? val chap-not-imp?)
-                          (add-vector-space-efficient-wrapper s-e-vector val neg-party))
+                          (add-vector-space-efficient-wrapper s-e-vector val neg-party chap-not-imp?))
                          (chaperone-or-impersonate-vector
                           val
                           (checked-ref neg-party)
@@ -426,7 +426,7 @@
                       (and
                        (contract-count . >= . SPACE-EFFICIENT-LIMIT)
                        (value-safe-for-space-efficient-mode? val chap-not-imp?)
-                       (add-vector-space-efficient-wrapper s-e-mergable val neg-party))
+                       (add-vector-space-efficient-wrapper s-e-mergable val neg-party chap-not-imp?))
                       (vector-wrapper
                        val
                        (λ (vec i val)
