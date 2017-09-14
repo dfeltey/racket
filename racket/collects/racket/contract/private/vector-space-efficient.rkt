@@ -11,8 +11,7 @@
          add-vector-space-efficient-wrapper)
 
 (module+ for-testing
-  (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs
-            value-has-vector-space-efficient-support?))
+  (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs))
 
 (struct vector-first-order-check (immutable length blame missing-party))
 (struct multi-vector multi-ho/c (first-order ref-ctcs set-ctcs))
@@ -25,47 +24,6 @@
     (define blame (vector-first-order-check-blame c))
     (define neg (or (vector-first-order-check-missing-party c) neg-party))
     (check-vector/c val blame immutable length neg)))
-
-(define (contract-has-vector-space-efficient-support? ctc)
-  (or (multi-vector? ctc)
-      (base-vectorof? ctc)
-      (base-vector/c? ctc)
-      (begin
-        (log-space-efficient-contract-bailout-info "vector: not a vector contract")
-        #f)))
-
-(define (val-has-vec-s-e-support? chap-not-imp? val)
-  (define-syntax-rule (bail reason)
-    (begin
-      (log-space-efficient-value-bailout-info (format "vector: ~a" reason))
-      #f))
-  (and (or (vector? val)
-           (bail "not a vector"))
-       #;(or (if (has-impersonator-prop:unwrapped? val)
-               (not (impersonator? (get-impersonator-prop:unwrapped val)))
-               #t)
-           (bail "already chaperoned"))
-       (or (if (has-impersonator-prop:outer-wrapper-box? val)
-               (eq? val (unbox (get-impersonator-prop:outer-wrapper-box val)))
-               #t)
-           (bail "has been chaperoned since last contracted"))
-       ;; disallow switching between chaperone and impersonator wrappers
-       (or (cond [(has-impersonator-prop:checking-wrapper? val)
-                  (define checking-wrapper
-                    (get-impersonator-prop:checking-wrapper val))
-                  (if (chaperone? checking-wrapper)
-                      chap-not-imp?
-                      (not chap-not-imp?))]
-                 [else
-                  ;; avoid calling value-contract here
-                  (or (not (value-contract val))
-                      (if chap-not-imp?
-                          (chaperone-contract?    (value-contract val))
-                          (impersonator-contract? (value-contract val))))])
-           (bail "switching from imp to chap or vice versa"))))
-
-(define (value-has-vector-space-efficient-support? val chap-not-imp?)
-  (val-has-vec-s-e-support? chap-not-imp? val))
 
 (define (vector-first-order-check-stronger? f1 f2)
   (define f1-immutable (vector-first-order-check-immutable f1))
@@ -155,11 +113,10 @@
            impersonator-multi-vector)))
 
 (define (vector-space-efficient-guard s-e val neg-party)
-  ;; TODO: sometimes the first-order check are redundant ...
   (do-vector-first-order-checks s-e val neg-party)
   (define chap-not-imp? (chaperone-multi-vector? s-e))
   (cond
-    [(val-has-vec-s-e-support? chap-not-imp? val)
+    [(value-safe-for-space-efficient-mode? val chap-not-imp?)
      (add-vector-space-efficient-wrapper s-e val neg-party chap-not-imp?)]
     [else (bail-to-regular-wrapper s-e val neg-party)]))
 

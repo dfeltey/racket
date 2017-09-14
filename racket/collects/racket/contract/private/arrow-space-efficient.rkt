@@ -113,62 +113,38 @@
          (bail "not base arrow")
          #f]))
 
-
-;; FIXME: Need 2 versions of this function
 (define (val-has-arrow-space-efficient-support? chap-not-imp? val)
   (define-syntax-rule (bail reason)
     (begin
       (log-space-efficient-value-bailout-info (format "arrow: ~a" reason))
       #f))
-  (and (or (procedure? val)
-           (bail "not a procedure"))
-       ;; the interposition wrapper has to support a superset of the arity
-       ;; of the function it's wrapping, and ours can't support optional
-       ;; args, keywords, etc. so just bail out in these cases
+  (and
+   ;; the interposition wrapper has to support a superset of the arity
+   ;; of the function it's wrapping, and ours can't support optional
+   ;; args, keywords, etc. so just bail out in these cases
 
-       ;; TODO: I think we can actually support optional arguments without any additional work
-       ;; here ... so maybe this check can be removed
-       (or (integer? (procedure-arity val))
-           (bail "has optional args"))
-       (or (let-values ([(man opt) (procedure-keywords val)]) ; no keyword arguments
-             (and (null? man) (null? opt)))
-           (bail "has keyword args"))
+   ;; TODO: I think we can actually support optional arguments without any additional work
+   ;; here ... so maybe this check can be removed
+   (or (integer? (procedure-arity val))
+       (bail "has optional args"))
+   (or (let-values ([(man opt) (procedure-keywords val)]) ; no keyword arguments
+         (and (null? man) (null? opt)))
+       (bail "has keyword args"))
 
-       ;; TODO: we can maybe support non single return value functions
-       (or (equal? (procedure-result-arity val) 1)
-           (bail "can't prove single-return-value"))
-
-       ;; TODO: lift this out as safe-for-space-efficient 
-       
-       ;; we also can't use this optimization on a value that has been
-       ;; chaperoned by a 3rd party since it's been contracted
-       ;; (because this optimization relies on replacing wrappers, which
-       ;; would drop this 3rd-party chaperone)
-       (or (if (has-impersonator-prop:outer-wrapper-box? val)
-               (eq? val (unbox (get-impersonator-prop:outer-wrapper-box val)))
-               #t)
-           (bail "has been chaperoned since last contracted"))
-       ;; can't switch from chaperone wrappers to impersonator wrappers, and
-       ;; vice versa. if we would bail out of the optimization
-       (or (cond
-             [(has-impersonator-prop:checking-wrapper? val)
-              (define checking-wrapper
-                (get-impersonator-prop:checking-wrapper val))
-              (equal? (chaperone? checking-wrapper)
-                      chap-not-imp?)]
-             [else #t])
-           (bail "switching from imp to chap or vice versa"))))
+   ;; TODO: we can maybe support non single return value functions
+   (or (equal? (procedure-result-arity val) 1)
+       (bail "can't prove single-return-value"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wrapper management and contract checking
 
 ;; space-efficient? × α × (or/c blame? #f) → α
 (define (arrow-space-efficient-guard s-e val neg-party)
-  ;; TODO: sometimes the first-order checks are redundant ...
   (do-arrow-first-order-checks s-e val neg-party)
   (define chap-not-imp? (chaperone-multi->? s-e))
   (cond
-    [(val-has-arrow-space-efficient-support? val chap-not-imp?)
+    [(and (val-has-arrow-space-efficient-support? val chap-not-imp?)
+          (value-safe-for-space-efficient-mode? val chap-not-imp?))
      (add-arrow-space-efficient-wrapper s-e val neg-party chap-not-imp?)]
     [else (bail-to-regular-wrapper s-e val neg-party)]))
 
