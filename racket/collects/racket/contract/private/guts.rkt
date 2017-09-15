@@ -33,6 +33,9 @@
          impersonator-prop:blame
          impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped
          impersonator-prop:contract-count
+         impersonator-prop:count-wrapper-box
+         has-impersonator-prop:count-wrapper-box?
+         get-impersonator-prop:count-wrapper-box
          get-contract-count
          SPACE-EFFICIENT-LIMIT
 
@@ -97,17 +100,44 @@
          false/c-contract
          true/c-contract)
 
-(define SPACE-EFFICIENT-LIMIT 10)
+(define SPACE-EFFICIENT-LIMIT 1)
 
 (define-values (impersonator-prop:contract-count
                 has-impersonator-prop:contract-count?
                 get-impersonator-prop:contact-count)
   (make-impersonator-property 'impersonator-prop:contract-count))
 
+
+;; TODO: this is a BAD name ...
+(define-values (impersonator-prop:count-wrapper-box
+                has-impersonator-prop:count-wrapper-box?
+                get-impersonator-prop:count-wrapper-box)
+  (make-impersonator-property 'impersonator-prop:count-wrapper-box))
+
+;; TODO: this function needs to be MUCH more complicated
+;; NOTE: maybe this doesn't need to be complicated, can just update as typical
+;;       but when we have 10 ctcs and would switch to the new mode then can
+;;       traverse down to make sure and bail out entirely otherwise ...
+;; NOTE: I think it has to be both, we want to know ahead of time to not
+;;       try to collapse 10+ contracts if it's not necessary, but since there
+;;       are 2 entry points to s-e mode, we also need to be able to collapse down
+;;       without having a count ahead of time
+;;       we want to avoid using the s-e-styled chaperone wrappers unless we hvae to
 (define (get-contract-count val)
-  (if (has-impersonator-prop:contract-count? val)
-      (get-impersonator-prop:contact-count val)
-      0))
+  ;; if it's a procedure need to check procedure-impersonator*?
+  ;; otherwise just check impersonator? and return a #f count ... 
+
+  ;; Really want a way to shortcut most of this because if the count is
+  ;; #f, why bother checking the other stuff ...
+  (and
+   (if (has-impersonator-prop:count-wrapper-box? val)
+       (eq? val (unbox (get-impersonator-prop:count-wrapper-box val)))
+       ;; TODO: it might be ok to do the unsafe-chaperone-procedure wrapping around
+       ;;       a chaperoned procedure, but it is not around a chaperoned vector
+       (not (or (impersonator? val) (procedure-impersonator*? val))))
+   (if (has-impersonator-prop:contract-count? val)
+       (get-impersonator-prop:contact-count val)
+       0)))
 
 (define (contract-custom-write-property-proc stct port mode)
   (define (write-prefix)

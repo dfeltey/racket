@@ -175,29 +175,41 @@
              (check val raise-blame #f)
              ;; avoid traversing large vectors
              ;; unless `eager` is specified
-             (if (and (or (equal? eager #t)
-                          (and eager (<= (vector-length val) eager)))
-                      (immutable? val)
-                      (not (chaperone? val)))
-                 (begin (for ([e (in-vector val)])
-                          (unless (p? e)
-                            (elem-pos-proj e neg-party)))
-                        val)
-                 (begin (log-n-wrappers "immutable-vectorof-ho" val)
-                        (or
-                         (and
-                          (contract-count . >= . SPACE-EFFICIENT-LIMIT)
-                          (value-safe-for-space-efficient-mode? val chap-not-imp?)
-                          (add-vector-space-efficient-wrapper s-e-vector val neg-party chap-not-imp?))
-                         (chaperone-or-impersonate-vector
-                          val
-                          (checked-ref neg-party)
-                          (checked-set neg-party)
-                          impersonator-prop:unwrapped val
-                          impersonator-prop:space-efficient (cons s-e-vector neg-party)
-                          impersonator-prop:contract-count (add1 contract-count)
-                          impersonator-prop:contracted ctc
-                          impersonator-prop:blame full-blame)))))]
+             (cond
+               [(and (or (equal? eager #t)
+                         (and eager (<= (vector-length val) eager)))
+                     (immutable? val)
+                     (not (chaperone? val)))
+                (begin (for ([e (in-vector val)])
+                         (unless (p? e)
+                           (elem-pos-proj e neg-party)))
+                       val)]
+               [else
+                (log-n-wrappers "immutable-vectorof-ho" val)
+                (cond
+                  [(and contract-count
+                        (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+                        (value-safe-for-space-efficient-mode? val chap-not-imp?))
+                   (add-vector-space-efficient-wrapper
+                    s-e-vector
+                    val
+                    neg-party
+                    chap-not-imp?)]
+                  [else
+                   (define count-wrapper-box (box #f))
+                   (define wrapped
+                     (chaperone-or-impersonate-vector
+                      val
+                      (checked-ref neg-party)
+                      (checked-set neg-party)
+                      impersonator-prop:unwrapped val
+                      impersonator-prop:space-efficient (cons s-e-vector neg-party)
+                      impersonator-prop:contract-count (add1 contract-count)
+                      impersonator-prop:count-wrapper-box count-wrapper-box
+                      impersonator-prop:contracted ctc
+                      impersonator-prop:blame full-blame))
+                   (set-box! count-wrapper-box wrapped)
+                   wrapped])]))]
           [else
            (λ (val neg-party)
              (define contract-count (get-contract-count val))
@@ -205,25 +217,37 @@
              (define (raise-blame val . args)
                (apply raise-blame-error blame #:missing-party neg-party val args))
              (check val raise-blame #f)
-             (if (and (immutable? val) (not (chaperone? val)))
-                 (vector->immutable-vector
-                  (for/vector #:length (vector-length val) ([e (in-vector val)])
-                    (elem-pos-proj e neg-party)))
-                 (begin (log-n-wrappers "mutable-vectorof-ho" val)
-                        (or ;; inline this ... (specialize)
-                         (and
-                          (contract-count . >= . SPACE-EFFICIENT-LIMIT)
-                          (value-safe-for-space-efficient-mode? val chap-not-imp?)
-                          (add-vector-space-efficient-wrapper s-e-vector val neg-party chap-not-imp?))
-                         (chaperone-or-impersonate-vector
-                          val
-                          (checked-ref neg-party)
-                          (checked-set neg-party)
-                          impersonator-prop:unwrapped val
-                          impersonator-prop:space-efficient (cons s-e-vector neg-party)
-                          impersonator-prop:contract-count (add1 contract-count)
-                          impersonator-prop:contracted ctc
-                          impersonator-prop:blame full-blame)))))]))
+             (cond
+               [(and (immutable? val) (not (chaperone? val)))
+                (vector->immutable-vector
+                 (for/vector #:length (vector-length val) ([e (in-vector val)])
+                   (elem-pos-proj e neg-party)))]
+               [else
+                (log-n-wrappers "mutable-vectorof-ho" val)
+                (cond
+                  [(and contract-count
+                        (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+                        (value-safe-for-space-efficient-mode? val chap-not-imp?))
+                   (add-vector-space-efficient-wrapper
+                    s-e-vector
+                    val
+                    neg-party
+                    chap-not-imp?)]
+                  [else
+                   (define count-wrapper-box (box #f))
+                   (define wrapped
+                     (chaperone-or-impersonate-vector
+                      val
+                      (checked-ref neg-party)
+                      (checked-set neg-party)
+                      impersonator-prop:unwrapped val
+                      impersonator-prop:space-efficient (cons s-e-vector neg-party)
+                      impersonator-prop:contract-count (add1 contract-count)
+                      impersonator-prop:count-wrapper-box count-wrapper-box
+                      impersonator-prop:contracted ctc
+                      impersonator-prop:blame full-blame))
+                   (set-box! count-wrapper-box wrapped)
+                   wrapped])]))]))
       (values late-neg-proj s-e-vector))))
 
 (define-values (prop:neg-blame-party prop:neg-blame-party? prop:neg-blame-party-get)
@@ -416,32 +440,44 @@
           (define full-blame (blame-add-missing-party blame neg-party))
           (check-vector/c val blame immutable elems-length neg-party)
           (define blame+neg-party (cons blame neg-party))
-          (if (and (immutable? val) (not (chaperone? val)))
-              (apply vector-immutable
-                     (for/list ([e (in-vector val)]
-                                [i (in-naturals)])
-                       ((vector-ref elem-pos-projs i) e neg-party)))
-              (begin (log-n-wrappers "mutable-vector/c-ho" val)
-                     (or
-                      (and
-                       (contract-count . >= . SPACE-EFFICIENT-LIMIT)
-                       (value-safe-for-space-efficient-mode? val chap-not-imp?)
-                       (add-vector-space-efficient-wrapper s-e-mergable val neg-party chap-not-imp?))
-                      (vector-wrapper
-                       val
-                       (λ (vec i val)
-                         (with-contract-continuation-mark
-                           blame+neg-party
-                           ((vector-ref elem-pos-projs i) val neg-party)))
-                       (λ (vec i val)
-                         (with-contract-continuation-mark
-                           blame+neg-party
-                           ((vector-ref elem-neg-projs i) val neg-party)))
-                       impersonator-prop:unwrapped val
-                       impersonator-prop:contract-count (add1 contract-count)
-                       impersonator-prop:space-efficient (cons s-e-mergable neg-party)
-                       impersonator-prop:contracted ctc
-                       impersonator-prop:blame full-blame))))))
+          (cond
+            [(and (immutable? val) (not (chaperone? val)))
+             (apply vector-immutable
+                    (for/list ([e (in-vector val)]
+                               [i (in-naturals)])
+                      ((vector-ref elem-pos-projs i) e neg-party)))]
+            [else
+             (log-n-wrappers "mutable-vector/c-ho" val)
+             (cond
+               [(and contract-count
+                     (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+                     (value-safe-for-space-efficient-mode? val chap-not-imp?))
+                (add-vector-space-efficient-wrapper
+                 s-e-mergable
+                 val
+                 neg-party
+                 chap-not-imp?)]
+               [else
+                (define count-wrapper-box (box #f))
+                (define wrapped
+                  (vector-wrapper
+                   val
+                   (λ (vec i val)
+                     (with-contract-continuation-mark
+                       blame+neg-party
+                       ((vector-ref elem-pos-projs i) val neg-party)))
+                   (λ (vec i val)
+                     (with-contract-continuation-mark
+                       blame+neg-party
+                       ((vector-ref elem-neg-projs i) val neg-party)))
+                   impersonator-prop:unwrapped val
+                   impersonator-prop:contract-count (add1 contract-count)
+                   impersonator-prop:count-wrapper-box count-wrapper-box
+                   impersonator-prop:space-efficient (cons s-e-mergable neg-party)
+                   impersonator-prop:contracted ctc
+                   impersonator-prop:blame full-blame))
+                (set-box! count-wrapper-box wrapped)
+                wrapped])])))
       (values late-neg-proj s-e-mergable))))
 
 (define-struct (chaperone-vector/c base-vector/c) ()
