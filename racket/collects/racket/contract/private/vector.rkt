@@ -187,8 +187,7 @@
                [else
                 (log-n-wrappers "immutable-vectorof-ho" val)
                 (cond
-                  [(and contract-count
-                        (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+                  [(and (should-enter-space-efficient-mode contract-count val)
                         (value-safe-for-space-efficient-mode? val chap-not-imp?))
                    (add-vector-space-efficient-wrapper
                     s-e-vector
@@ -204,7 +203,8 @@
                       (checked-set neg-party)
                       impersonator-prop:unwrapped val
                       impersonator-prop:space-efficient (cons s-e-vector neg-party)
-                      impersonator-prop:contract-count (add1 contract-count)
+                      impersonator-prop:contract-count
+                      (and contract-count (add1 contract-count))
                       impersonator-prop:count-wrapper-box count-wrapper-box
                       impersonator-prop:contracted ctc
                       impersonator-prop:blame full-blame))
@@ -225,8 +225,7 @@
                [else
                 (log-n-wrappers "mutable-vectorof-ho" val)
                 (cond
-                  [(and contract-count
-                        (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+                  [(and (should-enter-space-efficient-mode contract-count val)
                         (value-safe-for-space-efficient-mode? val chap-not-imp?))
                    (add-vector-space-efficient-wrapper
                     s-e-vector
@@ -242,7 +241,8 @@
                       (checked-set neg-party)
                       impersonator-prop:unwrapped val
                       impersonator-prop:space-efficient (cons s-e-vector neg-party)
-                      impersonator-prop:contract-count (add1 contract-count)
+                      impersonator-prop:contract-count
+                      (and contract-count (add1 contract-count))
                       impersonator-prop:count-wrapper-box count-wrapper-box
                       impersonator-prop:contracted ctc
                       impersonator-prop:blame full-blame))
@@ -449,8 +449,7 @@
             [else
              (log-n-wrappers "mutable-vector/c-ho" val)
              (cond
-               [(and contract-count
-                     (contract-count . >= . SPACE-EFFICIENT-LIMIT)
+               [(and (should-enter-space-efficient-mode contract-count val)
                      (value-safe-for-space-efficient-mode? val chap-not-imp?))
                 (add-vector-space-efficient-wrapper
                  s-e-mergable
@@ -471,7 +470,7 @@
                        blame+neg-party
                        ((vector-ref elem-neg-projs i) val neg-party)))
                    impersonator-prop:unwrapped val
-                   impersonator-prop:contract-count (add1 contract-count)
+                   impersonator-prop:contract-count (and contract-count (add1 contract-count))
                    impersonator-prop:count-wrapper-box count-wrapper-box
                    impersonator-prop:space-efficient (cons s-e-mergable neg-party)
                    impersonator-prop:contracted ctc

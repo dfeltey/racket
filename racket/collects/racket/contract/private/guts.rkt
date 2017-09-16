@@ -6,6 +6,7 @@
          "rand.rkt"
          "generate-base.rkt"
          "space-efficient-common.rkt"
+         (submod "space-efficient-common.rkt" properties)
          "../../private/math-predicates.rkt"
          racket/pretty
          racket/list
@@ -37,7 +38,7 @@
          has-impersonator-prop:count-wrapper-box?
          get-impersonator-prop:count-wrapper-box
          get-contract-count
-         SPACE-EFFICIENT-LIMIT
+         should-enter-space-efficient-mode
 
          has-contract? value-contract
          has-blame? value-blame
@@ -138,6 +139,19 @@
    (if (has-impersonator-prop:contract-count? val)
        (get-impersonator-prop:contact-count val)
        0)))
+
+;; There are 2 cases when we want to try to enter space-efficient mode
+;; 1. If there are aready at least SPACE-EFFICIENT-LIMIT number of contracts
+;;    on the value, or
+;; 2. If we are already in space-efficient mode and should try to stay in it
+;; We lose the count property when we shift to unsafe chaperone wrappers, so we have to
+;; check if there is a checking wrapper to see if we are in s-e mode
+(define (should-enter-space-efficient-mode maybe-count val)
+  (or
+   ;; There is a stack of supported contracts that can be collapsed already on the value
+   (and maybe-count (maybe-count . >= . SPACE-EFFICIENT-LIMIT))
+   ;; we are already in space-efficient mode, so we should try to stay in it
+   (has-impersonator-prop:checking-wrapper? val)))
 
 (define (contract-custom-write-property-proc stct port mode)
   (define (write-prefix)

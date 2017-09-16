@@ -632,25 +632,29 @@
       (cond
         [(and
           has-s-e-support?
-          (contract-count . >= . SPACE-EFFICIENT-LIMIT)
-          ;; TODO: this check is too strong here, really just need to check
-          ;; that the value can safely enter s-e mode
+          (should-enter-space-efficient-mode contract-count val)
+          (value-safe-for-space-efficient-mode? val chaperone?)
           (val-has-arrow-space-efficient-support? chaperone? val)
           (add-arrow-space-efficient-wrapper s-e-mergable val neg-party chaperone?)) => values]
         [chap/imp-func
+         (define count-wrapper-box (box #f))
          (log-n-wrappers "arrow-higher-order" val)
-         (add-conditioned-args
-          (chaperone-or-impersonate-procedure
-           val
-           chap/imp-func
-           impersonator-prop:contracted ctc
-           impersonator-prop:contract-count (add1 contract-count)
-           impersonator-prop:blame full-blame
-           impersonator-prop:unwrapped val)
-          [has-s-e-support? impersonator-prop:space-efficient s-e-prop]
-          #:not [(or post? (not rngs))
-                 impersonator-prop:application-mark
-                 (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))])]
+         (define wrapped
+           (add-conditioned-args
+            (chaperone-or-impersonate-procedure
+             val
+             chap/imp-func
+             impersonator-prop:contracted ctc
+             impersonator-prop:contract-count (and contract-count (add1 contract-count))
+             impersonator-prop:blame full-blame
+             impersonator-prop:unwrapped val)
+            [has-s-e-support? impersonator-prop:space-efficient s-e-prop
+                              impersonator-prop:count-wrapper-box count-wrapper-box]
+            #:not [(or post? (not rngs))
+                   impersonator-prop:application-mark
+                   (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))]))
+         (set-box! count-wrapper-box wrapped)
+         wrapped]
         [else val]))
     (cond
       [late-neg?
