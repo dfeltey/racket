@@ -33,12 +33,6 @@
          impersonator-prop:contracted
          impersonator-prop:blame
          impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped
-         impersonator-prop:contract-count
-         impersonator-prop:count-wrapper-box
-         has-impersonator-prop:count-wrapper-box?
-         get-impersonator-prop:count-wrapper-box
-         get-contract-count
-         should-enter-space-efficient-mode
 
          has-contract? value-contract
          has-blame? value-blame
@@ -100,58 +94,6 @@
 
          false/c-contract
          true/c-contract)
-
-(define SPACE-EFFICIENT-LIMIT 1)
-
-(define-values (impersonator-prop:contract-count
-                has-impersonator-prop:contract-count?
-                get-impersonator-prop:contact-count)
-  (make-impersonator-property 'impersonator-prop:contract-count))
-
-
-;; TODO: this is a BAD name ...
-(define-values (impersonator-prop:count-wrapper-box
-                has-impersonator-prop:count-wrapper-box?
-                get-impersonator-prop:count-wrapper-box)
-  (make-impersonator-property 'impersonator-prop:count-wrapper-box))
-
-;; TODO: this function needs to be MUCH more complicated
-;; NOTE: maybe this doesn't need to be complicated, can just update as typical
-;;       but when we have 10 ctcs and would switch to the new mode then can
-;;       traverse down to make sure and bail out entirely otherwise ...
-;; NOTE: I think it has to be both, we want to know ahead of time to not
-;;       try to collapse 10+ contracts if it's not necessary, but since there
-;;       are 2 entry points to s-e mode, we also need to be able to collapse down
-;;       without having a count ahead of time
-;;       we want to avoid using the s-e-styled chaperone wrappers unless we hvae to
-(define (get-contract-count val)
-  ;; if it's a procedure need to check procedure-impersonator*?
-  ;; otherwise just check impersonator? and return a #f count ... 
-
-  ;; Really want a way to shortcut most of this because if the count is
-  ;; #f, why bother checking the other stuff ...
-  (and
-   (if (has-impersonator-prop:count-wrapper-box? val)
-       (eq? val (unbox (get-impersonator-prop:count-wrapper-box val)))
-       ;; TODO: it might be ok to do the unsafe-chaperone-procedure wrapping around
-       ;;       a chaperoned procedure, but it is not around a chaperoned vector
-       (not (or (impersonator? val) (procedure-impersonator*? val))))
-   (if (has-impersonator-prop:contract-count? val)
-       (get-impersonator-prop:contact-count val)
-       0)))
-
-;; There are 2 cases when we want to try to enter space-efficient mode
-;; 1. If there are aready at least SPACE-EFFICIENT-LIMIT number of contracts
-;;    on the value, or
-;; 2. If we are already in space-efficient mode and should try to stay in it
-;; We lose the count property when we shift to unsafe chaperone wrappers, so we have to
-;; check if there is a checking wrapper to see if we are in s-e mode
-(define (should-enter-space-efficient-mode maybe-count val)
-  (or
-   ;; There is a stack of supported contracts that can be collapsed already on the value
-   (and maybe-count (maybe-count . >= . SPACE-EFFICIENT-LIMIT))
-   ;; we are already in space-efficient mode, so we should try to stay in it
-   (has-impersonator-prop:checking-wrapper? val)))
 
 (define (contract-custom-write-property-proc stct port mode)
   (define (write-prefix)

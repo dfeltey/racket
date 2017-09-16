@@ -645,11 +645,14 @@
              val
              chap/imp-func
              impersonator-prop:contracted ctc
-             impersonator-prop:contract-count (and contract-count (add1 contract-count))
              impersonator-prop:blame full-blame
              impersonator-prop:unwrapped val)
-            [has-s-e-support? impersonator-prop:space-efficient s-e-prop
-                              impersonator-prop:count-wrapper-box count-wrapper-box]
+            [has-s-e-support? impersonator-prop:space-efficient
+                              s-e-prop
+                              impersonator-prop:contract-count
+                              (and contract-count (add1 contract-count))
+                              impersonator-prop:count-wrapper-box
+                              count-wrapper-box]
             #:not [(or post? (not rngs))
                    impersonator-prop:application-mark
                    (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))]))

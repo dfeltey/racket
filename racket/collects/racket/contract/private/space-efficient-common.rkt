@@ -32,11 +32,20 @@
            get-impersonator-prop:outer-wrapper-box
            impersonator-prop:space-efficient
            has-impersonator-prop:space-efficient?
-           get-impersonator-prop:space-efficient))
+           get-impersonator-prop:space-efficient
+           impersonator-prop:contract-count
+           impersonator-prop:count-wrapper-box
+           has-impersonator-prop:count-wrapper-box?
+           get-impersonator-prop:count-wrapper-box
+           get-contract-count
+           should-enter-space-efficient-mode))
 
 (define-logger space-efficient-value-bailout)
 (define-logger space-efficient-contract-bailout)
 (define-logger space-efficient-merging)
+
+
+(define SPACE-EFFICIENT-LIMIT 1)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
@@ -57,6 +66,16 @@
                 get-impersonator-prop:space-efficient)
   (make-impersonator-property 'impersonator-prop:space-efficient))
 
+(define-values (impersonator-prop:contract-count
+                has-impersonator-prop:contract-count?
+                get-impersonator-prop:contact-count)
+  (make-impersonator-property 'impersonator-prop:contract-count))
+
+;; TODO: this is a BAD name ...
+(define-values (impersonator-prop:count-wrapper-box
+                has-impersonator-prop:count-wrapper-box?
+                get-impersonator-prop:count-wrapper-box)
+  (make-impersonator-property 'impersonator-prop:count-wrapper-box))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -271,3 +290,133 @@
                   chap-not-imp?)]
          [else #t])
        (bail "switching from imp to chap or vice versa"))))
+
+;; TODO: this function needs to be MUCH more complicated
+;; NOTE: maybe this doesn't need to be complicated, can just update as typical
+;;       but when we have 10 ctcs and would switch to the new mode then can
+;;       traverse down to make sure and bail out entirely otherwise ...
+;; NOTE: I think it has to be both, we want to know ahead of time to not
+;;       try to collapse 10+ contracts if it's not necessary, but since there
+;;       are 2 entry points to s-e mode, we also need to be able to collapse down
+;;       without having a count ahead of time
+;;       we want to avoid using the s-e-styled chaperone wrappers unless we hvae to
+(define (get-contract-count val)
+  ;; if it's a procedure need to check procedure-impersonator*?
+  ;; otherwise just check impersonator? and return a #f count ... 
+
+  ;; Really want a way to shortcut most of this because if the count is
+  ;; #f, why bother checking the other stuff ...
+  (and
+   (if (has-impersonator-prop:count-wrapper-box? val)
+       (eq? val (unbox (get-impersonator-prop:count-wrapper-box val)))
+       ;; TODO: it might be ok to do the unsafe-chaperone-procedure wrapping around
+       ;;       a chaperoned procedure, but it is not around a chaperoned vector
+       (not (or (impersonator? val) (procedure-impersonator*? val))))
+   (if (has-impersonator-prop:contract-count? val)
+       (get-impersonator-prop:contact-count val)
+       0)))
+
+;; There are 2 cases when we want to try to enter space-efficient mode
+;; 1. If there are aready at least SPACE-EFFICIENT-LIMIT number of contracts
+;;    on the value, or
+;; 2. If we are already in space-efficient mode and should try to stay in it
+;; We lose the count property when we shift to unsafe chaperone wrappers, so we have to
+;; check if there is a checking wrapper to see if we are in s-e mode
+(define (should-enter-space-efficient-mode maybe-count val)
+  (or
+   ;; There is a stack of supported contracts that can be collapsed already on the value
+   (and maybe-count (maybe-count . >= . SPACE-EFFICIENT-LIMIT))
+   ;; we are already in space-efficient mode, so we should try to stay in it
+   (has-impersonator-prop:checking-wrapper? val)))
+
+
+;; When we enter space-efficient mode, there may be a number of contracts
+;; on a value, so we need to traverse down the chain of contracts in order
+;; to merge all of them into a single space-efficient contract
+;; Generally, we want to use specific versions of the try-merge operation
+;; in this process, so this functions takes the try-merge operation as an argument
+;; because otherwise this code should be common for all space-efficient contracts
+#;
+(define (make-merging-operation try-merge make-checking-wrapper make-unsafe-wrapper)
+  ;; add-space-efficient-wrapper : space-efficient? a neg-party? boolean? -> a
+  (λ (s-e val neg-party chap-not-imp?)
+    (cond
+      ;; already in space-efficient mode
+      [(has-impersonator-prop:checking-wrapper? val)
+       (define s-e-prop (get-impersonator-prop:space-efficient val))
+       (define-values (merged-s-e new-neg)
+         (try-merge s-e neg-party (car s-e-prop) (cdr s-e-prop)))
+       (values merged-s-e
+               new-neg
+               (get-impersonator-prop:checking-wrapper val))]
+      ;; otherwise there are 2 cases ...
+      ;; has space-efficient contracts that can be collapsed
+      ;; it has a count 
+      [(has-impersonator-prop:count-wrapper-box? val)
+       (cond
+         ;; if the latest contract is counted 
+         [(eq? val (unbox (get-impersonator-prop:count-wrapper-box val)))
+          ;; do all the unwrapping and merging ....
+          ...]
+         [else
+          ;; there must be a chaperone or impersonator w/o s-e support on top of
+          ;; the last counted contract, so we need to bail ...
+          ;; can this be detected earlier so we can skip this code ??
+          ;; FIXME: NEED to bailout earlier for this case, because
+          ;; there is no reasonable value to return for the checking weapper ...
+          (values #f new-neg #f)])]
+      ;; no contract count, but is there s-e support?
+      ;; can that check be pushed earlier so that we
+      ;; can just wrap here without further checking?
+      [else
+       ;; Want to just wrap here ...
+       ;; so that should mean NO contract or chaperone here that is not supported
+       ;; no merging will happen here, so assuming no chaperones that will
+       ;; be in the way ... push the checking up earlier ...
+       (values s-e neg-party (make-checking-wrapper val chap-not-imp?))])))
+
+#|
+
+NOTES:
+
+These 3 properties:
+  contract-count
+  count-wrapper-box
+  space-efficient
+are all added in parallel, so checking any one of them is equivalent to checking the others
+contract-count present and #f then means no space-efficient support
+
+contract-count present and not-#f means need to check the wrapper box
+
+space-efficient is used to get the structure to merge
+
+contract-count missing means need to determine whether its a chaperone or not to see
+if the value can be wrapped ....
+
+
+entering s-e mode options:
+
+1. entering first time (has 10 contracts that support s-e mode ...)
+ - the count field is there
+ - check value has s-e support generally and for kind of ctc
+ - for vectors make sure unwrapped thing at bottom is not an impersonator
+   and for functions that it is not an impersonator*
+ - ok to traverse down and collapse them all
+
+2. entering first time directly: has no contracts
+  - has no space-efficient property
+  - check that value supports s-e mode generally and for kind of ctc
+  - no unfolding, so just wrap in s-e ctc
+
+3. entering first time directly: has arbitrary contracts ...
+   - if count is there and non-#f, we can just collapse
+   - if count is missing that means 
+   -
+
+
+4. already in s-e mode
+ - check if value supports s-e mode generally and for kind of ctc ...
+ - then just merge and done ...
+
+
+|#
