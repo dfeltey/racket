@@ -24,19 +24,9 @@
 
 ;; object contracts need to propagate properties across procedure->method
 (module+ properties
-  (provide impersonator-prop:checking-wrapper
-           has-impersonator-prop:checking-wrapper?
-           get-impersonator-prop:checking-wrapper
-           impersonator-prop:outer-wrapper-box
-           has-impersonator-prop:outer-wrapper-box?
-           get-impersonator-prop:outer-wrapper-box
-           impersonator-prop:space-efficient
+  (provide impersonator-prop:space-efficient
            has-impersonator-prop:space-efficient?
            get-impersonator-prop:space-efficient
-           impersonator-prop:contract-count
-           impersonator-prop:count-wrapper-box
-           has-impersonator-prop:count-wrapper-box?
-           get-impersonator-prop:count-wrapper-box
            get-contract-count
            should-enter-space-efficient-mode))
 
@@ -49,33 +39,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
-
-;; reference to the checking wrapper used in space-efficient mode
-(define-values (impersonator-prop:checking-wrapper
-                has-impersonator-prop:checking-wrapper?
-                get-impersonator-prop:checking-wrapper)
-  (make-impersonator-property 'impersonator-prop:checking-wrapper))
-;; reference to the outermost chaperone used by the space-efficient contracts
-;; needed to detect whether anyone but us is chaperoning values
-(define-values (impersonator-prop:outer-wrapper-box
-                has-impersonator-prop:outer-wrapper-box?
-                get-impersonator-prop:outer-wrapper-box)
-  (make-impersonator-property 'impersonator-prop:outer-wrapper-box))
 (define-values (impersonator-prop:space-efficient
                 has-impersonator-prop:space-efficient?
                 get-impersonator-prop:space-efficient)
   (make-impersonator-property 'impersonator-prop:space-efficient))
-
-(define-values (impersonator-prop:contract-count
-                has-impersonator-prop:contract-count?
-                get-impersonator-prop:contact-count)
-  (make-impersonator-property 'impersonator-prop:contract-count))
-
-;; TODO: this is a BAD name ...
-(define-values (impersonator-prop:count-wrapper-box
-                has-impersonator-prop:count-wrapper-box?
-                get-impersonator-prop:count-wrapper-box)
-  (make-impersonator-property 'impersonator-prop:count-wrapper-box))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

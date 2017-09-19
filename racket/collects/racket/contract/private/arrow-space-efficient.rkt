@@ -256,8 +256,7 @@
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
    impersonator-prop:blame (blame-add-missing-party
                             (multi-ho/c-latest-blame m/c)
-                            neg)
-   impersonator-prop:unwrapped val))
+                            neg)))
 
 (define (do-arrow-first-order-checks m/c val neg-party)
   (define checks (multi->-first-order-checks m/c))

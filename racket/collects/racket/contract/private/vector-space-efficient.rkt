@@ -190,8 +190,7 @@
    (make-vectorof-checking-wrapper #f (cons m/c neg-party))
    (make-vectorof-checking-wrapper #t (cons m/c neg-party))
    impersonator-prop:contracted ctc
-   impersonator-prop:blame blame
-   impersonator-prop:unwrapped val))
+   impersonator-prop:blame blame))
 
 (define (get-projection ctc)
   (lambda (val neg)

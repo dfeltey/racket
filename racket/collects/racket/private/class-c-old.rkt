@@ -10,7 +10,6 @@
          "../contract/combinator.rkt"
          (only-in "../contract/private/arrow-val-first.rkt" ->-internal ->*-internal)
          (only-in "../contract/private/case-arrow.rkt" case->-internal)
-         (only-in "../contract/private/guts.rkt" impersonator-prop:unwrapped has-impersonator-prop:unwrapped? get-impersonator-prop:unwrapped)
          (only-in "../contract/private/arr-d.rkt" ->d-internal)
          (submod "../contract/private/space-efficient-common.rkt" properties))
 
@@ -1711,20 +1710,9 @@
                           impersonator-prop:contracted (value-contract post-proj)
                           impersonator-prop:blame      (value-blame    post-proj)
                           ;; propagate impersonator properties, for space-efficient wrappers
-                          impersonator-prop:unwrapped (if (has-impersonator-prop:unwrapped? post-proj)
-                                                          (get-impersonator-prop:unwrapped  post-proj)
-                                                          orig)
                           (append (if (has-impersonator-prop:space-efficient? post-proj)
                                       (list impersonator-prop:space-efficient
                                             (get-impersonator-prop:space-efficient post-proj))
-                                      '())
-                                  (if (has-impersonator-prop:checking-wrapper? post-proj)
-                                      (list impersonator-prop:checking-wrapper
-                                            (get-impersonator-prop:checking-wrapper post-proj))
-                                      '())
-                                  (if (has-impersonator-prop:outer-wrapper-box? post-proj)
-                                      (list impersonator-prop:outer-wrapper-box
-                                            (get-impersonator-prop:outer-wrapper-box post-proj))
                                       '()))))))))
     
     ;; Handle external field contracts
