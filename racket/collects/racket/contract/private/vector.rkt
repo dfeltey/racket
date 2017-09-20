@@ -234,7 +234,8 @@
                    impersonator-prop:space-efficient s-e-prop
                    impersonator-prop:contracted ctc
                    impersonator-prop:blame (cons blame neg-party)))
-                (set-space-efficient-property-ref! s-e-prop wrapped)]))]
+                (set-space-efficient-property-ref! s-e-prop wrapped)
+                wrapped]))]
           [else
            (λ (val neg-party)
              (define old-s-e-prop (get-space-efficient-property val))
@@ -300,7 +301,8 @@
                    impersonator-prop:space-efficient s-e-prop
                    impersonator-prop:contracted ctc
                    impersonator-prop:blame (cons blame neg-party)))
-                (set-space-efficient-property-ref! s-e-prop wrapped)]))]))
+                (set-space-efficient-property-ref! s-e-prop wrapped)
+                wrapped]))]))
              (values late-neg-proj s-e-vector))))
 
 (define-values (prop:neg-blame-party prop:neg-blame-party? prop:neg-blame-party-get)
