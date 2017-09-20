@@ -177,7 +177,7 @@
      impersonator-prop:space-efficient s-e-prop
      impersonator-prop:contracted (multi-ho/c-latest-ctc s-e)
      impersonator-prop:blame (cons (multi-ho/c-latest-blame s-e) neg-party)))
-  (set-space-efficient-property-ref! wrapped)
+  (set-space-efficient-property-ref! s-e-prop wrapped)
   wrapped)
 
 (define (make-checking-wrapper unwrapped chap-not-imp?)
@@ -204,8 +204,9 @@
            #,(if (syntax-e #'maybe-closed-over-m/c)
                  #'maybe-closed-over-m/c
                  #'(get-impersonator-prop:space-efficient outermost)))
-         (define m/c (car prop))
-         (define neg (or (multi-ho/c-missing-party m/c) (cdr prop)))
+         (define m/c (space-efficient-wrapper-property-s-e prop))
+         ;; TODO: is this correct?
+         (define neg (multi-ho/c-missing-party m/c))
          (define field
            #,(if (syntax-e #'set?)
                  #'(multi-vector-set-ctcs m/c)
@@ -214,9 +215,9 @@
            (if (vector? field) (vector-ref field i) field))
          (define blame (blame-add-missing-party (multi-ho/c-latest-blame m/c) neg))
          (with-space-efficient-contract-continuation-mark
-           (with-contract-continuation-mark
-             blame
-             (space-efficient-guard s-e elt neg))))]))
+             (with-contract-continuation-mark
+                 blame
+               (space-efficient-guard s-e elt neg))))]))
 
 (define ref-wrapper (make-vectorof-checking-wrapper #f #f))
 (define set-wrapper (make-vectorof-checking-wrapper #t #f))

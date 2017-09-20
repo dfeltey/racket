@@ -39,7 +39,7 @@
 (define-logger space-efficient-merging)
 
 
-(define SPACE-EFFICIENT-LIMIT 1)
+(define SPACE-EFFICIENT-LIMIT 10)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data structures
