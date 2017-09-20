@@ -168,8 +168,16 @@
           [(flat-contract? elem-ctc)
            (define p? (flat-contract-predicate elem-ctc))
            (λ (val neg-party)
-             (define contract-count (get-contract-count val))
-             (define full-blame (blame-add-missing-party blame neg-party))
+             (define old-s-e-prop (get-space-efficient-property val))
+             (define safe-for-s-e
+               (if old-s-e-prop
+                   (and (space-efficient-property? old-s-e-prop)
+                        (eq? (space-efficient-property-ref old-s-e-prop) val))
+                   (not (impersonator? val))))
+             (define wrapper-count
+               (if (and safe-for-s-e (space-efficient-count-property? old-s-e-prop))
+                   (space-efficient-count-property-count old-s-e-prop)
+                   0))
              (define (raise-blame val . args)
                (apply raise-blame-error blame #:missing-party neg-party val args))
              (check val raise-blame #f)
@@ -184,71 +192,116 @@
                          (unless (p? e)
                            (elem-pos-proj e neg-party)))
                        val)]
+               [(not safe-for-s-e)
+                (chaperone-or-impersonate-vector
+                 val
+                 (checked-ref neg-party)
+                 (checked-set neg-party)
+                 impersonator-prop:space-efficient no-s-e-support
+                 impersonator-prop:contracted ctc
+                 impersonator-prop:blame (cons blame neg-party))]
+               [(space-efficient-wrapper-property? old-s-e-prop)
+                (vector-enter-space-efficient-mode/continue
+                 s-e-vector
+                 val
+                 neg-party
+                 (space-efficient-wrapper-property-s-e old-s-e-prop)
+                 ;; TODO: what to do about neg parties ...
+                 (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
+                 chap-not-imp?)]
+               [(and
+                 (space-efficient-count-property? old-s-e-prop)
+                 (wrapper-count . >= . SPACE-EFFICIENT-LIMIT))
+                (vector-enter-space-efficient-mode/collapse
+                 s-e-vector
+                 val
+                 neg-party
+                 old-s-e-prop
+                 chap-not-imp?)]
                [else
-                (log-n-wrappers "immutable-vectorof-ho" val)
-                (cond
-                  [(and (should-enter-space-efficient-mode contract-count val)
-                        (value-safe-for-space-efficient-mode? val chap-not-imp?))
-                   (add-vector-space-efficient-wrapper
-                    s-e-vector
-                    val
-                    neg-party
-                    chap-not-imp?)]
-                  [else
-                   (define count-wrapper-box (box #f))
-                   (define wrapped
-                     (chaperone-or-impersonate-vector
-                      val
-                      (checked-ref neg-party)
-                      (checked-set neg-party)
-                      impersonator-prop:unwrapped val
-                      impersonator-prop:space-efficient (cons s-e-vector neg-party)
-                      impersonator-prop:contract-count
-                      (and contract-count (add1 contract-count))
-                      impersonator-prop:count-wrapper-box count-wrapper-box
-                      impersonator-prop:contracted ctc
-                      impersonator-prop:blame full-blame))
-                   (set-box! count-wrapper-box wrapped)
-                   wrapped])]))]
+                (define s-e-prop
+                  (space-efficient-count-property
+                   #f
+                   s-e-vector
+                   neg-party
+                   (add1 wrapper-count)
+                   (or old-s-e-prop val)))
+                (define wrapped
+                  (chaperone-or-impersonate-vector
+                   val
+                   (checked-ref neg-party)
+                   (checked-set neg-party)
+                   impersonator-prop:space-efficient s-e-prop
+                   impersonator-prop:contracted ctc
+                   impersonator-prop:blame (cons blame neg-party)))
+                (set-space-efficient-property-ref! s-e-prop wrapped)]))]
           [else
            (λ (val neg-party)
-             (define contract-count (get-contract-count val))
-             (define full-blame (blame-add-missing-party blame neg-party))
+             (define old-s-e-prop (get-space-efficient-property val))
+             (define safe-for-s-e
+               (if old-s-e-prop
+                   (and (space-efficient-property? old-s-e-prop)
+                        (eq? (space-efficient-property-ref old-s-e-prop) val))
+                   (not (impersonator? val))))
+               (define wrapper-count
+                 (if (and safe-for-s-e (space-efficient-count-property? old-s-e-prop))
+                     (space-efficient-count-property-count old-s-e-prop)
+                     0))
              (define (raise-blame val . args)
                (apply raise-blame-error blame #:missing-party neg-party val args))
+             ;; can we rework this to avoid the raise-blame definition
+             ;; change check to get extra arguments, and either return or raise blame itself
+             ;; defunctionalize
              (check val raise-blame #f)
              (cond
                [(and (immutable? val) (not (chaperone? val)))
                 (vector->immutable-vector
                  (for/vector #:length (vector-length val) ([e (in-vector val)])
                    (elem-pos-proj e neg-party)))]
+               [(not safe-for-s-e)
+                (chaperone-or-impersonate-vector
+                 val
+                 (checked-ref neg-party)
+                 (checked-set neg-party)
+                 impersonator-prop:space-efficient no-s-e-support
+                 impersonator-prop:contracted ctc
+                 impersonator-prop:blame (cons blame neg-party))]
+               [(space-efficient-wrapper-property? old-s-e-prop)
+                (vector-enter-space-efficient-mode/continue
+                 s-e-vector
+                 val
+                 neg-party
+                 (space-efficient-wrapper-property-s-e old-s-e-prop)
+                 ;; TODO: what to do about neg parties ...
+                 (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
+                 chap-not-imp?)]
+               [(and
+                 (space-efficient-count-property? old-s-e-prop)
+                 (wrapper-count . >= . SPACE-EFFICIENT-LIMIT))
+                (vector-enter-space-efficient-mode/collapse
+                 s-e-vector
+                 val
+                 neg-party
+                 old-s-e-prop
+                 chap-not-imp?)]
                [else
-                (log-n-wrappers "mutable-vectorof-ho" val)
-                (cond
-                  [(and (should-enter-space-efficient-mode contract-count val)
-                        (value-safe-for-space-efficient-mode? val chap-not-imp?))
-                   (add-vector-space-efficient-wrapper
-                    s-e-vector
-                    val
-                    neg-party
-                    chap-not-imp?)]
-                  [else
-                   (define count-wrapper-box (box #f))
-                   (define wrapped
-                     (chaperone-or-impersonate-vector
-                      val
-                      (checked-ref neg-party)
-                      (checked-set neg-party)
-                      impersonator-prop:unwrapped val
-                      impersonator-prop:space-efficient (cons s-e-vector neg-party)
-                      impersonator-prop:contract-count
-                      (and contract-count (add1 contract-count))
-                      impersonator-prop:count-wrapper-box count-wrapper-box
-                      impersonator-prop:contracted ctc
-                      impersonator-prop:blame full-blame))
-                   (set-box! count-wrapper-box wrapped)
-                   wrapped])]))]))
-      (values late-neg-proj s-e-vector))))
+                (define s-e-prop
+                  (space-efficient-count-property
+                   #f
+                   s-e-vector
+                   neg-party
+                   (add1 wrapper-count)
+                   (or old-s-e-prop val)))
+                (define wrapped
+                  (chaperone-or-impersonate-vector
+                   val
+                   (checked-ref neg-party)
+                   (checked-set neg-party)
+                   impersonator-prop:space-efficient s-e-prop
+                   impersonator-prop:contracted ctc
+                   impersonator-prop:blame (cons blame neg-party)))
+                (set-space-efficient-property-ref! s-e-prop wrapped)]))]))
+             (values late-neg-proj s-e-vector))))
 
 (define-values (prop:neg-blame-party prop:neg-blame-party? prop:neg-blame-party-get)
   (make-impersonator-property 'prop:neg-blame-party))
@@ -432,11 +485,12 @@
         (vector-set! elem-neg-projs i elem-neg-proj)
         (vector-set! elem-s-e-poss i elem-s-e-pos)
         (vector-set! elem-s-e-negs i elem-s-e-neg))
-      (define s-e-mergable
+      (define s-e-vector
         (build-s-e-vector elem-s-e-poss elem-s-e-negs ctc blame chap-not-imp?))
       (define late-neg-proj
         (λ (val neg-party)
-          (define contract-count (get-contract-count val))
+          (define old-s-e-prop (get-space-efficient-property val))
+          (define safe-for-s-e? #f)
           (define full-blame (blame-add-missing-party blame neg-party))
           (check-vector/c val blame immutable elems-length neg-party)
           (define blame+neg-party (cons blame neg-party))
@@ -447,37 +501,23 @@
                                [i (in-naturals)])
                       ((vector-ref elem-pos-projs i) e neg-party)))]
             [else
-             (log-n-wrappers "mutable-vector/c-ho" val)
-             (cond
-               [(and (should-enter-space-efficient-mode contract-count val)
-                     (value-safe-for-space-efficient-mode? val chap-not-imp?))
-                (add-vector-space-efficient-wrapper
-                 s-e-mergable
-                 val
-                 neg-party
-                 chap-not-imp?)]
-               [else
-                (define count-wrapper-box (box #f))
-                (define wrapped
-                  (vector-wrapper
-                   val
-                   (λ (vec i val)
-                     (with-contract-continuation-mark
-                       blame+neg-party
-                       ((vector-ref elem-pos-projs i) val neg-party)))
-                   (λ (vec i val)
-                     (with-contract-continuation-mark
-                       blame+neg-party
-                       ((vector-ref elem-neg-projs i) val neg-party)))
-                   impersonator-prop:unwrapped val
-                   impersonator-prop:contract-count (and contract-count (add1 contract-count))
-                   impersonator-prop:count-wrapper-box count-wrapper-box
-                   impersonator-prop:space-efficient (cons s-e-mergable neg-party)
-                   impersonator-prop:contracted ctc
-                   impersonator-prop:blame full-blame))
-                (set-box! count-wrapper-box wrapped)
-                wrapped])])))
-      (values late-neg-proj s-e-mergable))))
+             (define wrapped
+               (vector-wrapper
+                val
+                (λ (vec i val)
+                  (with-contract-continuation-mark
+                    blame+neg-party
+                    ((vector-ref elem-pos-projs i) val neg-party)))
+                (λ (vec i val)
+                  (with-contract-continuation-mark
+                    blame+neg-party
+                    ((vector-ref elem-neg-projs i) val neg-party)))
+                ;; FIXME
+                impersonator-prop:space-efficient no-s-e-support
+                impersonator-prop:contracted ctc
+                impersonator-prop:blame full-blame))
+             wrapped])))
+      (values late-neg-proj s-e-vector))))
 
 (define-struct (chaperone-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc

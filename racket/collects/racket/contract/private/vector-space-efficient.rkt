@@ -8,7 +8,8 @@
 
 (provide build-s-e-vector
          vector-space-efficient-guard
-         add-vector-space-efficient-wrapper)
+         vector-enter-space-efficient-mode/continue
+         vector-enter-space-efficient-mode/collapse)
 
 (module+ for-testing
   (provide  multi-vector? multi-vector-ref-ctcs multi-vector-set-ctcs))
@@ -115,45 +116,85 @@
 (define (vector-space-efficient-guard s-e val neg-party)
   (do-vector-first-order-checks s-e val neg-party)
   (define chap-not-imp? (chaperone-multi-vector? s-e))
+  (define prop (get-space-efficient-property val))
+  ;; FIXME: define this as a function ...
+  (define safe-for-s-e?
+    (if prop
+        (and (space-efficient-property? prop)
+             (eq? (space-efficient-property-ref prop) val))
+        (not (impersonator? val))))
   (cond
-    [(value-safe-for-space-efficient-mode? val chap-not-imp?)
-     (add-vector-space-efficient-wrapper s-e val neg-party chap-not-imp?)]
-    [else (bail-to-regular-wrapper s-e val neg-party)]))
+    ;; not safe, bail out
+    [(not safe-for-s-e?) (bail-to-regular-wrapper s-e val neg-party)]
+    ;; already in s-e mode, so stay in
+    [(space-efficient-wrapper-property? prop)
+     (vector-enter-space-efficient-mode/continue
+      s-e
+      val
+      neg-party
+      (space-efficient-wrapper-property-s-e prop)
+      (space-efficient-wrapper-property-checking-wrapper prop)
+      chap-not-imp?)]
+    ;; need to collapse contracts ...
+    [(space-efficient-count-property? prop)
+     (vector-enter-space-efficient-mode/collapse
+      s-e
+      val
+      neg-party
+      prop
+      chap-not-imp?)]
+    ;; else enter directly
+    [else
+     (vector-enter-space-efficient-mode/direct s-e val neg-party chap-not-imp?)]))
 
-(define (add-vector-space-efficient-wrapper s-e val neg-party chap-not-imp?)
-  (define-values (merged-s-e new-neg checking-wrapper)
-    (cond
-      [(has-impersonator-prop:checking-wrapper? val)
-       (define s-e-prop (get-impersonator-prop:space-efficient val))
-       (define-values (merged-s-e new-neg)
-         (vector-try-merge s-e neg-party (car s-e-prop) (cdr s-e-prop)))
-       (values merged-s-e
-               new-neg
-               (get-impersonator-prop:checking-wrapper val))]
-      [else
-       (values s-e neg-party (make-checking-wrapper val chap-not-imp?))]))
-  (cond
-    [merged-s-e
-     (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
-     (define b (box #f))
-     (define res
-       (chap/imp
-        checking-wrapper
-        #f
-        #f
-        impersonator-prop:checking-wrapper checking-wrapper
-        impersonator-prop:outer-wrapper-box b
-        impersonator-prop:space-efficient (cons merged-s-e new-neg)
-        impersonator-prop:contracted (multi-ho/c-latest-ctc merged-s-e)
-        impersonator-prop:blame (blame-add-missing-party (multi-ho/c-latest-blame merged-s-e) neg-party)))
-     (set-box! b res)
-     res]
-    [else (bail-to-regular-wrapper s-e val neg-party)]))
+(define vector-enter-space-efficient-mode/continue
+  (make-enter-space-efficient-mode/continue
+   vector-try-merge
+   add-space-efficient-vector-chaperone
+   bail-to-regular-wrapper))
+
+(define vector-enter-space-efficient-mode/collapse
+  (make-enter-space-efficient-mode/collapse
+   make-unsafe-checking-wrapper
+   add-space-efficient-vector-chaperone
+   vector-try-merge
+   bail-to-regular-wrapper))
+
+(define vector-enter-space-efficient-mode/direct
+  (make-enter-space-efficient-mode/direct
+   make-checking-wrapper
+   add-space-efficient-vector-chaperone))
+
+(define (add-space-efficient-vector-chaperone s-e neg-party checking-wrapper chap-not-imp?)
+  (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
+  (define s-e-prop
+    (space-efficient-wrapper-property #f s-e checking-wrapper))
+  (define wrapped
+    (chap/imp
+     checking-wrapper
+     #f
+     #f
+     impersonator-prop:space-efficient s-e-prop
+     impersonator-prop:contracted (multi-ho/c-latest-ctc s-e)
+     impersonator-prop:blame (cons (multi-ho/c-latest-blame s-e) neg-party)))
+  (set-space-efficient-property-ref! wrapped)
+  wrapped)
 
 (define (make-checking-wrapper unwrapped chap-not-imp?)
   (if chap-not-imp?
       (chaperone-vector* unwrapped ref-wrapper set-wrapper)
       (impersonate-vector* unwrapped ref-wrapper set-wrapper)))
+
+(define (make-unsafe-checking-wrapper val unwrapped chap-not-imp?)
+  (if chap-not-imp?
+      (chaperone-vector*
+       (unsafe-chaperone-vector val unwrapped)
+       ref-wrapper
+       set-wrapper)
+      (impersonate-vector*
+       (unsafe-impersonate-vector val unwrapped)
+       ref-wrapper
+       set-wrapper)))
 
 (define-syntax (make-vectorof-checking-wrapper stx)
   (syntax-case stx ()

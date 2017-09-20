@@ -144,22 +144,13 @@
   (define chap-not-imp? (chaperone-multi->? s-e))
   (cond
     [(and (val-has-arrow-space-efficient-support? val chap-not-imp?)
-          (value-safe-for-space-efficient-mode? val chap-not-imp?))
+          #f)
      (add-arrow-space-efficient-wrapper s-e val neg-party chap-not-imp?)]
     [else (bail-to-regular-wrapper s-e val neg-party)]))
 
 (define (add-arrow-space-efficient-wrapper s-e val neg-party chap-not-imp?)
-  (define-values (merged-s-e new-neg checking-wrapper)
-    (cond
-      [(has-impersonator-prop:checking-wrapper? val)
-       (define s-e-prop (get-impersonator-prop:space-efficient val))
-       (define-values (merged-s-e new-neg)
-         (arrow-try-merge s-e neg-party (car s-e-prop) (cdr s-e-prop)))
-       (values merged-s-e
-               new-neg
-               (get-impersonator-prop:checking-wrapper val))]
-      [else
-       (values s-e neg-party (make-checking-wrapper val chap-not-imp?))]))
+  (error "bad")
+  #;
   (cond
     [merged-s-e
      (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
