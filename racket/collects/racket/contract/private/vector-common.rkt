@@ -16,25 +16,52 @@
 (define-struct base-vector/c (elems immutable))
 
 
-(define (do-check-vectorof val fail immutable)
-  (unless (vector? val)
-    (fail val '(expected "a vector," given: "~e") val))
+(define (do-check-vectorof val immutable blame neg-party raise-blame?)
   (cond
-    [(eq? immutable #t)
-     (unless (immutable? val)
-       (fail val '(expected "an immutable vector" given: "~e") val))]
-    [(eq? immutable #f)
-     (when (immutable? val)
-       (fail val '(expected "an mutable vector" given: "~e") val))]
-    [else (void)]))
+    [(vector? val)
+     (cond
+       [(eq? immutable #t)
+        (cond
+          [(immutable? val) #t]
+          [raise-blame?
+           (raise-blame-error
+            blame
+            #:missing-party neg-party
+            val
+            '(expected "an immutable vector" given: "~e")
+            val)]
+          [else #f])]
+       [(eq? immutable #f)
+        (cond
+          [(not (immutable? val)) #t]
+          [raise-blame?
+           (raise-blame-error
+            blame
+            #:missing-party neg-party
+            val
+            '(expected "an mutable vector" given: "~e")
+            val)]
+          [else #f])]
+       [else #t])]
+    [raise-blame?
+     (raise-blame-error
+      blame
+      #:missing-party neg-party
+      val
+      '(expected "an immutable vector" given: "~e")
+      val)]
+    [else #f]))
 
 (define (check-vector/c val blame immutable length [neg-party #f])
   (define (raise-blame val . args)
     (apply raise-blame-error blame #:missing-party neg-party val args))
-  (do-check-vectorof val raise-blame immutable)
+  (do-check-vectorof val immutable blame neg-party #t)
   (unless (or (not length) (= (vector-length val) length))
-    (raise-blame val
-                 '(expected: "a vector of ~a element~a" given: "~e")
-                 length
-                 (if (= length 1) "" "s")
-                 val)))
+    (raise-blame-error
+     blame
+     #:missing-party neg-party
+     val
+     '(expected: "a vector of ~a element~a" given: "~e")
+     length
+     (if (= length 1) "" "s")
+     val)))
