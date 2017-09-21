@@ -492,8 +492,15 @@
       (define late-neg-proj
         (λ (val neg-party)
           (define old-s-e-prop (get-space-efficient-property val))
-          (define safe-for-s-e? #f)
-          (define full-blame (blame-add-missing-party blame neg-party))
+          (define safe-for-s-e
+            (if old-s-e-prop
+                (and (space-efficient-property? old-s-e-prop)
+                     (eq? (space-efficient-property-ref old-s-e-prop) val))
+                (not (impersonator? val))))
+          (define wrapper-count
+            (if (and safe-for-s-e (space-efficient-count-property? old-s-e-prop))
+                (space-efficient-count-property-count old-s-e-prop)
+                0))
           (check-vector/c val blame immutable elems-length neg-party)
           (define blame+neg-party (cons blame neg-party))
           (cond
@@ -502,7 +509,45 @@
                     (for/list ([e (in-vector val)]
                                [i (in-naturals)])
                       ((vector-ref elem-pos-projs i) e neg-party)))]
+            [(not safe-for-s-e)
+             (vector-wrapper
+              val
+              (λ (vec i val)
+                (with-contract-continuation-mark
+                    blame+neg-party
+                  ((vector-ref elem-pos-projs i) val neg-party)))
+              (λ (vec i val)
+                (with-contract-continuation-mark
+                    blame+neg-party
+                  ((vector-ref elem-neg-projs i) val neg-party)))
+              impersonator-prop:space-efficient no-s-e-support
+              impersonator-prop:contracted ctc
+              impersonator-prop:blame blame+neg-party)]
+            [(space-efficient-wrapper-property? old-s-e-prop)
+             (vector-enter-space-efficient-mode/continue
+              s-e-vector
+              val
+              neg-party
+              (space-efficient-wrapper-property-s-e old-s-e-prop)
+              (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
+              chap-not-imp?)]
+            [(and
+              (space-efficient-count-property? old-s-e-prop)
+              (wrapper-count . >= . SPACE-EFFICIENT-LIMIT))
+             (vector-enter-space-efficient-mode/collapse
+              s-e-vector
+              val
+              neg-party
+              old-s-e-prop
+              chap-not-imp?)]
             [else
+             (define s-e-prop
+               (space-efficient-count-property
+                #f
+                s-e-vector
+                neg-party
+                (add1 wrapper-count)
+                (or old-s-e-prop val)))
              (define wrapped
                (vector-wrapper
                 val
@@ -514,10 +559,10 @@
                   (with-contract-continuation-mark
                     blame+neg-party
                     ((vector-ref elem-neg-projs i) val neg-party)))
-                ;; FIXME
-                impersonator-prop:space-efficient no-s-e-support
+                impersonator-prop:space-efficient s-e-prop
                 impersonator-prop:contracted ctc
-                impersonator-prop:blame full-blame))
+                impersonator-prop:blame blame+neg-party))
+             (set-space-efficient-property-ref! s-e-prop wrapped)
              wrapped])))
       (values late-neg-proj s-e-vector))))
 
