@@ -11,9 +11,9 @@
          "arity-checking.rkt"
          (for-syntax racket/base))
 
-(provide val-has-arrow-space-efficient-support?
-         arrow-space-efficient-guard
-         add-arrow-space-efficient-wrapper
+(provide arrow-enter-space-efficient-mode/continue
+         arrow-enter-space-efficient-mode/collapse
+         val-has-arrow-space-efficient-support?
          ->-contract-has-space-efficient-support?
          build-s-e-arrow)
 (module+ for-testing
@@ -113,7 +113,7 @@
          (bail "not base arrow")
          #f]))
 
-(define (val-has-arrow-space-efficient-support? chap-not-imp? val)
+(define (val-has-arrow-space-efficient-support? val)
   (define-syntax-rule (bail reason)
     (begin
       (log-space-efficient-value-bailout-info (format "arrow: ~a" reason))
@@ -130,7 +130,6 @@
    (or (let-values ([(man opt) (procedure-keywords val)]) ; no keyword arguments
          (and (null? man) (null? opt)))
        (bail "has keyword args"))
-
    ;; TODO: we can maybe support non single return value functions
    (or (equal? (procedure-result-arity val) 1)
        (bail "can't prove single-return-value"))))
@@ -138,41 +137,83 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wrapper management and contract checking
 
-;; space-efficient? × α × (or/c blame? #f) → α
 (define (arrow-space-efficient-guard s-e val neg-party)
   (do-arrow-first-order-checks s-e val neg-party)
   (define chap-not-imp? (chaperone-multi->? s-e))
+  (define prop (get-space-efficient-property val))
+  (define safe-for-s-e?
+    (if prop
+        (and (space-efficient-property? prop)
+             (eq? (space-efficient-property-ref prop) val))
+        (val-has-arrow-space-efficient-support? val)))
   (cond
-    [(and (val-has-arrow-space-efficient-support? val chap-not-imp?)
-          #f)
-     (add-arrow-space-efficient-wrapper s-e val neg-party chap-not-imp?)]
-    [else (bail-to-regular-wrapper s-e val neg-party)]))
+    [(not safe-for-s-e?) (bail-to-regular-wrapper s-e val neg-party)]
+    [(space-efficient-wrapper-property? prop)
+     (arrow-enter-space-efficient-mode/continue
+      s-e
+      val
+      neg-party
+      (get-impersonator-prop:merged val)
+      (space-efficient-wrapper-property-checking-wrapper prop)
+      chap-not-imp?)]
+    [(space-efficient-count-property? prop)
+     (arrow-enter-space-efficient-mode/collapse
+      s-e
+      val
+      neg-party
+      prop
+      chap-not-imp?)]
+    ;; else enter directly
+    [else
+     (arrow-enter-space-efficient-mode/direct s-e val neg-party chap-not-imp?)]))
 
-(define (add-arrow-space-efficient-wrapper s-e val neg-party chap-not-imp?)
-  (error "bad")
-  #;
-  (cond
-    [merged-s-e
-     (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
-     (define blame (multi-ho/c-latest-blame merged-s-e))
-     (define b (box #f))
-     (define res
-       (chap/imp
-        checking-wrapper
-        #f
-        impersonator-prop:checking-wrapper checking-wrapper
-        impersonator-prop:outer-wrapper-box b
-        impersonator-prop:space-efficient (cons merged-s-e new-neg)
-        impersonator-prop:contracted (multi-ho/c-latest-ctc merged-s-e)
-        impersonator-prop:blame (blame-add-missing-party blame neg-party)))
-     (set-box! b res)
-     res]
-    [else (bail-to-regular-wrapper s-e val neg-party)]))
+(define arrow-enter-space-efficient-mode/continue
+  (make-enter-space-efficient-mode/continue
+   arrow-try-merge
+   add-space-efficient-arrow-chaperone
+   bail-to-regular-wrapper))
+
+(define arrow-enter-space-efficient-mode/collapse
+  (make-enter-space-efficient-mode/collapse
+   make-unsafe-checking-wrapper
+   add-space-efficient-arrow-chaperone
+   arrow-try-merge
+   bail-to-regular-wrapper))
+
+(define arrow-enter-space-efficient-mode/direct
+  (make-enter-space-efficient-mode/direct
+   make-checking-wrapper
+   add-space-efficient-arrow-chaperone))
+
+(define (add-space-efficient-arrow-chaperone merged s-e neg-party checking-wrapper chap-not-imp?)
+  (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
+  (define s-e-prop
+    (space-efficient-wrapper-property #f checking-wrapper))
+  (define wrapped
+    (chap/imp
+     checking-wrapper
+     #f
+     impersonator-prop:space-efficient s-e-prop
+     impersonator-prop:merged merged
+     impersonator-prop:contracted (multi-ho/c-latest-ctc s-e)
+     impersonator-prop:blame (cons (multi-ho/c-latest-blame s-e) neg-party)))
+  (set-space-efficient-property-ref! s-e-prop wrapped)
+  wrapped)
+
 
 (define (make-checking-wrapper unwrapped chap-not-imp?)
   (if chap-not-imp?
       (chaperone-procedure* unwrapped arrow-wrapper)
       (impersonate-procedure* unwrapped arrow-wrapper)))
+
+(define (make-unsafe-checking-wrapper val unwrapped chap-not-imp?)
+  (if chap-not-imp?
+      (chaperone-procedure*
+       (unsafe-chaperone-procedure val unwrapped)
+       arrow-wrapper)
+      (impersonate-procedure*
+       (unsafe-impersonate-procedure val unwrapped)
+       arrow-wrapper)))
 
 ;; If requested, we can log the arities of the contracts that end up being
 ;; space-efficient. That can inform whether we should have arity-specific
@@ -195,18 +236,15 @@
      ;; Note: it would be more efficient to have arity-specific wrappers here,
      ;;   as opposed to using a rest arg.
      #`(λ (outermost-chaperone . args)
-         (define prop
+         (define m/c
            #,(if (syntax-e #'maybe-closed-over-m/c)
                  #'maybe-closed-over-m/c ; we did close over the contract
                  ;; otherwise, get it from the impersonator property
-                 #'(get-impersonator-prop:space-efficient outermost-chaperone)))
-         (define m/c (car prop))
-         (define neg (or (multi-ho/c-missing-party m/c) (cdr prop)))
+                 #'(get-impersonator-prop:merged outermost-chaperone)))
+         (define neg (multi-ho/c-missing-party m/c))
          (define doms   (multi->-doms         m/c))
          (define rng    (multi->-rng          m/c))
-         (define blame  (blame-add-missing-party
-                         (multi-ho/c-latest-blame m/c) ; latest is ok here
-                         neg))
+         (define blame  (cons (multi-ho/c-latest-blame m/c) neg))
          (define n-args (length args))
          (define n-doms (length doms))
          (log-space-efficient-contract-arrow-wrapper-arity-info
@@ -224,6 +262,7 @@
              (with-space-efficient-contract-continuation-mark
                (with-contract-continuation-mark
                  blame
+                 ;; TODO: is neg the right thing to pass here?
                  (space-efficient-guard rng result neg)))))
          (apply values
                 rng-checker
@@ -232,10 +271,12 @@
                   (with-space-efficient-contract-continuation-mark
                     (with-contract-continuation-mark
                       blame
+                      ;; TODO: is neg the right thing to pass here?
                       (space-efficient-guard dom arg neg))))))]))
 
 (define arrow-wrapper (make-interposition-procedure #f))
 
+;; FIXME: wrong checking wrapper on bailout
 ;; create a regular checking wrapper from a space-efficient wrapper for a value
 ;; that can't use space-efficient wrapping
 (define (bail-to-regular-wrapper m/c val neg-party)
@@ -243,9 +284,10 @@
   (define neg (or (multi-ho/c-missing-party m/c) neg-party))
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
-   (make-interposition-procedure (cons m/c neg-party))
+   (make-interposition-procedure m/c)
+   impersonator-prop:space-efficient no-s-e-support
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
-   impersonator-prop:blame (blame-add-missing-party
+   impersonator-prop:blame (cons
                             (multi-ho/c-latest-blame m/c)
                             neg)))
 

@@ -132,7 +132,7 @@
       s-e
       val
       neg-party
-      (space-efficient-wrapper-property-s-e prop)
+      (get-impersonator-prop:merged val)
       (space-efficient-wrapper-property-checking-wrapper prop)
       chap-not-imp?)]
     ;; need to collapse contracts ...
@@ -165,16 +165,17 @@
    make-checking-wrapper
    add-space-efficient-vector-chaperone))
 
-(define (add-space-efficient-vector-chaperone s-e neg-party checking-wrapper chap-not-imp?)
+(define (add-space-efficient-vector-chaperone merged s-e neg-party checking-wrapper chap-not-imp?)
   (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
   (define s-e-prop
-    (space-efficient-wrapper-property #f s-e checking-wrapper))
+    (space-efficient-wrapper-property #f checking-wrapper))
   (define wrapped
     (chap/imp
      checking-wrapper
      #f
      #f
      impersonator-prop:space-efficient s-e-prop
+     impersonator-prop:merged merged
      impersonator-prop:contracted (multi-ho/c-latest-ctc s-e)
      impersonator-prop:blame (cons (multi-ho/c-latest-blame s-e) neg-party)))
   (set-space-efficient-property-ref! s-e-prop wrapped)
@@ -200,11 +201,10 @@
   (syntax-case stx ()
     [(_ set? maybe-closed-over-m/c)
      #`(λ (outermost v i elt)
-         (define prop
+         (define m/c
            #,(if (syntax-e #'maybe-closed-over-m/c)
                  #'maybe-closed-over-m/c
-                 #'(get-impersonator-prop:space-efficient outermost)))
-         (define m/c (space-efficient-wrapper-property-s-e prop))
+                 #'(get-impersonator-prop:merged outermost)))
          ;; TODO: is this correct?
          (define neg (multi-ho/c-missing-party m/c))
          (define field
@@ -213,7 +213,7 @@
                  #'(multi-vector-ref-ctcs m/c)))
          (define s-e
            (if (vector? field) (vector-ref field i) field))
-         (define blame (blame-add-missing-party (multi-ho/c-latest-blame m/c) neg))
+         (define blame (cons (multi-ho/c-latest-blame m/c) neg))
          (with-space-efficient-contract-continuation-mark
              (with-contract-continuation-mark
                  blame
@@ -225,12 +225,13 @@
 (define (bail-to-regular-wrapper m/c val neg-party)
   (define chap-not-imp? (chaperone-multi-vector? m/c))
   (define neg (or (multi-ho/c-missing-party m/c) neg-party))
-  (define blame (blame-add-missing-party (multi-ho/c-latest-blame m/c) neg))
+  (define blame (cons (multi-ho/c-latest-blame m/c) neg))
   (define ctc (multi-ho/c-latest-ctc m/c))
   ((if chap-not-imp? chaperone-vector* impersonate-vector*)
    val
-   (make-vectorof-checking-wrapper #f (cons m/c neg-party))
-   (make-vectorof-checking-wrapper #t (cons m/c neg-party))
+   (make-vectorof-checking-wrapper #f m/c)
+   (make-vectorof-checking-wrapper #t m/c)
+   impersonator-prop:space-efficient no-s-e-support
    impersonator-prop:contracted ctc
    impersonator-prop:blame blame))
 

@@ -52,7 +52,7 @@
       val)]
     [else #f]))
 
-(define (check-vector/c val blame immutable length [neg-party #f])
+(define (check-vector/c val blame immutable length neg-party)
   (define (raise-blame val . args)
     (apply raise-blame-error blame #:missing-party neg-party val args))
   (do-check-vectorof val immutable blame neg-party #t)

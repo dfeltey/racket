@@ -486,15 +486,15 @@
 
   (contract-eval '(require (submod racket/contract/private/vector-space-efficient for-testing)))
   (contract-eval '(require (submod racket/contract/private/space-efficient-common for-testing)))
-  (contract-eval '(define (space-efficient? val) (has-impersonator-prop:multi/c? val)))
+  (contract-eval '(define (space-efficient? val) (has-impersonator-prop:merged? val)))
 
   ;; vectorof
   (contract-eval
    '(define (vectorof-has-num-contracts? v ref set)
       (with-handlers ([exn:fail? (lambda (e) (exn-message e))])
-        (unless (has-impersonator-prop:multi/c? v)
+        (unless (has-impersonator-prop:merged? v)
           (error "vectorof-has-num-contracts?: no space-efficient-contract"))
-        (define multi/c (car (get-impersonator-prop:multi/c v)))
+        (define multi/c (get-impersonator-prop:merged v))
         (define ref/c (multi-vector-ref-ctcs multi/c))
         (define set/c (multi-vector-set-ctcs multi/c))
         (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
@@ -510,15 +510,20 @@
 
   (contract-eval
    '(define (vector-can-combine? val ctc)
-      (value-has-vector-space-efficient-support? val (chaperone-contract? ctc))))
+      (define cv (contract ctc val 'p 'n))
+      (and (has-impersonator-prop:merged? val)
+           (has-impersonator-prop:merged? cv)
+           (space-efficient-wrapper-property?
+            (get-space-efficient-property cv)))))
 
   ;; vector/c
   (contract-eval
    '(define (vector/c-has-num-contracts? v refs sets)
       (with-handlers ([exn:fail? (lambda (e) (exn-message e))])
-        (unless (has-impersonator-prop:multi/c? v)
+        (define prop (get-space-efficient-property v))
+        (unless (has-impersonator-prop:merged? v)
           (error "vectorof-has-num-contracts?: no space-efficient-contract"))
-        (define multi/c (car (get-impersonator-prop:multi/c v)))
+        (define multi/c (get-impersonator-prop:merged v))
         (define ref-ctcs (multi-vector-ref-ctcs multi/c))
         (define set-ctcs (multi-vector-set-ctcs multi/c))
         (for ([ref (in-list refs)]
@@ -1001,10 +1006,13 @@
       (vector-ref (vector-ref grid 0) 0))
    "inner-pos")
 
-  (contract-eval '(define (double-wrapped? x)
-                    (and (has-impersonator-prop:checking-wrapper? x)
-                         (has-impersonator-prop:multi/c?
-                          (get-impersonator-prop:checking-wrapper x)))))
+  (contract-eval
+   '(define (double-wrapped? x)
+      (define prop (get-space-efficient-property x))
+      (and
+       (space-efficient-wrapper-property? prop)
+       (has-impersonator-prop:merged? x)
+       (has-impersonator-prop:merged? (space-efficient-wrapper-property-checking-wrapper prop)))))
 
   (test-false
    'dont-multi-wrap

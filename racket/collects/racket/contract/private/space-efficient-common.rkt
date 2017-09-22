@@ -26,13 +26,24 @@
          SPACE-EFFICIENT-LIMIT)
 
 (module+ for-testing
-  (provide multi-leaf/c? multi-leaf/c-contract-list multi-leaf/c-proj-list))
+  (provide multi-leaf/c?
+           multi-leaf/c-contract-list
+           multi-leaf/c-proj-list
+           get-space-efficient-property
+           space-efficient-wrapper-property?
+           space-efficient-wrapper-property-checking-wrapper
+           impersonator-prop:merged
+           has-impersonator-prop:merged?
+           get-impersonator-prop:merged))
 
 ;; object contracts need to propagate properties across procedure->method
 (module+ properties
   (provide impersonator-prop:space-efficient
            has-impersonator-prop:space-efficient?
-           get-impersonator-prop:space-efficient))
+           get-impersonator-prop:space-efficient
+           impersonator-prop:merged
+           has-impersonator-prop:merged?
+           get-impersonator-prop:merged))
 
 (define-logger space-efficient-value-bailout)
 (define-logger space-efficient-contract-bailout)
@@ -47,6 +58,12 @@
                 has-impersonator-prop:space-efficient?
                 get-impersonator-prop:space-efficient)
   (make-impersonator-property 'impersonator-prop:space-efficient))
+
+;; TODO: name
+(define-values (impersonator-prop:merged
+                has-impersonator-prop:merged?
+                get-impersonator-prop:merged)
+  (make-impersonator-property 'impersonator-prop:merged))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -241,7 +258,7 @@
 
 (struct space-efficient-property ([ref #:mutable]))
 (struct space-efficient-count-property space-efficient-property (s-e neg-party count prev))
-(struct space-efficient-wrapper-property space-efficient-property (s-e checking-wrapper))
+(struct space-efficient-wrapper-property space-efficient-property (checking-wrapper))
 
 (struct no-space-efficient-support ())
 (define no-s-e-support (no-space-efficient-support))
@@ -291,7 +308,7 @@ the property on a value is one of
                      add-s-e-chaperone)
   (lambda (s-e val neg-party chap-not-imp?)
     (define checking-wrapper (make-checking-wrapper val chap-not-imp?))
-    (add-s-e-chaperone s-e neg-party checking-wrapper chap-not-imp?)))
+    (add-s-e-chaperone s-e s-e neg-party checking-wrapper chap-not-imp?)))
 
 (define-syntax-rule (make-enter-space-efficient-mode/collapse
                      make-unsafe-checking-wrapper
@@ -323,7 +340,8 @@ the property on a value is one of
           ;; indicating the failure
           [else (values #f #f #f)])))
     (if merged-s-e
-        (add-s-e-chaperone merged-s-e neg-party checking-wrapper chap-not-imp?)
+        (begin
+          (add-s-e-chaperone merged-s-e s-e neg-party checking-wrapper chap-not-imp?))
         (bail s-e val neg-party))))
 
 (define-syntax-rule (make-enter-space-efficient-mode/continue
@@ -334,7 +352,7 @@ the property on a value is one of
     (define-values (merged-s-e new-neg)
       (try-merge new-s-e neg-party old-s-e #f))
     (if merged-s-e
-        (add-s-e-chaperone merged-s-e neg-party checking-wrapper chap-not-imp?)
+        (add-s-e-chaperone merged-s-e new-s-e neg-party checking-wrapper chap-not-imp?)
         (bail new-s-e val neg-party))))
 
 #|

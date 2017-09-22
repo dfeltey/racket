@@ -618,8 +618,16 @@
     (define blame-party-info (arrow:get-blame-party-info orig-blame))
     (define (successfully-got-the-right-kind-of-function val neg-party)
       (define old-s-e-prop (get-space-efficient-property val))
-      ;; FIXME
-      (define safe-for-s-e? (and has-s-e-support? #f))
+      (define safe-for-s-e?
+        (and has-s-e-support?
+             (if old-s-e-prop
+                 (and (space-efficient-property? old-s-e-prop)
+                      (eq? (space-efficient-property-ref old-s-e-prop) val))
+                 (val-has-arrow-space-efficient-support? val))))
+      (define wrapper-count
+        (if (and safe-for-s-e? (space-efficient-count-property? old-s-e-prop))
+            (space-efficient-count-property-count old-s-e-prop)
+            0))
       (define-values (chap/imp-func use-unsafe-chaperone-procedure?)
         (apply chaperone-constructor
                orig-blame val
@@ -629,34 +637,66 @@
         (if use-unsafe-chaperone-procedure?
             (if is-impersonator? unsafe-impersonate-procedure unsafe-chaperone-procedure)
             (if is-impersonator? impersonate-procedure chaperone-procedure)))
-      (define full-blame (blame-add-missing-party orig-blame neg-party))
       (cond
-        [(and
-          safe-for-s-e?
-          (val-has-arrow-space-efficient-support? chaperone? val)
-          (add-arrow-space-efficient-wrapper s-e-mergable val neg-party chaperone?)) => values]
-        [chap/imp-func
+        [(not chap/imp-func)
+         val]
+        [(not safe-for-s-e?)
+         (if (or post? (not rngs))
+             (chaperone-or-impersonate-procedure
+              val
+              chap/imp-func
+              impersonator-prop:contracted ctc
+              impersonator-prop:blame (cons orig-blame neg-party)
+              impersonator-prop:space-efficient no-s-e-support)
+             (chaperone-or-impersonate-procedure
+              val
+              chap/imp-func
+              impersonator-prop:contracted ctc
+              impersonator-prop:blame (cons orig-blame neg-party)
+              impersonator-prop:space-efficient no-s-e-support
+              impersonator-prop:application-mark
+              (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))))]
+        [(wrapper-count . >= . SPACE-EFFICIENT-LIMIT)
+         (arrow-enter-space-efficient-mode/collapse
+          s-e-mergable
+          val
+          neg-party
+          old-s-e-prop
+          chaperone?)]
+        [(space-efficient-wrapper-property? old-s-e-prop)
+         (arrow-enter-space-efficient-mode/continue
+          s-e-mergable
+          val
+          neg-party
+          (get-impersonator-prop:merged val)
+          (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
+          chaperone?)]
+        [else
          (define s-e-prop
-           ;; FIXME: this is wrong, the value may not support s-e-mode, but may
-           ;; have the property so this would add a new property when it shouldn't
-           no-s-e-support)
+           (space-efficient-count-property
+            #f
+            s-e-mergable
+            neg-party
+            (add1 wrapper-count)
+            (or old-s-e-prop val)))
          (define wrapped
-           (add-conditioned-args
-            (chaperone-or-impersonate-procedure
-             val
-             chap/imp-func
-             impersonator-prop:contracted ctc
-             impersonator-prop:blame full-blame)
-            [has-s-e-support?
-             impersonator-prop:space-efficient
-             s-e-prop]
-            #:not [(or post? (not rngs))
-                   impersonator-prop:application-mark
-                   (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))]))
-         (when (space-efficient-count-property? s-e-prop)
-           (set-space-efficient-property-ref! s-e-prop wrapped))
-         wrapped]
-        [else val]))
+           (if (or post? (not rngs))
+             (chaperone-or-impersonate-procedure
+              val
+              chap/imp-func
+              impersonator-prop:contracted ctc
+              impersonator-prop:blame (cons orig-blame neg-party)
+              impersonator-prop:space-efficient s-e-prop)
+             (chaperone-or-impersonate-procedure
+              val
+              chap/imp-func
+              impersonator-prop:contracted ctc
+              impersonator-prop:blame (cons orig-blame neg-party)
+              impersonator-prop:space-efficient s-e-prop
+              impersonator-prop:application-mark
+              (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs)))))
+         (set-space-efficient-property-ref! s-e-prop wrapped)
+         wrapped]))
     (cond
       [late-neg?
        (define (arrow-higher-order:lnp val neg-party)
