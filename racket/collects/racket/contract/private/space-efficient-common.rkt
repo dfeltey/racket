@@ -302,7 +302,6 @@ the property on a value is one of
   (and (has-impersonator-prop:space-efficient? val)
        (get-impersonator-prop:space-efficient val)))
 
-;; TODO: names
 (define-syntax-rule (make-enter-space-efficient-mode/direct
                      make-checking-wrapper
                      add-s-e-chaperone)
@@ -341,18 +340,18 @@ the property on a value is one of
           [else (values #f #f #f)])))
     (if merged-s-e
         (begin
-          (add-s-e-chaperone merged-s-e s-e neg-party checking-wrapper chap-not-imp?))
+          (add-s-e-chaperone merged-s-e s-e new-neg checking-wrapper chap-not-imp?))
         (bail s-e val neg-party))))
 
 (define-syntax-rule (make-enter-space-efficient-mode/continue
                      try-merge
                      add-s-e-chaperone
                      bail)
-  (lambda (new-s-e val neg-party old-s-e checking-wrapper chap-not-imp?)
+  (lambda (new-s-e val neg-party merged-prop checking-wrapper chap-not-imp?)
     (define-values (merged-s-e new-neg)
-      (try-merge new-s-e neg-party old-s-e #f))
+      (try-merge new-s-e neg-party (car merged-prop) (cdr merged-prop)))
     (if merged-s-e
-        (add-s-e-chaperone merged-s-e new-s-e neg-party checking-wrapper chap-not-imp?)
+        (add-s-e-chaperone merged-s-e new-s-e new-neg checking-wrapper chap-not-imp?)
         (bail new-s-e val neg-party))))
 
 #|

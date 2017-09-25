@@ -494,7 +494,7 @@
       (with-handlers ([exn:fail? (lambda (e) (exn-message e))])
         (unless (has-impersonator-prop:merged? v)
           (error "vectorof-has-num-contracts?: no space-efficient-contract"))
-        (define multi/c (get-impersonator-prop:merged v))
+        (define multi/c (car (get-impersonator-prop:merged v)))
         (define ref/c (multi-vector-ref-ctcs multi/c))
         (define set/c (multi-vector-set-ctcs multi/c))
         (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
@@ -523,7 +523,7 @@
         (define prop (get-space-efficient-property v))
         (unless (has-impersonator-prop:merged? v)
           (error "vectorof-has-num-contracts?: no space-efficient-contract"))
-        (define multi/c (get-impersonator-prop:merged v))
+        (define multi/c (car (get-impersonator-prop:merged v)))
         (define ref-ctcs (multi-vector-ref-ctcs multi/c))
         (define set-ctcs (multi-vector-set-ctcs multi/c))
         (for ([ref (in-list refs)]

@@ -194,7 +194,7 @@
      checking-wrapper
      #f
      impersonator-prop:space-efficient s-e-prop
-     impersonator-prop:merged merged
+     impersonator-prop:merged (cons merged neg-party)
      impersonator-prop:contracted (multi-ho/c-latest-ctc s-e)
      impersonator-prop:blame (cons (multi-ho/c-latest-blame s-e) neg-party)))
   (set-space-efficient-property-ref! s-e-prop wrapped)
@@ -236,21 +236,23 @@
      ;; Note: it would be more efficient to have arity-specific wrappers here,
      ;;   as opposed to using a rest arg.
      #`(λ (outermost-chaperone . args)
-         (define m/c
+         (define m/c+neg-party
            #,(if (syntax-e #'maybe-closed-over-m/c)
                  #'maybe-closed-over-m/c ; we did close over the contract
                  ;; otherwise, get it from the impersonator property
                  #'(get-impersonator-prop:merged outermost-chaperone)))
-         (define neg (multi-ho/c-missing-party m/c))
+         (define m/c (car m/c+neg-party))
+         (define neg (or (multi-ho/c-missing-party m/c) (cdr m/c+neg-party)))
          (define doms   (multi->-doms         m/c))
          (define rng    (multi->-rng          m/c))
-         (define blame  (cons (multi-ho/c-latest-blame m/c) neg))
+         (define blame  (multi-ho/c-latest-blame m/c))
+         (define blame+neg-party  (cons blame neg))
          (define n-args (length args))
          (define n-doms (length doms))
          (log-space-efficient-contract-arrow-wrapper-arity-info
           (number->string n-doms))
          (unless (= n-args n-doms)
-           (raise-wrong-number-of-args-error blame outermost-chaperone
+           (raise-wrong-number-of-args-error blame #:missing-party neg outermost-chaperone
                                              n-args n-doms n-doms #f))
          ;; Note: to support (i.e., not bail on) functions that can't be proven
          ;;   to return a single value, have a `case-lambda` wrapper here. (With
@@ -261,8 +263,7 @@
            (lambda (result)
              (with-space-efficient-contract-continuation-mark
                (with-contract-continuation-mark
-                 blame
-                 ;; TODO: is neg the right thing to pass here?
+                 blame+neg-party
                  (space-efficient-guard rng result neg)))))
          (apply values
                 rng-checker
@@ -270,13 +271,11 @@
                            [arg (in-list args)])
                   (with-space-efficient-contract-continuation-mark
                     (with-contract-continuation-mark
-                      blame
-                      ;; TODO: is neg the right thing to pass here?
+                      blame+neg-party
                       (space-efficient-guard dom arg neg))))))]))
 
 (define arrow-wrapper (make-interposition-procedure #f))
 
-;; FIXME: wrong checking wrapper on bailout
 ;; create a regular checking wrapper from a space-efficient wrapper for a value
 ;; that can't use space-efficient wrapping
 (define (bail-to-regular-wrapper m/c val neg-party)
@@ -284,7 +283,7 @@
   (define neg (or (multi-ho/c-missing-party m/c) neg-party))
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
-   (make-interposition-procedure m/c)
+   (make-interposition-procedure (cons m/c neg))
    impersonator-prop:space-efficient no-s-e-support
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
    impersonator-prop:blame (cons
@@ -297,9 +296,8 @@
     (define n-doms (arrow-first-order-check-n-doms c))
     (define partial-blame (arrow-first-order-check-blame c))
     (define neg (arrow-first-order-check-missing-party c))
-    (define blame (blame-add-missing-party partial-blame (or neg neg-party)))
     (cond [(do-arity-checking
-            blame
+            partial-blame
             val
             (for/list ([i (in-range n-doms)]) #f) ; has to have the right length
             #f ; no rest arg
@@ -316,24 +314,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Space-efficient contract data structure management
-
-;; Convert a higher-order contract to a multi-higher-order contract
-;; Conversion consists of simultaneously copying the structure of the
-;; higher-order contract and propagating the blame to the leaves.
-;; At the leaves we convert contracts to multi-leaf/c
-#;
-(define (ho/c->multi-> ctc blame)
-  (define chap-not-imp? (chaperone-contract? ctc))
-  (define doms (base->-doms ctc))
-  (define rng  (car (base->-rngs ctc))) ; assumes single range
-  (define dom-blame (blame-swap blame))
-  ((if chap-not-imp? chaperone-multi-> impersonator-multi->)
-   blame
-   ctc
-   (for/vector ([dom (in-list doms)])
-     (contract->space-efficient-contract dom dom-blame))
-   (contract->space-efficient-contract rng blame)
-   (list (arrow-first-order-check (length doms) blame (base->-method? ctc)))))
 
 (define (build-s-e-arrow doms rng ctc blame chap?)
   (define focs

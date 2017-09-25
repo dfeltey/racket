@@ -49,26 +49,28 @@
                 null)))))
 
 (define (check-vectorof elem-ctc immutable val blame neg-party first-order? raise-blame?)
-  (do-check-vectorof val immutable blame neg-party raise-blame?)
-  (when first-order?
-    (let loop ([n 0])
-      (cond
-        [(= n (vector-length val)) #t]
-        [else
-         (define e (vector-ref val n))
+  (and
+   (do-check-vectorof val immutable blame neg-party raise-blame?)
+   (if first-order?
+       (let loop ([n 0])
          (cond
-           [(contract-first-order-passes? elem-ctc e)
-            (contract-first-order-try-less-hard (loop (+ n 1)))]
-           [raise-blame?
-            (raise-blame-error
-             blame
-             #:missing-party neg-party
-             val
-             '(expected: "~s for element ~s" given: "~e")
-             (contract-name elem-ctc)
-             n
-             e)]
-           [else #f])]))))
+           [(= n (vector-length val)) #t]
+           [else
+            (define e (vector-ref val n))
+            (cond
+              [(contract-first-order-passes? elem-ctc e)
+               (contract-first-order-try-less-hard (loop (+ n 1)))]
+              [raise-blame?
+               (raise-blame-error
+                blame
+                #:missing-party neg-party
+                val
+                '(expected: "~s for element ~s" given: "~e")
+                (contract-name elem-ctc)
+                n
+                e)]
+              [else #f])]))
+       #t)))
 
 (define (check-late-neg-vectorof c)
   (define immutable (base-vectorof-immutable c))
