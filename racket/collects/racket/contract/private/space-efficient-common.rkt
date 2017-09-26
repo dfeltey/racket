@@ -265,38 +265,17 @@
 
 ;; A Space-Efficient-Property is one of
 ;; - no-s-e-support -- indicicating that the value with this property does not support s-e mode
-;; - (space-efficient-count-property (or/c #f impersonator?) space-efficient? neg-party? natural-number/c (or/c space-efficient-count-property? any/c))
+;; - (space-efficient-count-property impersonator?
+;;                                   space-efficient?
+;;                                   neg-party?
+;;                                   natural-number/c
+;;                                   (or/c space-efficient-count-property? any/c))
 ;;     a count of the contracts currently attached to the value along with other
 ;;     necessary space-efficient information
-;; - (space-efficient-property (or/c #f impersonator?) space-efficient? any/c)
-;;     indicates this value is in space-efficient mode, and tracks the merged space-efficient
-;;     structure as well as the checking wrapper and a reference to the outermost
-;;     known wrapper
-
-
-
-#|
-
-the property on a value is one of
-1. not present
- - if it isn't present, we are safe for s-e mode depending on a predicate that is
-   specific to the kind of value (vec vs func), but we should not enter s-e mode,
-   if safe we need to start a count in a new prop
-2. #f
- - not safe for space-efficient mode, should stay the same ...
-3. space-efficient-count-propert?
- - safe if no intervening chaperone
-4. space-efficient-wrapper-property?
-|#
-
-(define-syntax-rule (bail reason)
-  (begin
-    (log-space-efficient-value-bailout-info (format "not-space-efficient: ~a" reason))
-    #f))
-
-;; This takes a predicate to allow specializing the type of allowed
-;; values, for vectors pred? will be impersonator?, but for functions
-;; it should be procedure-impersonator*?
+;; - (space-efficient-property impersonator? impersonator?)
+;;     indicates this value is in space-efficient mode, holds a pointer to the
+;;     last known space-efficient wrapper, and the checking wrapper that has
+;;     the space-efficient interposition functions
 
 (define (get-space-efficient-property val)
   (and (has-impersonator-prop:space-efficient? val)
@@ -353,49 +332,3 @@ the property on a value is one of
     (if merged-s-e
         (add-s-e-chaperone merged-s-e new-s-e new-neg checking-wrapper chap-not-imp?)
         (bail new-s-e val neg-party))))
-
-#|
-
-NOTES:
-
-These 3 properties:
-  contract-count
-  count-wrapper-box
-  space-efficient
-are all added in parallel, so checking any one of them is equivalent to checking the others
-contract-count present and #f then means no space-efficient support
-
-contract-count present and not-#f means need to check the wrapper box
-
-space-efficient is used to get the structure to merge
-
-contract-count missing means need to determine whether its a chaperone or not to see
-if the value can be wrapped ....
-
-
-entering s-e mode options:
-
-1. entering first time (has 10 contracts that support s-e mode ...)
- - the count field is there
- - check value has s-e support generally and for kind of ctc
- - for vectors make sure unwrapped thing at bottom is not an impersonator
-   and for functions that it is not an impersonator*
- - ok to traverse down and collapse them all
-
-2. entering first time directly: has no contracts
-  - has no space-efficient property
-  - check that value supports s-e mode generally and for kind of ctc
-  - no unfolding, so just wrap in s-e ctc
-
-3. entering first time directly: has arbitrary contracts ...
-   - if count is there and non-#f, we can just collapse
-   - if count is missing that means 
-   -
-
-
-4. already in s-e mode
- - check if value supports s-e mode generally and for kind of ctc ...
- - then just merge and done ...
-
-
-|#

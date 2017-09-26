@@ -92,7 +92,7 @@
          (define doms (base->-doms ctc))
          (define rngs (base->-rngs ctc))
          (and
-          ;; TODO: we can probably handle the no doms case for a contract
+          ;; TODO: we can probably handle more of these cases for an -> contract
           (or doms
               (bail "no doms"))
           (or (= (length doms) (base->-min-arity ctc)) ; no optional args
@@ -363,7 +363,6 @@
            (impersonator-multi->? old)
            impersonator-multi->)))
 
-;; TODO: add the other pieces of this property
 (define (->-space-efficient-contract-property chap?)
   (build-space-efficient-contract-property
    #:try-merge arrow-try-merge

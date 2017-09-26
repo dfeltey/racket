@@ -117,7 +117,6 @@
   (do-vector-first-order-checks s-e val neg-party)
   (define chap-not-imp? (chaperone-multi-vector? s-e))
   (define prop (get-space-efficient-property val))
-  ;; FIXME: define this as a function ...
   (define safe-for-s-e?
     (if prop
         (and (space-efficient-property? prop)
