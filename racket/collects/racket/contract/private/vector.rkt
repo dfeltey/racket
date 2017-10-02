@@ -173,6 +173,7 @@
                                 (elem-neg-proj val neg-party)))))
       (define late-neg-proj
         (λ (val neg-party)
+          (check-vectorof elem-ctc immutable val blame neg-party #f #t)
           (define immutable-non-chaperone?
             (and (immutable? val) (not (chaperone? val))))
           (define old-s-e-prop (get-space-efficient-property val))
@@ -182,10 +183,9 @@
                      (eq? (space-efficient-property-ref old-s-e-prop) val))
                 (not (impersonator? val))))
           (define wrapper-count
-            (if (and safe-for-s-e? (space-efficient-count-property? old-s-e-prop))
+            (if (space-efficient-count-property? old-s-e-prop)
                 (space-efficient-count-property-count old-s-e-prop)
                 0))
-          (check-vectorof elem-ctc immutable val blame neg-party #f #t)
           ;; avoid traversing large vectors
           ;; unless `eager` is specified
           (cond
@@ -221,7 +221,6 @@
               val
               neg-party
               (get-impersonator-prop:merged val)
-              ;; TODO: what to do about neg parties ...
               (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
               chap-not-imp?)]
             [else

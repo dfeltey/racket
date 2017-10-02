@@ -24,7 +24,7 @@
          contract-expand
          
          rewrite-to-add-opt/c
-         rewrite-to-double-wrap
+         rewrite-to-multi-wrap
          do-not-double-wrap
          
          test-cases failures)
@@ -102,6 +102,7 @@
   (parameterize ([current-namespace n])
     (namespace-require 'racket/contract/base)
     (namespace-require '(only racket/contract/private/blame exn:fail:contract:blame?))
+    (namespace-require '(only racket/contract/private/space-efficient-common SPACE-EFFICIENT-LIMIT))
     (for ([addon (in-list addons)])
       (namespace-require addon)))
   n)
@@ -208,7 +209,7 @@
                   ,(wrapper expression k)
                   'no-exn-raised)))))
   (rewrite-test rewrite-to-add-opt/c   "rewrite-to-add-opt/c")
-  (rewrite-test rewrite-to-double-wrap "rewrite-to-double-wrap"))
+  (rewrite-test rewrite-to-multi-wrap "rewrite-to-double-wrap"))
 
 (define (test/spec-passed/result name expression result [double-wrapped-result result])
   (parameterize ([compile-enforce-module-constants #f])
@@ -225,7 +226,7 @@
            ',(wrapper expression k)))))
     (rewrite-test rewrite-to-add-opt/c   "rewrite-to-add-opt/c")
     (unless (eq? double-wrapped-result do-not-double-wrap)
-      (rewrite-test rewrite-to-double-wrap "rewrite-to-double-wrap" double-wrapped-result))
+      (rewrite-test rewrite-to-multi-wrap "rewrite-to-double-wrap" double-wrapped-result))
 
     (let ([new-expression (rewrite-out expression)])
       (when new-expression
@@ -333,15 +334,14 @@
              `(contract (opt/c ,(loop ctc)) ,(loop val) ,@(map loop parties)))))
 
 ;; rewrites `contract` to double-wrap. To test space-efficient wrappers.
-(define rewrite-to-double-wrap
+(define rewrite-to-multi-wrap
   (rewrite (lambda (ctc val parties loop)
              (define new-ctc (loop ctc))
              (define new-parties (map loop parties))
-             `(contract ,new-ctc
-                        (contract ,(loop ctc)
-                                  ,(loop val)
-                                  ,@new-parties)
-                        ,@new-parties))))
+             `(let ([the-ctc ,new-ctc])
+                (for/fold ([the-val ,(loop val)])
+                          ([i (in-range (add1 SPACE-EFFICIENT-LIMIT))])
+                  (contract the-ctc the-val ,@new-parties))))))
 (define do-not-double-wrap (gensym)) ; recognized by some test forms
 
 ;; blame : (or/c 'pos 'neg string?)
@@ -377,7 +377,7 @@
              (and (exn:fail:contract:blame? exn)
                   (,has-proper-blame? (exn-message exn)))))))))
   (rewrite-test rewrite-to-add-opt/c   "rewrite-to-add-opt/c"   "opt/c")
-  (rewrite-test rewrite-to-double-wrap "rewrite-to-double-wrap" "double"))
+  (rewrite-test rewrite-to-multi-wrap "rewrite-to-double-wrap" "double"))
 
 (define (test/pos-blame name expression) (test/spec-failed name expression 'pos))
 (define (test/neg-blame name expression) (test/spec-failed name expression 'neg))
@@ -397,7 +397,7 @@
                         ',name*
                         ,(wrapper 'expression k)))))
            (rewrite-test rewrite-to-add-opt/c   'opt-name)
-           (rewrite-test rewrite-to-double-wrap 'double-name)))]))
+           (rewrite-test rewrite-to-multi-wrap 'double-name)))]))
 
 (define (test/well-formed stx)
   (contract-eval
@@ -432,4 +432,4 @@
                eval
                '(begin ,rewritten (void)))))))
   (rewrite-test rewrite-to-add-opt/c   "opt/c")
-  (rewrite-test rewrite-to-double-wrap "double"))
+  (rewrite-test rewrite-to-multi-wrap "double"))

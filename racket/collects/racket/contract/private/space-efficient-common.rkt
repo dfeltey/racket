@@ -249,11 +249,11 @@
 (define (first-order-check-join new-checks old-checks stronger?)
   (fast-append new-checks
 
-          (for/list ([old (in-list old-checks)]
-                     #:when (not (implied-by-one?
-                                  new-checks old
-                                  #:implies stronger?)))
-            old)))
+               (for/list ([old (in-list old-checks)]
+                          #:when (not (implied-by-one?
+                                       new-checks old
+                                       #:implies stronger?)))
+                 old)))
 
 
 (struct space-efficient-property ([ref #:mutable]))
@@ -269,31 +269,34 @@
 ;;                                   space-efficient?
 ;;                                   neg-party?
 ;;                                   natural-number/c
-;;                                   (or/c space-efficient-count-property? any/c))
+;;                                   (or/c space-efficient-count-property?
+;;                                         (not/c space-efficient-count-property?)))
 ;;     a count of the contracts currently attached to the value along with other
 ;;     necessary space-efficient information
 ;; - (space-efficient-property impersonator? impersonator?)
 ;;     indicates this value is in space-efficient mode, holds a pointer to the
 ;;     last known space-efficient wrapper, and the checking wrapper that has
 ;;     the space-efficient interposition functions
+;;    when this property is attached to a value there is also a
+;;    impersonator-prop:merged property holding a (cons/c space-efficient? neg-party)
 
 (define (get-space-efficient-property val)
   (and (has-impersonator-prop:space-efficient? val)
        (get-impersonator-prop:space-efficient val)))
 
-(define-syntax-rule (make-enter-space-efficient-mode/direct
-                     make-checking-wrapper
-                     add-s-e-chaperone)
-  (lambda (s-e val neg-party chap-not-imp?)
+(define (make-enter-space-efficient-mode/direct
+         make-checking-wrapper
+         add-s-e-chaperone)
+  (λ (s-e val neg-party chap-not-imp?)
     (define checking-wrapper (make-checking-wrapper val chap-not-imp?))
     (add-s-e-chaperone s-e s-e neg-party checking-wrapper chap-not-imp?)))
 
-(define-syntax-rule (make-enter-space-efficient-mode/collapse
-                     make-unsafe-checking-wrapper
-                     add-s-e-chaperone
-                     try-merge
-                     bail)
-  (lambda (s-e val neg-party s-e-prop chap-not-imp?)
+(define (make-enter-space-efficient-mode/collapse
+         make-unsafe-checking-wrapper
+         add-s-e-chaperone
+         try-merge
+         bail)
+  (λ (s-e val neg-party s-e-prop chap-not-imp?)
     (define-values (merged-s-e new-neg checking-wrapper)
       (let loop ([left s-e]
                  [left-neg neg-party]
@@ -322,13 +325,13 @@
           (add-s-e-chaperone merged-s-e s-e new-neg checking-wrapper chap-not-imp?))
         (bail s-e val neg-party))))
 
-(define-syntax-rule (make-enter-space-efficient-mode/continue
-                     try-merge
-                     add-s-e-chaperone
-                     bail)
-  (lambda (new-s-e val neg-party merged-prop checking-wrapper chap-not-imp?)
+(define (make-enter-space-efficient-mode/continue
+         try-merge
+         add-s-e-chaperone
+         bail)
+  (λ (new-s-e val neg-party s-e+neg-party checking-wrapper chap-not-imp?)
     (define-values (merged-s-e new-neg)
-      (try-merge new-s-e neg-party (car merged-prop) (cdr merged-prop)))
+      (try-merge new-s-e neg-party (car s-e+neg-party) (cdr s-e+neg-party)))
     (if merged-s-e
         (add-s-e-chaperone merged-s-e new-s-e new-neg checking-wrapper chap-not-imp?)
         (bail new-s-e val neg-party))))

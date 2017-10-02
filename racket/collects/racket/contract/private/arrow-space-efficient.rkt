@@ -119,6 +119,8 @@
       (log-space-efficient-value-bailout-info (format "arrow: ~a" reason))
       #f))
   (and
+   (or (not (procedure-impersonator*? val))
+       (bail "procedure-impersonator*?"))
    ;; the interposition wrapper has to support a superset of the arity
    ;; of the function it's wrapping, and ours can't support optional
    ;; args, keywords, etc. so just bail out in these cases
@@ -166,24 +168,6 @@
     ;; else enter directly
     [else
      (arrow-enter-space-efficient-mode/direct s-e val neg-party chap-not-imp?)]))
-
-(define arrow-enter-space-efficient-mode/continue
-  (make-enter-space-efficient-mode/continue
-   arrow-try-merge
-   add-space-efficient-arrow-chaperone
-   bail-to-regular-wrapper))
-
-(define arrow-enter-space-efficient-mode/collapse
-  (make-enter-space-efficient-mode/collapse
-   make-unsafe-checking-wrapper
-   add-space-efficient-arrow-chaperone
-   arrow-try-merge
-   bail-to-regular-wrapper))
-
-(define arrow-enter-space-efficient-mode/direct
-  (make-enter-space-efficient-mode/direct
-   make-checking-wrapper
-   add-space-efficient-arrow-chaperone))
 
 (define (add-space-efficient-arrow-chaperone merged s-e neg-party checking-wrapper chap-not-imp?)
   (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
@@ -346,6 +330,24 @@
            (add-f-o-neg-party (multi->-first-order-checks new-multi) new-neg)
            arrow-first-order-check-stronger?))))
   (values merged #f))
+
+(define arrow-enter-space-efficient-mode/continue
+  (make-enter-space-efficient-mode/continue
+   arrow-try-merge
+   add-space-efficient-arrow-chaperone
+   bail-to-regular-wrapper))
+
+(define arrow-enter-space-efficient-mode/collapse
+  (make-enter-space-efficient-mode/collapse
+   make-unsafe-checking-wrapper
+   add-space-efficient-arrow-chaperone
+   arrow-try-merge
+   bail-to-regular-wrapper))
+
+(define arrow-enter-space-efficient-mode/direct
+  (make-enter-space-efficient-mode/direct
+   make-checking-wrapper
+   add-space-efficient-arrow-chaperone))
 
 (define (add-f-o-neg-party focs neg-party)
   (for/list ([foc (in-list focs)])

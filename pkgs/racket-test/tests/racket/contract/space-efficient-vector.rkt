@@ -460,7 +460,8 @@
            [v (contract ctc (vector 1) 'pos 'neg)])
       (vector-ref v 0)
       (unbox b))
-   #f)
+   #f
+   do-not-double-wrap)
 
   (test/spec-failed
    'vector/c-bailout

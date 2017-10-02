@@ -64,7 +64,8 @@
      vector-first-order-check
      foc
      [missing-party (or missing-party neg-party)])))
-   
+
+;; TODO: Can we not return the neg-party here ...
 (define (vector-try-merge new-multi new-neg old-multi old-neg)
   (define constructor (get-constructor new-multi old-multi))
   (define merged
@@ -146,24 +147,6 @@
     [else
      (vector-enter-space-efficient-mode/direct s-e val neg-party chap-not-imp?)]))
 
-(define vector-enter-space-efficient-mode/continue
-  (make-enter-space-efficient-mode/continue
-   vector-try-merge
-   add-space-efficient-vector-chaperone
-   bail-to-regular-wrapper))
-
-(define vector-enter-space-efficient-mode/collapse
-  (make-enter-space-efficient-mode/collapse
-   make-unsafe-checking-wrapper
-   add-space-efficient-vector-chaperone
-   vector-try-merge
-   bail-to-regular-wrapper))
-
-(define vector-enter-space-efficient-mode/direct
-  (make-enter-space-efficient-mode/direct
-   make-checking-wrapper
-   add-space-efficient-vector-chaperone))
-
 (define (add-space-efficient-vector-chaperone merged s-e neg-party checking-wrapper chap-not-imp?)
   (define chap/imp (if chap-not-imp? chaperone-vector impersonate-vector))
   (define s-e-prop
@@ -239,6 +222,24 @@
   (lambda (val neg)
     (do-vector-first-order-checks ctc val neg)
     (bail-to-regular-wrapper ctc val neg)))
+
+(define vector-enter-space-efficient-mode/continue
+  (make-enter-space-efficient-mode/continue
+   vector-try-merge
+   add-space-efficient-vector-chaperone
+   bail-to-regular-wrapper))
+
+(define vector-enter-space-efficient-mode/collapse
+  (make-enter-space-efficient-mode/collapse
+   make-unsafe-checking-wrapper
+   add-space-efficient-vector-chaperone
+   vector-try-merge
+   bail-to-regular-wrapper))
+
+(define vector-enter-space-efficient-mode/direct
+  (make-enter-space-efficient-mode/direct
+   make-checking-wrapper
+   add-space-efficient-vector-chaperone))
 
 (define (vector-space-efficient-contract-property chap-not-imp?)
   (build-space-efficient-contract-property
