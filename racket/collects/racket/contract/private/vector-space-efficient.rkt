@@ -85,7 +85,8 @@
                   old-neg
                   (multi-vector-set-ctcs new-multi)
                   new-neg))))
-  (values merged #f))
+  ;; FIXME: passing around neg parties
+  (values merged new-neg))
 
 (define (merge* new new-neg old old-neg)
   (cond

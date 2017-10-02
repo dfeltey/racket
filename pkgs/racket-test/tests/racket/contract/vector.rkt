@@ -1,5 +1,6 @@
 #lang racket/base
 (require "test-util.rkt")
+(require (only-in racket/contract/private/space-efficient-common SPACE-EFFICIENT-LIMIT))
 (parameterize ([current-contract-namespace
                 (make-basic-contract-namespace
                  'racket/contract/combinator)])
@@ -147,7 +148,7 @@
                           'pos 'neg)
                 0)
    1
-   2)
+   (add1 SPACE-EFFICIENT-LIMIT))
 
   (test/spec-passed/result
    'vectorof-eager

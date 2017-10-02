@@ -329,7 +329,8 @@
            (add-f-o-neg-party (multi->-first-order-checks old-multi) old-neg)
            (add-f-o-neg-party (multi->-first-order-checks new-multi) new-neg)
            arrow-first-order-check-stronger?))))
-  (values merged #f))
+  ;; FIXME: passing around neg parties ...
+  (values merged new-neg))
 
 (define arrow-enter-space-efficient-mode/continue
   (make-enter-space-efficient-mode/continue

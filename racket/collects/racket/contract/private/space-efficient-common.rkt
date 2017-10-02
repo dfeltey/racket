@@ -320,10 +320,10 @@
           ;; a merge failed, so we should return immediately
           ;; indicating the failure
           [else (values #f #f #f)])))
-    (if merged-s-e
-        (begin
-          (add-s-e-chaperone merged-s-e s-e new-neg checking-wrapper chap-not-imp?))
-        (bail s-e val neg-party))))
+    (cond
+      [merged-s-e
+       (add-s-e-chaperone merged-s-e s-e new-neg checking-wrapper chap-not-imp?)]
+      [else (bail s-e val neg-party)])))
 
 (define (make-enter-space-efficient-mode/continue
          try-merge
@@ -332,6 +332,7 @@
   (λ (new-s-e val neg-party s-e+neg-party checking-wrapper chap-not-imp?)
     (define-values (merged-s-e new-neg)
       (try-merge new-s-e neg-party (car s-e+neg-party) (cdr s-e+neg-party)))
-    (if merged-s-e
-        (add-s-e-chaperone merged-s-e new-s-e new-neg checking-wrapper chap-not-imp?)
-        (bail new-s-e val neg-party))))
+    (cond
+      [merged-s-e
+       (add-s-e-chaperone merged-s-e new-s-e new-neg checking-wrapper chap-not-imp?)]
+      [else (bail new-s-e val neg-party)])))
