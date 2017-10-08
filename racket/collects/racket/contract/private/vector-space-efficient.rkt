@@ -187,9 +187,10 @@
          (define m/c+neg-party
            #,(if (syntax-e #'maybe-closed-over-m/c)
                  #'maybe-closed-over-m/c
-                 #'(get-impersonator-prop:merged outermost)))
-         (define m/c (car m/c+neg-party))
-         (define neg (or (multi-ho/c-missing-party m/c) (cdr m/c+neg-party)))
+                 #'(get-impersonator-prop:space-efficient outermost)))
+         (define m/c (space-efficient-property-s-e m/c+neg-party))
+         (define neg (or (multi-ho/c-missing-party m/c)
+                         (space-efficient-property-neg-party m/c+neg-party)))
          (define field
            #,(if (syntax-e #'set?)
                  #'(multi-vector-set-ctcs m/c)

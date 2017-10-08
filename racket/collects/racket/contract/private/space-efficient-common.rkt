@@ -7,6 +7,7 @@
 (provide (struct-out multi-ho/c)
          (struct-out multi-leaf/c)
          (struct-out space-efficient-property)
+         (struct-out space-efficient-ref-property)
          (struct-out space-efficient-count-property)
          (struct-out space-efficient-wrapper-property)
          build-space-efficient-leaf
@@ -249,13 +250,12 @@
                                        #:implies stronger?)))
                  old)))
 
+(struct space-efficient-property (s-e neg-party))
+(struct space-efficient-ref-property space-efficient-property ([ref #:mutable]))
+(struct space-efficient-count-property space-efficient-ref-property (count prev))
+(struct space-efficient-wrapper-property space-efficient-ref-property (checking-wrapper))
 
-(struct space-efficient-property ([ref #:mutable]))
-(struct space-efficient-count-property space-efficient-property (s-e neg-party count prev))
-(struct space-efficient-wrapper-property space-efficient-property (checking-wrapper))
-
-(struct no-space-efficient-support ())
-(define no-s-e-support (no-space-efficient-support))
+(define no-s-e-support (space-efficient-property #f #f))
 
 ;; A Space-Efficient-Property is one of
 ;; - no-s-e-support -- indicicating that the value with this property does not support s-e mode
@@ -297,8 +297,8 @@
                  [prop s-e-prop])
         (cond
           [left
-           (define right (space-efficient-count-property-s-e prop))
-           (define right-neg (space-efficient-count-property-neg-party prop))
+           (define right (space-efficient-property-s-e prop))
+           (define right-neg (space-efficient-property-neg-party prop))
            (define prev (space-efficient-count-property-prev prop))
            (define-values (merged new-neg)
              (try-merge left left-neg right right-neg))
