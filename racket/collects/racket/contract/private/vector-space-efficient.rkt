@@ -219,11 +219,6 @@
    impersonator-prop:contracted ctc
    impersonator-prop:blame blame))
 
-(define (get-projection ctc)
-  (lambda (val neg)
-    (do-vector-first-order-checks ctc val neg)
-    (bail-to-regular-wrapper ctc val neg)))
-
 (define vector-enter-space-efficient-mode/continue
   (make-enter-space-efficient-mode/continue
    vector-try-merge
@@ -245,8 +240,7 @@
 (define (vector-space-efficient-contract-property chap-not-imp?)
   (build-space-efficient-contract-property
    #:try-merge vector-try-merge
-   #:space-efficient-guard vector-space-efficient-guard
-   #:get-projection get-projection))
+   #:space-efficient-guard vector-space-efficient-guard))
 
 (struct chaperone-multi-vector multi-vector ()
   #:property prop:space-efficient-contract (vector-space-efficient-contract-property #t))

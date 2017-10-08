@@ -290,12 +290,6 @@
             (arrow-first-order-check-method? c))
            => (lambda (fail) (fail (or neg neg-party)))])))
 
-(define (get-projection ctc)
-  (lambda (val neg-party)
-    (do-arrow-first-order-checks ctc val neg-party)
-    (bail-to-regular-wrapper ctc val neg-party)))
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Space-efficient contract data structure management
 
@@ -369,8 +363,7 @@
 (define (->-space-efficient-contract-property chap?)
   (build-space-efficient-contract-property
    #:try-merge arrow-try-merge
-   #:space-efficient-guard arrow-space-efficient-guard
-   #:get-projection get-projection))
+   #:space-efficient-guard arrow-space-efficient-guard))
 
 (struct chaperone-multi-> multi-> ()
   #:property prop:space-efficient-contract (->-space-efficient-contract-property #t))

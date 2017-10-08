@@ -72,8 +72,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct space-efficient-contract-property
   (try-merge
-   space-efficient-guard
-   get-projection)
+   space-efficient-guard)
   #:omit-define-syntaxes)
 
 (define (space-efficient-contract-property-guard prop info)
@@ -93,15 +92,10 @@
          #:space-efficient-guard
          [space-efficient-guard
           (lambda (ctc val)
-            (error "internal error: contract does not support `space-efficient-guard`" ctc))]
-         #:get-projection
-         [get-projection
-          (lambda (ctc)
-            (lambda (val neg) (error "internal error: contract does not support `get-projection`" ctc)))])
+            (error "internal error: contract does not support `space-efficient-guard`" ctc))])
   (space-efficient-contract-property
    (or try-merge (lambda (_1 _2 _3 _4) #f))
-   space-efficient-guard
-   get-projection))
+   space-efficient-guard))
 
 ;; Parent structure for higher order space-efficient contracts
 ;; which must keep track of the latest blame and missing party
@@ -121,11 +115,7 @@
      (apply-proj-list (multi-leaf/c-proj-list s-e)
                       (multi-leaf/c-missing-party-list s-e)
                       val
-                      neg-party))
-   #:get-projection
-   (lambda (ctc)
-     (lambda (val neg-party)
-       (error "internal error: tried to apply a leaf as a projection" ctc)))))
+                      neg-party))))
 
 (define (build-space-efficient-leaf proj ctc blame)
   (multi-leaf/c (list proj) (list ctc) (list blame) (list #f)))
@@ -233,9 +223,11 @@
 
 (define (get-merge-components multi)
   (define prop (get-space-efficient-contract-property multi))
+  (define guard (space-efficient-contract-property-space-efficient-guard prop))
   (values
    (space-efficient-contract-property-try-merge prop)
-   ((space-efficient-contract-property-get-projection prop) multi)))
+   ;; FIXME: don't really want to build a lambda here ...
+   (λ (val neg) (guard multi val neg))))
 
 (define (space-efficient-guard multi val neg-party)
   (define prop (get-space-efficient-contract-property multi))
@@ -244,7 +236,9 @@
 
 (define (get-bail multi)
   (define prop (space-efficient-contract-property multi))
-  ((space-efficient-contract-property-get-projection prop) multi))
+  (define guard (space-efficient-contract-property-space-efficient-guard prop))
+  ;; FIXME: don't really want to build this lambda ...
+  (λ (val neg) (guard multi val neg)))
 
 (define (first-order-check-join new-checks old-checks stronger?)
   (fast-append new-checks
