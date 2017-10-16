@@ -30,21 +30,18 @@
   (provide multi-leaf/c?
            multi-leaf/c-contract-list
            multi-leaf/c-proj-list
+           space-efficient-property-s-e
            get-space-efficient-property
+           has-impersonator-prop:space-efficient?
+           get-impersonator-prop:space-efficient
            space-efficient-wrapper-property?
-           space-efficient-wrapper-property-checking-wrapper
-           impersonator-prop:merged
-           has-impersonator-prop:merged?
-           get-impersonator-prop:merged))
+           space-efficient-wrapper-property-checking-wrapper))
 
 ;; object contracts need to propagate properties across procedure->method
 (module+ properties
   (provide impersonator-prop:space-efficient
            has-impersonator-prop:space-efficient?
-           get-impersonator-prop:space-efficient
-           impersonator-prop:merged
-           has-impersonator-prop:merged?
-           get-impersonator-prop:merged))
+           get-impersonator-prop:space-efficient))
 
 (define-logger space-efficient-value-bailout)
 (define-logger space-efficient-contract-bailout)
@@ -54,17 +51,11 @@
 (define SPACE-EFFICIENT-LIMIT 10)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Data structures
+;; Properties
 (define-values (impersonator-prop:space-efficient
                 has-impersonator-prop:space-efficient?
                 get-impersonator-prop:space-efficient)
   (make-impersonator-property 'impersonator-prop:space-efficient))
-
-;; TODO: name
-(define-values (impersonator-prop:merged
-                has-impersonator-prop:merged?
-                get-impersonator-prop:merged)
-  (make-impersonator-property 'impersonator-prop:merged))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

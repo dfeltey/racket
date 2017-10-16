@@ -179,8 +179,8 @@
           (define old-s-e-prop (get-space-efficient-property val))
           (define safe-for-s-e?
             (if old-s-e-prop
-                (and (space-efficient-property? old-s-e-prop)
-                     (eq? (space-efficient-property-ref old-s-e-prop) val))
+                (and (space-efficient-ref-property? old-s-e-prop)
+                     (eq? (space-efficient-ref-property-ref old-s-e-prop) val))
                 (not (impersonator? val))))
           (define wrapper-count
             (if (space-efficient-count-property? old-s-e-prop)
@@ -201,11 +201,17 @@
               (for/vector #:length (vector-length val) ([e (in-vector val)])
                 (elem-pos-proj e neg-party)))]
             [(not safe-for-s-e?)
+             (define s-e-prop
+               (cond
+                 [(space-efficient-ref-property? old-s-e-prop)
+                  (struct-copy space-efficient-property old-s-e-prop)]
+                 [old-s-e-prop old-s-e-prop]
+                 [else no-s-e-support]))
              (chaperone-or-impersonate-vector
               val
               (checked-ref neg-party)
               (checked-set neg-party)
-              impersonator-prop:space-efficient no-s-e-support
+              impersonator-prop:space-efficient s-e-prop
               impersonator-prop:contracted ctc
               impersonator-prop:blame (cons blame neg-party))]
             [(wrapper-count . >= . SPACE-EFFICIENT-LIMIT)
@@ -220,15 +226,17 @@
               s-e-vector
               val
               neg-party
-              (get-impersonator-prop:merged val)
+              (space-efficient-property-s-e old-s-e-prop)
+              ;; TODO: need neg-party from
+              ; (space-efficient-property-neg old-s-e-prop)
               (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
               chap-not-imp?)]
             [else
              (define s-e-prop
                (space-efficient-count-property
-                #f
                 s-e-vector
                 neg-party
+                #f
                 (add1 wrapper-count)
                 (or old-s-e-prop val)))
              (define wrapped
@@ -239,7 +247,7 @@
                 impersonator-prop:space-efficient s-e-prop
                 impersonator-prop:contracted ctc
                 impersonator-prop:blame (cons blame neg-party)))
-             (set-space-efficient-property-ref! s-e-prop wrapped)
+             (set-space-efficient-ref-property-ref! s-e-prop wrapped)
              wrapped])))
       (values late-neg-proj s-e-vector))))
 
@@ -431,11 +439,11 @@
           (define old-s-e-prop (get-space-efficient-property val))
           (define safe-for-s-e
             (if old-s-e-prop
-                (and (space-efficient-property? old-s-e-prop)
-                     (eq? (space-efficient-property-ref old-s-e-prop) val))
+                (and (space-efficient-ref-property? old-s-e-prop)
+                     (eq? (space-efficient-ref-property-ref old-s-e-prop) val))
                 (not (impersonator? val))))
           (define wrapper-count
-            (if (and safe-for-s-e (space-efficient-count-property? old-s-e-prop))
+            (if (space-efficient-count-property? old-s-e-prop)
                 (space-efficient-count-property-count old-s-e-prop)
                 0))
           (check-vector/c val blame immutable elems-length neg-party)
@@ -447,6 +455,12 @@
                                [i (in-naturals)])
                       ((vector-ref elem-pos-projs i) e neg-party)))]
             [(not safe-for-s-e)
+             (define s-e-prop
+               (cond
+                 [(space-efficient-ref-property? old-s-e-prop)
+                  (struct-copy space-efficient-property old-s-e-prop)]
+                 [old-s-e-prop old-s-e-prop]
+                 [else no-s-e-support]))
              (vector-wrapper
               val
               (λ (vec i val)
@@ -457,7 +471,7 @@
                 (with-contract-continuation-mark
                     blame+neg-party
                   ((vector-ref elem-neg-projs i) val neg-party)))
-              impersonator-prop:space-efficient no-s-e-support
+              impersonator-prop:space-efficient s-e-prop
               impersonator-prop:contracted ctc
               impersonator-prop:blame blame+neg-party)]
             [(wrapper-count . >= . SPACE-EFFICIENT-LIMIT)
@@ -472,15 +486,17 @@
               s-e-vector
               val
               neg-party
-              (get-impersonator-prop:merged val)
+              (space-efficient-property-s-e old-s-e-prop)
+              ;; TODO: need neg-party from
+              ; (space-efficient-property-neg old-s-e-prop)
               (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
               chap-not-imp?)]
             [else
              (define s-e-prop
                (space-efficient-count-property
-                #f
                 s-e-vector
                 neg-party
+                #f
                 (add1 wrapper-count)
                 (or old-s-e-prop val)))
              (define wrapped
@@ -497,7 +513,7 @@
                 impersonator-prop:space-efficient s-e-prop
                 impersonator-prop:contracted ctc
                 impersonator-prop:blame blame+neg-party))
-             (set-space-efficient-property-ref! s-e-prop wrapped)
+             (set-space-efficient-ref-property-ref! s-e-prop wrapped)
              wrapped])))
       (values late-neg-proj s-e-vector))))
 

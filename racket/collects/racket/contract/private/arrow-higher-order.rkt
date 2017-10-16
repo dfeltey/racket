@@ -621,11 +621,11 @@
       (define safe-for-s-e?
         (and has-s-e-support?
              (if old-s-e-prop
-                 (and (space-efficient-property? old-s-e-prop)
-                      (eq? (space-efficient-property-ref old-s-e-prop) val))
+                 (and (space-efficient-ref-property? old-s-e-prop)
+                      (eq? (space-efficient-ref-property-ref old-s-e-prop) val))
                  (val-has-arrow-space-efficient-support? val))))
       (define wrapper-count
-        (if (and safe-for-s-e? (space-efficient-count-property? old-s-e-prop))
+        (if (space-efficient-count-property? old-s-e-prop)
             (space-efficient-count-property-count old-s-e-prop)
             0))
       (define-values (chap/imp-func use-unsafe-chaperone-procedure?)
@@ -641,13 +641,19 @@
         [(not chap/imp-func)
          val]
         [(not safe-for-s-e?)
+         (define s-e-prop
+           (cond
+             [(space-efficient-ref-property? old-s-e-prop)
+              (struct-copy space-efficient-property old-s-e-prop)]
+             [old-s-e-prop old-s-e-prop]
+             [else no-s-e-support]))
          (if (or post? (not rngs))
              (chaperone-or-impersonate-procedure
               val
               chap/imp-func
               impersonator-prop:contracted ctc
               impersonator-prop:blame (cons orig-blame neg-party)
-              impersonator-prop:space-efficient no-s-e-support)
+              impersonator-prop:space-efficient s-e-prop)
              (chaperone-or-impersonate-procedure
               val
               chap/imp-func
@@ -668,7 +674,9 @@
           s-e-mergable
           val
           neg-party
-          (get-impersonator-prop:merged val)
+          (space-efficient-property-s-e old-s-e-prop)
+          ;; TODO: need neg-party from
+          ; (space-efficient-property-neg old-s-e-prop)
           (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
           chaperone?)]
         [else
@@ -695,7 +703,7 @@
               impersonator-prop:space-efficient s-e-prop
               impersonator-prop:application-mark
               (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs)))))
-         (set-space-efficient-property-ref! s-e-prop wrapped)
+         (set-space-efficient-ref-property-ref! s-e-prop wrapped)
          wrapped]))
     (cond
       [late-neg?

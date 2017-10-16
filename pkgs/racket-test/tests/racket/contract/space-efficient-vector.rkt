@@ -493,9 +493,10 @@
   (contract-eval
    '(define (vectorof-has-num-contracts? v ref set)
       (with-handlers ([exn:fail? (lambda (e) (exn-message e))])
-        (unless (has-impersonator-prop:merged? v)
+        (unless (has-impersonator-prop:space-efficient? v)
           (error "vectorof-has-num-contracts?: no space-efficient-contract"))
-        (define multi/c (car (get-impersonator-prop:merged v)))
+        ;; TODO: maybe should check that is a space-efficient-wrapper-property ...
+        (define multi/c (space-efficient-property-s-e (get-impersonator-prop:space-efficient v)))
         (define ref/c (multi-vector-ref-ctcs multi/c))
         (define set/c (multi-vector-set-ctcs multi/c))
         (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
@@ -521,10 +522,10 @@
   (contract-eval
    '(define (vector/c-has-num-contracts? v refs sets)
       (with-handlers ([exn:fail? (lambda (e) (exn-message e))])
-        (define prop (get-space-efficient-property v))
-        (unless (has-impersonator-prop:merged? v)
+        (unless (has-impersonator-prop:space-efficient? v)
           (error "vectorof-has-num-contracts?: no space-efficient-contract"))
-        (define multi/c (car (get-impersonator-prop:merged v)))
+        ;; TODO: maybe should check that is a space-efficient-wrapper-property ...
+        (define multi/c (space-efficient-property-s-e (get-impersonator-prop:space-efficient v)))
         (define ref-ctcs (multi-vector-ref-ctcs multi/c))
         (define set-ctcs (multi-vector-set-ctcs multi/c))
         (for ([ref (in-list refs)]

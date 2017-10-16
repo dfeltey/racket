@@ -121,8 +121,8 @@
   (define prop (get-space-efficient-property val))
   (define safe-for-s-e?
     (if prop
-        (and (space-efficient-property? prop)
-             (eq? (space-efficient-property-ref prop) val))
+        (and (space-efficient-ref-property? prop)
+             (eq? (space-efficient-ref-property-ref prop) val))
         (not (impersonator? val))))
   (cond
     ;; not safe, bail out
@@ -133,7 +133,9 @@
       s-e
       val
       neg-party
-      (get-impersonator-prop:merged val)
+      (space-efficient-property-s-e prop)
+      ;; TODO: need neg-party from
+      ; (space-efficient-property-neg prop)
       (space-efficient-wrapper-property-checking-wrapper prop)
       chap-not-imp?)]
     ;; need to collapse contracts ...
@@ -158,10 +160,9 @@
      #f
      #f
      impersonator-prop:space-efficient s-e-prop
-     impersonator-prop:merged (cons merged neg-party)
      impersonator-prop:contracted (multi-ho/c-latest-ctc s-e)
      impersonator-prop:blame (cons (multi-ho/c-latest-blame s-e) neg-party)))
-  (set-space-efficient-property-ref! s-e-prop wrapped)
+  (set-space-efficient-ref-property-ref! s-e-prop wrapped)
   wrapped)
 
 (define (make-checking-wrapper unwrapped chap-not-imp?)
@@ -182,15 +183,17 @@
 
 (define-syntax (make-vector-checking-wrapper stx)
   (syntax-case stx ()
-    [(_ set? maybe-closed-over-m/c)
+    [(_ set? maybe-closed-over-m/c maybe-closed-over-neg)
      #`(λ (outermost v i elt)
-         (define m/c+neg-party
-           #,(if (syntax-e #'maybe-closed-over-m/c)
-                 #'maybe-closed-over-m/c
-                 #'(get-impersonator-prop:space-efficient outermost)))
-         (define m/c (space-efficient-property-s-e m/c+neg-party))
-         (define neg (or (multi-ho/c-missing-party m/c)
-                         (space-efficient-property-neg-party m/c+neg-party)))
+         (define-values (m/c neg-party)
+           #,(if (and (syntax-e #'maybe-closed-over-m/c)
+                      (syntax-e #'maybe-closed-over-neg))
+                 #'(values maybe-closed-over-m/c maybe-closed-over-neg)
+                 #'(let ()
+                     (define prop (get-impersonator-prop:space-efficient outermost))
+                     (values (space-efficient-property-s-e prop)
+                             (space-efficient-property-neg-party prop)))))
+         (define neg (or (multi-ho/c-missing-party m/c) neg-party))
          (define field
            #,(if (syntax-e #'set?)
                  #'(multi-vector-set-ctcs m/c)
@@ -203,8 +206,8 @@
                  blame
                (space-efficient-guard s-e elt neg))))]))
 
-(define ref-wrapper (make-vector-checking-wrapper #f #f))
-(define set-wrapper (make-vector-checking-wrapper #t #f))
+(define ref-wrapper (make-vector-checking-wrapper #f #f #f))
+(define set-wrapper (make-vector-checking-wrapper #t #f #f))
 
 (define (bail-to-regular-wrapper m/c val neg-party)
   (define chap-not-imp? (chaperone-multi-vector? m/c))
@@ -214,9 +217,8 @@
   (define merged+neg-party (cons m/c neg))
   ((if chap-not-imp? chaperone-vector* impersonate-vector*)
    val
-   (make-vector-checking-wrapper #f merged+neg-party)
-   (make-vector-checking-wrapper #t merged+neg-party)
-   impersonator-prop:space-efficient no-s-e-support
+   (make-vector-checking-wrapper #f m/c neg)
+   (make-vector-checking-wrapper #t m/c neg)
    impersonator-prop:contracted ctc
    impersonator-prop:blame blame))
 

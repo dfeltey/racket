@@ -145,8 +145,8 @@
   (define prop (get-space-efficient-property val))
   (define safe-for-s-e?
     (if prop
-        (and (space-efficient-property? prop)
-             (eq? (space-efficient-property-ref prop) val))
+        (and (space-efficient-ref-property? prop)
+             (eq? (space-efficient-ref-property-ref prop) val))
         (val-has-arrow-space-efficient-support? val)))
   (cond
     [(not safe-for-s-e?) (bail-to-regular-wrapper s-e val neg-party)]
@@ -155,7 +155,9 @@
       s-e
       val
       neg-party
-      (get-impersonator-prop:merged val)
+      (space-efficient-property-s-e prop)
+      ;; TODO: need neg-party from
+      ; (space-efficient-property-neg prop)
       (space-efficient-wrapper-property-checking-wrapper prop)
       chap-not-imp?)]
     [(space-efficient-count-property? prop)
@@ -178,10 +180,9 @@
      checking-wrapper
      #f
      impersonator-prop:space-efficient s-e-prop
-     impersonator-prop:merged (cons merged neg-party)
      impersonator-prop:contracted (multi-ho/c-latest-ctc s-e)
      impersonator-prop:blame (cons (multi-ho/c-latest-blame s-e) neg-party)))
-  (set-space-efficient-property-ref! s-e-prop wrapped)
+  (set-space-efficient-ref-property-ref! s-e-prop wrapped)
   wrapped)
 
 
@@ -216,17 +217,19 @@
 ;;   checks in arrow-higher-order, so we need to handle them here)))
 (define-syntax (make-interposition-procedure stx)
   (syntax-case stx ()
-    [(_ maybe-closed-over-m/c)
+    [(_ maybe-closed-over-m/c maybe-closed-over-neg)
      ;; Note: it would be more efficient to have arity-specific wrappers here,
      ;;   as opposed to using a rest arg.
      #`(λ (outermost-chaperone . args)
-         (define m/c+neg-party
-           #,(if (syntax-e #'maybe-closed-over-m/c)
-                 #'maybe-closed-over-m/c ; we did close over the contract
-                 ;; otherwise, get it from the impersonator property
-                 #'(get-impersonator-prop:merged outermost-chaperone)))
-         (define m/c (car m/c+neg-party))
-         (define neg (or (multi-ho/c-missing-party m/c) (cdr m/c+neg-party)))
+         (define-values (m/c neg-party)
+           #,(if (and (syntax-e #'maybe-closed-over-m/c)
+                      (syntax-e #'maybe-closed-over-neg))
+                 #'(values maybe-closed-over-m/c maybe-closed-over-neg)
+                 #'(let ()
+                     (define prop (get-impersonator-prop:space-efficient outermost-chaperone))
+                     (values (space-efficient-property-s-e prop)
+                             (space-efficient-property-neg-party prop)))))
+         (define neg (or (multi-ho/c-missing-party m/c) neg-party))
          (define doms   (multi->-doms         m/c))
          (define rng    (multi->-rng          m/c))
          (define blame  (multi-ho/c-latest-blame m/c))
@@ -258,7 +261,7 @@
                       blame+neg-party
                       (space-efficient-guard dom arg neg))))))]))
 
-(define arrow-wrapper (make-interposition-procedure #f))
+(define arrow-wrapper (make-interposition-procedure #f #f))
 
 ;; create a regular checking wrapper from a space-efficient wrapper for a value
 ;; that can't use space-efficient wrapping
@@ -267,8 +270,7 @@
   (define neg (or (multi-ho/c-missing-party m/c) neg-party))
   ((if chap-not-imp? chaperone-procedure* impersonate-procedure*)
    val
-   (make-interposition-procedure (cons m/c neg))
-   impersonator-prop:space-efficient no-s-e-support
+   (make-interposition-procedure m/c neg)
    impersonator-prop:contracted (multi-ho/c-latest-ctc   m/c)
    impersonator-prop:blame (cons
                             (multi-ho/c-latest-blame m/c)
