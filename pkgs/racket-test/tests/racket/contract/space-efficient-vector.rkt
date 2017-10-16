@@ -487,7 +487,11 @@
 
   (contract-eval '(require (submod racket/contract/private/vector-space-efficient for-testing)))
   (contract-eval '(require (submod racket/contract/private/space-efficient-common for-testing)))
-  (contract-eval '(define (space-efficient? val) (has-impersonator-prop:merged? val)))
+  (contract-eval '(define (space-efficient? val)
+                    (and (has-impersonator-prop:space-efficient? val)
+                         (let ([prop (get-space-efficient-property val)])
+                           (and (space-efficient-wrapper-property? prop)
+                                (eq? val (space-efficient-ref-property-ref prop)))))))
 
   ;; vectorof
   (contract-eval
@@ -500,8 +504,7 @@
         (define ref/c (multi-vector-ref-ctcs multi/c))
         (define set/c (multi-vector-set-ctcs multi/c))
         (unless (= (length (multi-leaf/c-proj-list ref/c)) ref)
-        (printf "had ~a ref-projs\n\n" (length (multi-leaf/c-proj-list ref/c)))
-        (error "vectorof-has-num-contracts?: wrong number of ref projections"))
+          (error "vectorof-has-num-contracts?: wrong number of ref projections"))
         (unless (= (length (multi-leaf/c-proj-list set/c)) set)
           (error "vectorof-has-num-contracts?: wrong number of set projections"))
         (unless (= (length (multi-leaf/c-contract-list ref/c)) ref)
@@ -513,10 +516,8 @@
   (contract-eval
    '(define (vector-can-combine? val ctc)
       (define cv (contract ctc val 'p 'n))
-      (and (has-impersonator-prop:merged? val)
-           (has-impersonator-prop:merged? cv)
-           (space-efficient-wrapper-property?
-            (get-space-efficient-property cv)))))
+      (and (space-efficient? val)
+           (space-efficient? cv))))
 
   ;; vector/c
   (contract-eval
@@ -1013,8 +1014,13 @@
       (define prop (get-space-efficient-property x))
       (and
        (space-efficient-wrapper-property? prop)
-       (has-impersonator-prop:merged? x)
-       (has-impersonator-prop:merged? (space-efficient-wrapper-property-checking-wrapper prop)))))
+       (and (has-impersonator-prop:space-efficient?
+             (space-efficient-wrapper-property-checking-wrapper prop))
+            ;; this is annoying because of how unsafe-chaperone-vector ...
+            ;; work in relation to impersonator-properties
+            (space-efficient-wrapper-property?
+             (get-space-efficient-property
+              (space-efficient-wrapper-property-checking-wrapper prop)))))))
 
   (test-false
    'dont-multi-wrap

@@ -31,6 +31,7 @@
            multi-leaf/c-contract-list
            multi-leaf/c-proj-list
            space-efficient-property-s-e
+           space-efficient-ref-property-ref
            get-space-efficient-property
            has-impersonator-prop:space-efficient?
            get-impersonator-prop:space-efficient
@@ -314,10 +315,10 @@
          try-merge
          add-s-e-chaperone
          bail)
-  (λ (new-s-e val neg-party s-e+neg-party checking-wrapper chap-not-imp?)
+  (λ (new-s-e val new-neg-party s-e neg-party checking-wrapper chap-not-imp?)
     (define-values (merged-s-e new-neg)
-      (try-merge new-s-e neg-party (car s-e+neg-party) (cdr s-e+neg-party)))
+      (try-merge new-s-e new-neg-party s-e neg-party))
     (cond
       [merged-s-e
        (add-s-e-chaperone merged-s-e new-s-e new-neg checking-wrapper chap-not-imp?)]
-      [else (bail new-s-e val neg-party)])))
+      [else (bail new-s-e val new-neg-party)])))

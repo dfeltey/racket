@@ -227,8 +227,7 @@
               val
               neg-party
               (space-efficient-property-s-e old-s-e-prop)
-              ;; TODO: need neg-party from
-              ; (space-efficient-property-neg old-s-e-prop)
+              (space-efficient-property-neg-party old-s-e-prop)
               (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
               chap-not-imp?)]
             [else
@@ -487,8 +486,7 @@
               val
               neg-party
               (space-efficient-property-s-e old-s-e-prop)
-              ;; TODO: need neg-party from
-              ; (space-efficient-property-neg old-s-e-prop)
+              (space-efficient-property-neg-party old-s-e-prop)
               (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
               chap-not-imp?)]
             [else

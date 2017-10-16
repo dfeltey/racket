@@ -77,9 +77,9 @@
   (contract-eval '(require (submod racket/contract/private/space-efficient-common for-testing)))
   (contract-eval
    '(define (has-num-contracts? f dom rng)
-      (unless (has-impersonator-prop:merged? f)
+      (unless (has-impersonator-prop:space-efficient? f)
         (error "has-num-contracts?: no space-efficient contract"))
-      (define multi/c  (car (get-impersonator-prop:merged f)))
+      (define multi/c  (space-efficient-property-s-e (get-impersonator-prop:space-efficient f)))
       (define domain/c (car (multi->-doms multi/c)))
       (define range/c  (multi->-rng  multi/c))
       (unless (= (length (multi-leaf/c-proj-list domain/c)) dom)
@@ -90,7 +90,11 @@
         (error "has-num-contracts?: wrong num of domain contracts"))
       (unless (= (length (multi-leaf/c-contract-list range/c))  rng)
         (error "has-num-contracts?: wrong num of range contracts"))))
-  (contract-eval '(define (space-efficient? val) (has-impersonator-prop:merged? val)))
+  (contract-eval '(define (space-efficient? val)
+                    (and (has-impersonator-prop:space-efficient? val)
+                         (let ([prop (get-space-efficient-property val)])
+                           (and (space-efficient-wrapper-property? prop)
+                                (eq? val (space-efficient-ref-property-ref prop)))))))
 
   (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
   (contract-eval '(define pos->pos (-> pos pos)))
@@ -200,8 +204,13 @@
       (define prop (get-space-efficient-property x))
       (and
        (space-efficient-wrapper-property? prop)
-       (has-impersonator-prop:merged? x)
-       (has-impersonator-prop:merged? (space-efficient-wrapper-property-checking-wrapper prop)))))
+       (and (has-impersonator-prop:space-efficient?
+             (space-efficient-wrapper-property-checking-wrapper prop))
+            ;; this is annoying because of how unsafe-chaperones ...
+            ;; work in relation to impersonator-properties
+            (space-efficient-wrapper-property?
+             (get-space-efficient-property
+              (space-efficient-wrapper-property-checking-wrapper prop)))))))
 
   (test-false
    'space-efficient-wrap1
@@ -325,10 +334,8 @@
   (contract-eval
    '(define (can-combine? val ctc)
       (define cv (contract ctc val 'p 'n))
-      (and (has-impersonator-prop:merged? val)
-           (has-impersonator-prop:merged? cv)
-           (space-efficient-wrapper-property?
-            (get-space-efficient-property cv)))))
+      (and (space-efficient? val)
+           (space-efficient? cv))))
 
   (contract-eval '(define ic
                     (contract (-> (-> c1 c1) (-> c1 c1))

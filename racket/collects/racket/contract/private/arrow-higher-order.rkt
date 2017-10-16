@@ -659,7 +659,7 @@
               chap/imp-func
               impersonator-prop:contracted ctc
               impersonator-prop:blame (cons orig-blame neg-party)
-              impersonator-prop:space-efficient no-s-e-support
+              impersonator-prop:space-efficient s-e-prop
               impersonator-prop:application-mark
               (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))))]
         [(wrapper-count . >= . SPACE-EFFICIENT-LIMIT)
@@ -675,16 +675,15 @@
           val
           neg-party
           (space-efficient-property-s-e old-s-e-prop)
-          ;; TODO: need neg-party from
-          ; (space-efficient-property-neg old-s-e-prop)
+          (space-efficient-property-neg-party old-s-e-prop)
           (space-efficient-wrapper-property-checking-wrapper old-s-e-prop)
           chaperone?)]
         [else
          (define s-e-prop
            (space-efficient-count-property
-            #f
             s-e-mergable
             neg-party
+            #f
             (add1 wrapper-count)
             (or old-s-e-prop val)))
          (define wrapped

@@ -156,8 +156,7 @@
       val
       neg-party
       (space-efficient-property-s-e prop)
-      ;; TODO: need neg-party from
-      ; (space-efficient-property-neg prop)
+      (space-efficient-property-neg-party prop)
       (space-efficient-wrapper-property-checking-wrapper prop)
       chap-not-imp?)]
     [(space-efficient-count-property? prop)
@@ -174,7 +173,7 @@
 (define (add-space-efficient-arrow-chaperone merged s-e neg-party checking-wrapper chap-not-imp?)
   (define chap/imp (if chap-not-imp? chaperone-procedure impersonate-procedure))
   (define s-e-prop
-    (space-efficient-wrapper-property #f checking-wrapper))
+    (space-efficient-wrapper-property merged neg-party #f checking-wrapper))
   (define wrapped
     (chap/imp
      checking-wrapper
@@ -222,8 +221,7 @@
      ;;   as opposed to using a rest arg.
      #`(λ (outermost-chaperone . args)
          (define-values (m/c neg-party)
-           #,(if (and (syntax-e #'maybe-closed-over-m/c)
-                      (syntax-e #'maybe-closed-over-neg))
+           #,(if (syntax-e #'maybe-closed-over-m/c)
                  #'(values maybe-closed-over-m/c maybe-closed-over-neg)
                  #'(let ()
                      (define prop (get-impersonator-prop:space-efficient outermost-chaperone))
