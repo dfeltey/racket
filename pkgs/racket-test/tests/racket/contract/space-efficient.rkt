@@ -94,7 +94,7 @@
                     (and (has-impersonator-prop:space-efficient? val)
                          (let ([prop (get-space-efficient-property val)])
                            (and (space-efficient-wrapper-property? prop)
-                                (eq? val (space-efficient-ref-property-ref prop)))))))
+                                (eq? val (space-efficient-property-ref prop)))))))
 
   (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
   (contract-eval '(define pos->pos (-> pos pos)))

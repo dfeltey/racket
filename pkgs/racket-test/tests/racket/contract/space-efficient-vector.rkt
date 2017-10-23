@@ -491,7 +491,7 @@
                     (and (has-impersonator-prop:space-efficient? val)
                          (let ([prop (get-space-efficient-property val)])
                            (and (space-efficient-wrapper-property? prop)
-                                (eq? val (space-efficient-ref-property-ref prop)))))))
+                                (eq? val (space-efficient-property-ref prop)))))))
 
   ;; vectorof
   (contract-eval

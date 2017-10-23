@@ -621,8 +621,8 @@
       (define safe-for-s-e?
         (and has-s-e-support?
              (if old-s-e-prop
-                 (and (space-efficient-ref-property? old-s-e-prop)
-                      (eq? (space-efficient-ref-property-ref old-s-e-prop) val))
+                 (and (space-efficient-property? old-s-e-prop)
+                      (eq? (space-efficient-property-ref old-s-e-prop) val))
                  (val-has-arrow-space-efficient-support? val))))
       (define wrapper-count
         (if (space-efficient-count-property? old-s-e-prop)
@@ -694,7 +694,7 @@
               impersonator-prop:space-efficient s-e-prop
               impersonator-prop:application-mark
               (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs)))))
-         (set-space-efficient-ref-property-ref! s-e-prop wrapped)
+         (set-space-efficient-property-ref! s-e-prop wrapped)
          wrapped]))
     (cond
       [late-neg?

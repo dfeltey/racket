@@ -121,8 +121,8 @@
   (define prop (get-space-efficient-property val))
   (define safe-for-s-e?
     (if prop
-        (and (space-efficient-ref-property? prop)
-             (eq? (space-efficient-ref-property-ref prop) val))
+        (and (space-efficient-property? prop)
+             (eq? (space-efficient-property-ref prop) val))
         (not (impersonator? val))))
   (cond
     ;; not safe, bail out
@@ -162,7 +162,7 @@
      impersonator-prop:space-efficient s-e-prop
      impersonator-prop:contracted (multi-ho/c-latest-ctc s-e)
      impersonator-prop:blame (cons (multi-ho/c-latest-blame s-e) neg-party)))
-  (set-space-efficient-ref-property-ref! s-e-prop wrapped)
+  (set-space-efficient-property-ref! s-e-prop wrapped)
   wrapped)
 
 (define (make-checking-wrapper unwrapped chap-not-imp?)

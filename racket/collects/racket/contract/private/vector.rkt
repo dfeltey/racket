@@ -179,8 +179,8 @@
           (define old-s-e-prop (get-space-efficient-property val))
           (define safe-for-s-e?
             (if old-s-e-prop
-                (and (space-efficient-ref-property? old-s-e-prop)
-                     (eq? (space-efficient-ref-property-ref old-s-e-prop) val))
+                (and (space-efficient-property? old-s-e-prop)
+                     (eq? (space-efficient-property-ref old-s-e-prop) val))
                 (not (impersonator? val))))
           (define wrapper-count
             (if (space-efficient-count-property? old-s-e-prop)
@@ -239,7 +239,7 @@
                 impersonator-prop:space-efficient s-e-prop
                 impersonator-prop:contracted ctc
                 impersonator-prop:blame (cons blame neg-party)))
-             (set-space-efficient-ref-property-ref! s-e-prop wrapped)
+             (set-space-efficient-property-ref! s-e-prop wrapped)
              wrapped])))
       (values late-neg-proj s-e-vector))))
 
@@ -431,8 +431,8 @@
           (define old-s-e-prop (get-space-efficient-property val))
           (define safe-for-s-e
             (if old-s-e-prop
-                (and (space-efficient-ref-property? old-s-e-prop)
-                     (eq? (space-efficient-ref-property-ref old-s-e-prop) val))
+                (and (space-efficient-property? old-s-e-prop)
+                     (eq? (space-efficient-property-ref old-s-e-prop) val))
                 (not (impersonator? val))))
           (define wrapper-count
             (if (space-efficient-count-property? old-s-e-prop)
@@ -497,7 +497,7 @@
                 impersonator-prop:space-efficient s-e-prop
                 impersonator-prop:contracted ctc
                 impersonator-prop:blame blame+neg-party))
-             (set-space-efficient-ref-property-ref! s-e-prop wrapped)
+             (set-space-efficient-property-ref! s-e-prop wrapped)
              wrapped])))
       (values late-neg-proj s-e-vector))))
 

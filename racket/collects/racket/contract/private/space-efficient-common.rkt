@@ -7,7 +7,6 @@
 (provide (struct-out multi-ho/c)
          (struct-out multi-leaf/c)
          (struct-out space-efficient-property)
-         (struct-out space-efficient-ref-property)
          (struct-out space-efficient-count-property)
          (struct-out space-efficient-wrapper-property)
          build-space-efficient-leaf
@@ -23,7 +22,6 @@
          make-enter-space-efficient-mode/continue
          make-enter-space-efficient-mode/collapse
          make-enter-space-efficient-mode/direct
-         no-s-e-support
          SPACE-EFFICIENT-LIMIT)
 
 (module+ for-testing
@@ -31,7 +29,7 @@
            multi-leaf/c-contract-list
            multi-leaf/c-proj-list
            space-efficient-property-s-e
-           space-efficient-ref-property-ref
+           space-efficient-property-ref
            get-space-efficient-property
            has-impersonator-prop:space-efficient?
            get-impersonator-prop:space-efficient
@@ -242,12 +240,9 @@
                                        #:implies stronger?)))
                  old)))
 
-(struct space-efficient-property (s-e neg-party))
-(struct space-efficient-ref-property space-efficient-property ([ref #:mutable]))
-(struct space-efficient-count-property space-efficient-ref-property (count prev))
-(struct space-efficient-wrapper-property space-efficient-ref-property (checking-wrapper))
-
-(define no-s-e-support (space-efficient-property #f #f))
+(struct space-efficient-property (s-e neg-party [ref #:mutable]))
+(struct space-efficient-count-property space-efficient-property (count prev))
+(struct space-efficient-wrapper-property space-efficient-property (checking-wrapper))
 
 ;; A Space-Efficient-Property is one of
 ;; - no-s-e-support -- indicicating that the value with this property does not support s-e mode
