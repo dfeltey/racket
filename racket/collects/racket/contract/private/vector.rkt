@@ -201,17 +201,10 @@
               (for/vector #:length (vector-length val) ([e (in-vector val)])
                 (elem-pos-proj e neg-party)))]
             [(not safe-for-s-e?)
-             (define s-e-prop
-               (cond
-                 [(space-efficient-ref-property? old-s-e-prop)
-                  (struct-copy space-efficient-property old-s-e-prop)]
-                 [old-s-e-prop old-s-e-prop]
-                 [else no-s-e-support]))
              (chaperone-or-impersonate-vector
               val
               (checked-ref neg-party)
               (checked-set neg-party)
-              impersonator-prop:space-efficient s-e-prop
               impersonator-prop:contracted ctc
               impersonator-prop:blame (cons blame neg-party))]
             [(wrapper-count . >= . SPACE-EFFICIENT-LIMIT)
@@ -454,12 +447,6 @@
                                [i (in-naturals)])
                       ((vector-ref elem-pos-projs i) e neg-party)))]
             [(not safe-for-s-e)
-             (define s-e-prop
-               (cond
-                 [(space-efficient-ref-property? old-s-e-prop)
-                  (struct-copy space-efficient-property old-s-e-prop)]
-                 [old-s-e-prop old-s-e-prop]
-                 [else no-s-e-support]))
              (vector-wrapper
               val
               (λ (vec i val)
@@ -470,7 +457,6 @@
                 (with-contract-continuation-mark
                     blame+neg-party
                   ((vector-ref elem-neg-projs i) val neg-party)))
-              impersonator-prop:space-efficient s-e-prop
               impersonator-prop:contracted ctc
               impersonator-prop:blame blame+neg-party)]
             [(wrapper-count . >= . SPACE-EFFICIENT-LIMIT)

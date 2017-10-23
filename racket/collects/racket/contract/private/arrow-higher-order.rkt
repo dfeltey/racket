@@ -641,25 +641,17 @@
         [(not chap/imp-func)
          val]
         [(not safe-for-s-e?)
-         (define s-e-prop
-           (cond
-             [(space-efficient-ref-property? old-s-e-prop)
-              (struct-copy space-efficient-property old-s-e-prop)]
-             [old-s-e-prop old-s-e-prop]
-             [else no-s-e-support]))
          (if (or post? (not rngs))
              (chaperone-or-impersonate-procedure
               val
               chap/imp-func
               impersonator-prop:contracted ctc
-              impersonator-prop:blame (cons orig-blame neg-party)
-              impersonator-prop:space-efficient s-e-prop)
+              impersonator-prop:blame (cons orig-blame neg-party))
              (chaperone-or-impersonate-procedure
               val
               chap/imp-func
               impersonator-prop:contracted ctc
               impersonator-prop:blame (cons orig-blame neg-party)
-              impersonator-prop:space-efficient s-e-prop
               impersonator-prop:application-mark
               (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs))))]
         [(wrapper-count . >= . SPACE-EFFICIENT-LIMIT)
