@@ -1528,7 +1528,7 @@
                #f)))
   (define space-efficient-late-neg-proj
     (λ (->stct)
-      (->-proj chaperone? ->stct
+      (->-proj is-impersonator? ->stct
                (base->-min-arity ->stct)
                (base->-doms ->stct)
                (base->-kwd-infos ->stct)

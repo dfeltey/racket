@@ -545,6 +545,7 @@
                  plus-one-arity-function chaperone-constructor method?
                  late-neg?)
   (define has-s-e-support? (->-contract-has-space-efficient-support? ctc))
+  (define chaperone? (not is-impersonator?))
   (define optionals-length (- (length doms) min-arity))
   (define mtd? #f) ;; not yet supported for the new contracts
   (define okay-to-do-only-arity-check?
