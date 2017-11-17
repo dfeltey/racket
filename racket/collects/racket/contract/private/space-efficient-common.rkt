@@ -137,50 +137,50 @@
   (for/or ([e (in-list contract-list)])
     (implies e c)))
 
-(define (leaf-implied-by-one? new-contract-list new-blame-list new-missing-party-list new-neg
-                              old-ctc old-blame old-missing-party old-neg)
-  (define old-blame-pos (or (blame-positive old-blame) old-missing-party old-neg))
-  (define old-blame-neg (or (blame-negative old-blame) old-missing-party old-neg))
-  (and old-ctc
-       (for/or ([new-ctc (in-list new-contract-list)]
-                [new-blame (in-list new-blame-list)]
-                [new-missing-party (in-list new-missing-party-list)])
-         (and new-ctc
+(define (leaf-implied-by-one? contract-list blame-list missing-party-list neg
+                              new-ctc new-blame new-missing-party new-neg)
+  (define blame-pos (or (blame-positive new-blame) new-missing-party new-neg))
+  (define blame-neg (or (blame-negative new-blame) new-missing-party new-neg))
+  (and new-ctc
+       (for/or ([old-ctc (in-list contract-list)]
+                [old-blame (in-list blame-list)]
+                [old-missing-party (in-list missing-party-list)])
+         (and old-ctc
               (cond
-                [(flat-contract-struct? old-ctc)
-                 (contract-struct-stronger? new-ctc old-ctc)]
+                [(flat-contract-struct? new-ctc)
+                 (contract-struct-stronger? old-ctc new-ctc)]
                 [else
-                 (define new-blame-pos (or (blame-positive new-blame) new-missing-party new-neg))
-                 (define new-blame-neg (or (blame-negative new-blame) new-missing-party new-neg))
-                 (and (contract-struct-stronger? new-ctc old-ctc)
-                      (contract-struct-stronger? old-ctc new-ctc)
-                      (equal? new-blame-pos old-blame-pos)
-                      (equal? new-blame-neg old-blame-neg))])))))
+                 (define old-blame-pos (or (blame-positive old-blame) old-missing-party neg))
+                 (define old-blame-neg (or (blame-negative old-blame) old-missing-party neg))
+                 (and (contract-struct-stronger? old-ctc new-ctc)
+                      (contract-struct-stronger? new-ctc old-ctc)
+                      (equal? old-blame-pos blame-pos)
+                      (equal? old-blame-neg blame-neg))])))))
 
 ;; join two multi-leaf contracts
-(define (join-multi-leaf/c old-multi old-neg new-multi new-neg)
-  (define old-proj-list (multi-leaf/c-proj-list old-multi))
-  (define old-flat-list (multi-leaf/c-contract-list old-multi))
-  (define old-blame-list (multi-leaf/c-blame-list old-multi))
-  (define old-missing-party-list (multi-leaf/c-missing-party-list old-multi))
+(define (join-multi-leaf/c new-multi new-neg old-multi old-neg)
   (define new-proj-list (multi-leaf/c-proj-list new-multi))
   (define new-flat-list (multi-leaf/c-contract-list new-multi))
   (define new-blame-list (multi-leaf/c-blame-list new-multi))
+  (define new-missing-party-list (multi-leaf/c-missing-party-list new-multi))
+  (define old-proj-list (multi-leaf/c-proj-list old-multi))
+  (define old-flat-list (multi-leaf/c-contract-list old-multi))
+  (define old-blame-list (multi-leaf/c-blame-list old-multi))
   ;; We have to traverse the list to add the new neg party where it is missing
-  (define new-missing-party-list (add-missing-parties (multi-leaf/c-missing-party-list new-multi) new-neg))
+  (define old-missing-party-list (add-missing-parties (multi-leaf/c-missing-party-list old-multi) old-neg))
   (define-values (not-implied-projs not-implied-flats not-implied-blames not-implied-missing-parties)
-    (for/lists (_1 _2 _3 _4) ([old-proj (in-list old-proj-list)]
-                              [old-flat (in-list old-flat-list)]
-                              [old-blame (in-list old-blame-list)]
-                              [old-missing-party (in-list old-missing-party-list)]
+    (for/lists (_1 _2 _3 _4) ([new-proj (in-list new-proj-list)]
+                              [new-flat (in-list new-flat-list)]
+                              [new-blame (in-list new-blame-list)]
+                              [new-missing-party (in-list new-missing-party-list)]
                               #:when (not (leaf-implied-by-one?
-                                           new-flat-list new-blame-list new-missing-party-list new-neg
-                                           old-flat old-blame old-missing-party old-neg)))
-      (values old-proj old-flat old-blame (or old-missing-party old-neg))))
-  (values (multi-leaf/c (fast-append new-proj-list not-implied-projs)
-                        (fast-append new-flat-list not-implied-flats)
-                        (fast-append new-blame-list not-implied-blames)
-                        (fast-append new-missing-party-list not-implied-missing-parties))
+                                           old-flat-list old-blame-list old-missing-party-list old-neg
+                                           new-flat new-blame new-missing-party new-neg)))
+      (values new-proj new-flat new-blame (or new-missing-party new-neg))))
+  (values (multi-leaf/c (fast-append old-proj-list not-implied-projs)
+                        (fast-append old-flat-list not-implied-flats)
+                        (fast-append old-blame-list not-implied-blames)
+                        (fast-append old-missing-party-list not-implied-missing-parties))
           #f))
 
 (define (add-missing-parties missing-parties new-neg-party)
