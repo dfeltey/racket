@@ -2,7 +2,7 @@
 
 ;; Common functionality used by all space-efficient contracts
 
-(require "prop.rkt"  "blame.rkt")
+(require "prop.rkt" "blame.rkt" "merge-cache.rkt")
 
 (provide (struct-out multi-ho/c)
          (struct-out multi-leaf/c)
@@ -198,7 +198,7 @@
 ;; Assuming that merging is symmetric, ie old-can-merge? iff new-can-merge?
 ;; This is true of the current s-e implementation, but if it ever changes
 ;; this function will neef to check both directions for merging
-(define (merge new-s-e new-neg old-s-e old-neg)
+(define/merge-cache (merge new-s-e new-neg old-s-e old-neg)
   (define-values (new-try-merge new-proj) (get-merge-components new-s-e))
   (define-values (_ old-proj) (get-merge-components old-s-e))
   (or (new-try-merge new-s-e new-neg old-s-e old-neg)

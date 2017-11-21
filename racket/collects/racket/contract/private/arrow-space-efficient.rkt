@@ -5,7 +5,7 @@
 ;; based on a prototype by Christophe Scholliers
 
 (require racket/unsafe/ops
-         "space-efficient-common.rkt"
+         "space-efficient-common.rkt" "merge-cache.rkt"
          (submod "space-efficient-common.rkt" properties)
          "prop.rkt" "guts.rkt" "misc.rkt" "blame.rkt" "arrow-common.rkt"
          "arity-checking.rkt"
@@ -299,7 +299,7 @@
       (impersonator-multi-> blame maybe-neg-blame ctc doms rng focs)))
 
 ;; merge two multi->
-(define (arrow-try-merge new-multi new-neg old-multi old-neg)
+(define/merge-cache (arrow-try-merge new-multi new-neg old-multi old-neg)
   (define constructor (get-constructor new-multi old-multi))
   (and constructor
        (constructor

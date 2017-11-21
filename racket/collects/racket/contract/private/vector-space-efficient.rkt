@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require "prop.rkt" "guts.rkt" "blame.rkt" "vector-common.rkt"
-         "space-efficient-common.rkt"
+         "space-efficient-common.rkt" "merge-cache.rkt"
          (submod "space-efficient-common.rkt" properties)
          (only-in racket/unsafe/ops unsafe-chaperone-vector unsafe-impersonate-vector)
          (for-syntax racket/base))
@@ -71,7 +71,7 @@
    (add-f-o-neg-party old old-neg)
    vector-first-order-check-stronger?))
 
-(define (vector-try-merge new-multi new-neg old-multi old-neg)
+(define/merge-cache (vector-try-merge new-multi new-neg old-multi old-neg)
   (define constructor (get-constructor new-multi old-multi))
   (and constructor
        (constructor
