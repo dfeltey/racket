@@ -47,15 +47,7 @@
 (define-logger space-efficient-merging)
 
 
-(define SPACE-EFFICIENT-LIMIT
-  (let ()
-    (define env-value (getenv "SPACE-EFFICIENT-LIMIT"))
-    (printf "reading env-value: ~a\n" env-value)
-    (cond
-      [env-value
-       (define n (string->number env-value))
-       (or n 10)]
-      [else 10])))
+(define SPACE-EFFICIENT-LIMIT 10)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Properties
