@@ -236,9 +236,7 @@
                 val
                 (checked-ref neg-party)
                 (checked-set neg-party)
-                impersonator-prop:space-efficient s-e-prop
-                impersonator-prop:contracted ctc
-                impersonator-prop:blame (cons blame neg-party)))
+                impersonator-prop:space-efficient s-e-prop))
              (set-space-efficient-property-ref! s-e-prop wrapped)
              wrapped])))
       (values late-neg-proj s-e-vector))))
@@ -457,6 +455,7 @@
                 (with-contract-continuation-mark
                     blame+neg-party
                   ((vector-ref elem-neg-projs i) val neg-party)))
+              ;; TODO: should this be a space-efficient property instead??
               impersonator-prop:contracted ctc
               impersonator-prop:blame blame+neg-party)]
             [(wrapper-count . >= . SPACE-EFFICIENT-LIMIT)
@@ -494,9 +493,7 @@
                   (with-contract-continuation-mark
                     blame+neg-party
                     ((vector-ref elem-neg-projs i) val neg-party)))
-                impersonator-prop:space-efficient s-e-prop
-                impersonator-prop:contracted ctc
-                impersonator-prop:blame blame+neg-party))
+                impersonator-prop:space-efficient s-e-prop))
              (set-space-efficient-property-ref! s-e-prop wrapped)
              wrapped])))
       (values late-neg-proj s-e-vector))))

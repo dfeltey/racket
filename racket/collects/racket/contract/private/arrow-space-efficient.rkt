@@ -178,9 +178,7 @@
     (chap/imp
      checking-wrapper
      #f
-     impersonator-prop:space-efficient s-e-prop
-     impersonator-prop:contracted (multi-ho/c-latest-ctc s-e)
-     impersonator-prop:blame (cons (multi-ho/c-latest-blame s-e) neg-party)))
+     impersonator-prop:space-efficient s-e-prop))
   (set-space-efficient-property-ref! s-e-prop wrapped)
   wrapped)
 

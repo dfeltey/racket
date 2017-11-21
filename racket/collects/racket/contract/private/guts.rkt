@@ -158,7 +158,9 @@
 
 (define (has-contract? v)
   (or (has-prop:contracted? v)
-      (has-impersonator-prop:contracted? v)))
+      (has-impersonator-prop:contracted? v)
+      ;; TODO: I think this is the right check, but I'm not positive
+      (has-impersonator-prop:space-efficient? v)))
 
 (define (value-contract v)
   (cond
@@ -166,11 +168,17 @@
      (get-prop:contracted v)]
     [(has-impersonator-prop:contracted? v)
      (get-impersonator-prop:contracted v)]
+    [(get-space-efficient-property v)
+     =>
+     (λ (p)
+       (multi-ho/c-latest-ctc (space-efficient-property-s-e p)))]
     [else #f]))
 
 (define (has-blame? v)
   (or (has-prop:blame? v)
-      (has-impersonator-prop:blame? v)))
+      (has-impersonator-prop:blame? v)
+      ;; TODO: I think this check is ok, but I'm not sure ...
+      (has-impersonator-prop:space-efficient? v)))
 
 (define (value-blame v)
   (define bv
@@ -179,6 +187,13 @@
        (get-prop:blame v)]
       [(has-impersonator-prop:blame? v)
        (get-impersonator-prop:blame v)]
+      [(get-space-efficient-property v)
+       =>
+       (λ (p)
+         (define s-e (space-efficient-property-s-e p))
+         (cons
+          (multi-ho/c-latest-blame s-e)
+          (or (multi-ho/c-missing-party s-e) (space-efficient-property-neg-party p))))]
       [else #f]))
   (cond
     [(and (pair? bv) (blame? (car bv)))

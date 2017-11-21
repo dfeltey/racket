@@ -684,14 +684,10 @@
              (chaperone-or-impersonate-procedure
               val
               chap/imp-func
-              impersonator-prop:contracted ctc
-              impersonator-prop:blame (cons orig-blame neg-party)
               impersonator-prop:space-efficient s-e-prop)
              (chaperone-or-impersonate-procedure
               val
               chap/imp-func
-              impersonator-prop:contracted ctc
-              impersonator-prop:blame (cons orig-blame neg-party)
               impersonator-prop:space-efficient s-e-prop
               impersonator-prop:application-mark
               (cons arrow:tail-contract-key (list* neg-party blame-party-info rngs)))))
