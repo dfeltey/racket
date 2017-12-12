@@ -291,9 +291,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Space-efficient contract data structure management
 
-(define (build-s-e-arrow doms rng ctc blame chap?)
+(define (build-s-e-arrow doms rng ctc blame chap? (maybe-fcs #f))
   (define focs
-    (list (arrow-first-order-check (length doms) blame #f (base->-method? ctc))))
+    (or maybe-focs (list (arrow-first-order-check (length doms) blame #f (base->-method? ctc)))))
   (if chap?
       (chaperone-multi-> blame #f ctc doms rng focs)
       (impersonator-multi-> blame #f ctc doms rng focs)))

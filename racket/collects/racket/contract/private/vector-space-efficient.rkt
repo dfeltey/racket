@@ -36,11 +36,11 @@
        (or (not f2-length)
            (and f1-length (= f1-length f2-length)))))
 
-(define (build-s-e-vector s-e-pos s-e-neg ctc blame chap?)
-  (define focs (build-vector-first-order-checks ctc blame))
+(define (build-s-e-vector s-e-pos s-e-neg ctc blame chap? [maybe-focs #f])
+  (define focs (or maybe-focs (list (build-vector-first-order-checks ctc blame))))
   (if chap?
-      (chaperone-multi-vector blame #f ctc (list focs) s-e-pos s-e-neg)
-      (impersonator-multi-vector blame #f ctc (list focs) s-e-pos s-e-neg)))
+      (chaperone-multi-vector blame #f ctc focs s-e-pos s-e-neg)
+      (impersonator-multi-vector blame #f ctc focs s-e-pos s-e-neg)))
 
 (define (build-vector-first-order-checks ctc blame)
   (cond
