@@ -72,8 +72,8 @@
         (multi-ho/c-latest-blame new-multi)
         (or (multi-ho/c-missing-party new-multi) new-neg)
         (multi-ho/c-latest-ctc new-multi)
-        (first-order-check-join (add-f-o-neg-party (multi-vector-first-order old-multi) old-neg)
-                                (add-f-o-neg-party (multi-vector-first-order new-multi) new-neg)
+        (first-order-check-join (add-f-o-neg-party (multi-vector-first-order new-multi) new-neg)
+                                (add-f-o-neg-party (multi-vector-first-order old-multi) old-neg)
                                 vector-first-order-check-stronger?)
         (merge* (multi-vector-ref-ctcs new-multi)
                 new-neg

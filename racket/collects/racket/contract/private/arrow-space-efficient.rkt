@@ -315,8 +315,8 @@
           merged)
         (merge (multi->-rng new-multi) new-neg (multi->-rng old-multi) old-neg)
         (first-order-check-join
-         (add-f-o-neg-party (multi->-first-order-checks old-multi) old-neg)
          (add-f-o-neg-party (multi->-first-order-checks new-multi) new-neg)
+         (add-f-o-neg-party (multi->-first-order-checks old-multi) old-neg)
          arrow-first-order-check-stronger?))))
 
 (define arrow-enter-space-efficient-mode/continue

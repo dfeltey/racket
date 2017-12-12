@@ -227,13 +227,13 @@
   (λ (val neg) (guard multi val neg)))
 
 (define (first-order-check-join new-checks old-checks stronger?)
-  (fast-append new-checks
+  (fast-append old-checks
 
-               (for/list ([old (in-list old-checks)]
+               (for/list ([new (in-list new-checks)]
                           #:when (not (implied-by-one?
-                                       new-checks old
+                                       old-checks new
                                        #:implies stronger?)))
-                 old)))
+                 new)))
 
 (struct space-efficient-property (s-e neg-party [ref #:mutable]))
 (struct space-efficient-count-property space-efficient-property (count prev))
