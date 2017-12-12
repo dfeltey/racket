@@ -291,7 +291,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Space-efficient contract data structure management
 
-(define (build-s-e-arrow doms rng ctc blame chap? (maybe-fcs #f))
+(define (build-s-e-arrow doms rng ctc blame chap? (maybe-focs #f))
   (define focs
     (or maybe-focs (list (arrow-first-order-check (length doms) blame #f (base->-method? ctc)))))
   (if chap?
@@ -301,28 +301,23 @@
 ;; merge two multi->
 (define (arrow-try-merge new-multi new-neg old-multi old-neg)
   (define constructor (get-constructor new-multi old-multi))
-  (define merged
-    (and constructor
-         (constructor
-          (multi-ho/c-latest-blame new-multi)
-          (or (multi-ho/c-missing-party new-multi) new-neg)
-          (multi-ho/c-latest-ctc   new-multi)
-          ;; if old and new don't have the same arity, then one of them will *have*
-          ;; to fail its first order checks, so we're fine.
-          ;; (we don't support optional arguments)
-          (for/list ([new (in-list (multi->-doms new-multi))]
-                     [old (in-list (multi->-doms old-multi))])
-            (define-values (merged _) (merge old old-neg new new-neg))
-            merged)
-          (let-values ([(merged _)
-                        (merge (multi->-rng new-multi) new-neg (multi->-rng old-multi) old-neg)])
-            merged)
-          (first-order-check-join
-           (add-f-o-neg-party (multi->-first-order-checks old-multi) old-neg)
-           (add-f-o-neg-party (multi->-first-order-checks new-multi) new-neg)
-           arrow-first-order-check-stronger?))))
-  ;; FIXME: passing around neg parties ...
-  (values merged new-neg))
+  (and constructor
+       (constructor
+        (multi-ho/c-latest-blame new-multi)
+        (or (multi-ho/c-missing-party new-multi) new-neg)
+        (multi-ho/c-latest-ctc   new-multi)
+        ;; if old and new don't have the same arity, then one of them will *have*
+        ;; to fail its first order checks, so we're fine.
+        ;; (we don't support optional arguments)
+        (for/list ([new (in-list (multi->-doms new-multi))]
+                   [old (in-list (multi->-doms old-multi))])
+          (define merged (merge old old-neg new new-neg))
+          merged)
+        (merge (multi->-rng new-multi) new-neg (multi->-rng old-multi) old-neg)
+        (first-order-check-join
+         (add-f-o-neg-party (multi->-first-order-checks old-multi) old-neg)
+         (add-f-o-neg-party (multi->-first-order-checks new-multi) new-neg)
+         arrow-first-order-check-stronger?))))
 
 (define arrow-enter-space-efficient-mode/continue
   (make-enter-space-efficient-mode/continue

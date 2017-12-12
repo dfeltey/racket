@@ -97,10 +97,9 @@
   #:property prop:space-efficient-contract
   (build-space-efficient-contract-property
    #:try-merge (lambda (new new-neg old old-neg)
-                 (cond
-                   [(and (multi-leaf/c? old) (multi-leaf/c? new))
-                    (join-multi-leaf/c new new-neg old old-neg)]
-                   [else (values #f #f)]))
+                 (and (multi-leaf/c? old)
+                      (multi-leaf/c? new)
+                      (join-multi-leaf/c new new-neg old old-neg)))
    #:space-efficient-guard
    (lambda (s-e val neg-party)
      (apply-proj-list (multi-leaf/c-proj-list s-e)
@@ -177,11 +176,10 @@
                                            old-flat-list old-blame-list old-missing-party-list old-neg
                                            new-flat new-blame new-missing-party new-neg)))
       (values new-proj new-flat new-blame (or new-missing-party new-neg))))
-  (values (multi-leaf/c (fast-append old-proj-list not-implied-projs)
-                        (fast-append old-flat-list not-implied-flats)
-                        (fast-append old-blame-list not-implied-blames)
-                        (fast-append old-missing-party-list not-implied-missing-parties))
-          #f))
+  (multi-leaf/c (fast-append old-proj-list not-implied-projs)
+                (fast-append old-flat-list not-implied-flats)
+                (fast-append old-blame-list not-implied-blames)
+                (fast-append old-missing-party-list not-implied-missing-parties)))
 
 (define (add-missing-parties missing-parties new-neg-party)
   (for/list ([neg-party (in-list missing-parties)])
@@ -203,14 +201,11 @@
 (define (merge new-s-e new-neg old-s-e old-neg)
   (define-values (new-try-merge new-proj) (get-merge-components new-s-e))
   (define-values (_ old-proj) (get-merge-components old-s-e))
-  (define-values (merged-s-e merged-neg) (new-try-merge new-s-e new-neg old-s-e old-neg))
-  (cond
-    [merged-s-e (values merged-s-e merged-neg)]
-    [else
-     (join-multi-leaf/c (multi->leaf new-s-e new-neg new-proj)
-                        new-neg
-                        (multi->leaf old-s-e old-neg old-proj)
-                        old-neg)]))
+  (or (new-try-merge new-s-e new-neg old-s-e old-neg)
+      (join-multi-leaf/c (multi->leaf new-s-e new-neg new-proj)
+                         new-neg
+                         (multi->leaf old-s-e old-neg old-proj)
+                         old-neg)))
 
 (define (get-merge-components multi)
   (define prop (get-space-efficient-contract-property multi))
@@ -278,7 +273,7 @@
          try-merge
          bail)
   (λ (s-e val neg-party s-e-prop chap-not-imp?)
-    (define-values (merged-s-e new-neg checking-wrapper)
+    (define-values (merged-s-e checking-wrapper)
       (let loop ([left s-e]
                  [left-neg neg-party]
                  [prop s-e-prop])
@@ -287,23 +282,22 @@
            (define right (space-efficient-property-s-e prop))
            (define right-neg (space-efficient-property-neg-party prop))
            (define prev (space-efficient-count-property-prev prop))
-           (define-values (merged new-neg)
-             (try-merge left left-neg right right-neg))
+           (define merged (try-merge left left-neg right right-neg))
            (cond
              ;; there is another contract underneath this one
              [(space-efficient-count-property? prev)
-              (loop merged new-neg prev)]
+              (loop merged #f prev)]
              ;; we've reached the bottom of the contract stack
              [else
               (define checking-wrapper
                 (make-unsafe-checking-wrapper val prev chap-not-imp?))
-              (values merged new-neg checking-wrapper)])]
+              (values merged checking-wrapper)])]
           ;; a merge failed, so we should return immediately
           ;; indicating the failure
-          [else (values #f #f #f)])))
+          [else (values #f #f)])))
     (cond
       [merged-s-e
-       (add-s-e-chaperone merged-s-e s-e new-neg checking-wrapper chap-not-imp?)]
+       (add-s-e-chaperone merged-s-e s-e neg-party checking-wrapper chap-not-imp?)]
       [else (bail s-e val neg-party)])))
 
 (define (make-enter-space-efficient-mode/continue
@@ -311,9 +305,9 @@
          add-s-e-chaperone
          bail)
   (λ (new-s-e val new-neg-party s-e neg-party checking-wrapper chap-not-imp?)
-    (define-values (merged-s-e new-neg)
-      (try-merge new-s-e new-neg-party s-e neg-party))
+    (define merged-s-e (try-merge new-s-e new-neg-party s-e neg-party))
     (cond
       [merged-s-e
-       (add-s-e-chaperone merged-s-e new-s-e new-neg checking-wrapper chap-not-imp?)]
+       ;; Passing #f as the new-neg seems ugly, need to do more to fix this plumbing
+       (add-s-e-chaperone merged-s-e new-s-e #f checking-wrapper chap-not-imp?)]
       [else (bail new-s-e val new-neg-party)])))

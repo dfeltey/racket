@@ -65,47 +65,39 @@
      foc
      [missing-party (or missing-party neg-party)])))
 
-;; TODO: Can we not return the neg-party here ...
 (define (vector-try-merge new-multi new-neg old-multi old-neg)
   (define constructor (get-constructor new-multi old-multi))
-  (define merged
-    (and constructor
-         (constructor
-          (multi-ho/c-latest-blame new-multi)
-          (or (multi-ho/c-missing-party new-multi) new-neg)
-          (multi-ho/c-latest-ctc new-multi)
-          (first-order-check-join (add-f-o-neg-party (multi-vector-first-order old-multi) old-neg)
-                                  (add-f-o-neg-party (multi-vector-first-order new-multi) new-neg)
-                                  vector-first-order-check-stronger?)
-          (merge* (multi-vector-ref-ctcs new-multi)
-                  new-neg
-                  (multi-vector-ref-ctcs old-multi)
-                  old-neg)
-          (merge* (multi-vector-set-ctcs old-multi)
-                  old-neg
-                  (multi-vector-set-ctcs new-multi)
-                  new-neg))))
-  ;; FIXME: passing around neg parties
-  (values merged new-neg))
+  (and constructor
+       (constructor
+        (multi-ho/c-latest-blame new-multi)
+        (or (multi-ho/c-missing-party new-multi) new-neg)
+        (multi-ho/c-latest-ctc new-multi)
+        (first-order-check-join (add-f-o-neg-party (multi-vector-first-order old-multi) old-neg)
+                                (add-f-o-neg-party (multi-vector-first-order new-multi) new-neg)
+                                vector-first-order-check-stronger?)
+        (merge* (multi-vector-ref-ctcs new-multi)
+                new-neg
+                (multi-vector-ref-ctcs old-multi)
+                old-neg)
+        (merge* (multi-vector-set-ctcs old-multi)
+                old-neg
+                (multi-vector-set-ctcs new-multi)
+                new-neg))))
 
 (define (merge* new new-neg old old-neg)
   (cond
     [(and (vector? new) (vector? old))
      (for/vector ([nc (in-vector new)]
                   [oc (in-vector old)])
-       (define-values (merged _) (merge nc new-neg oc old-neg))
-       merged)]
+       (merge nc new-neg oc old-neg))]
     [(vector? new)
      (for/vector ([nc (in-vector new)])
-       (define-values (merged _) (merge nc new-neg old old-neg))
-       merged)]
+       (merge nc new-neg old old-neg))]
     [(vector? old)
      (for/vector ([oc (in-vector old)])
-       (define-values (merged _) (merge new new-neg oc old-neg))
-       merged)]
+       (merge new new-neg oc old-neg))]
     [else
-     (define-values (merged _) (merge new new-neg old old-neg))
-     merged]))
+     (merge new new-neg old old-neg)]))
 
 (define (get-constructor new old)
   (or (and (chaperone-multi-vector? new)
