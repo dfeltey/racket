@@ -37,26 +37,26 @@
           [h3
            (define cached-result (hash-ref h3 old-neg #f))
            (cond
-             [cached-result (values cached-result new-neg)]
+             [cached-result cached-result]
              [else
-              (define-values (result neg) (body-thunk))
+              (define result (body-thunk))
               (hash-set! h3 old-neg result)
-              (values result neg)])]
+              result])]
           [else
-           (define-values (result neg) (body-thunk))
+           (define result (body-thunk))
            (define h3 (make-hasheq (list (cons old-neg result))))
            (hash-set! h2 old-se h3)
-           (values result neg)])]
+           result])]
        [else
-        (define-values (result neg) (body-thunk))
+        (define result (body-thunk))
         (define h3 (make-hasheq (list (cons old-neg result))))
         (define h2 (make-hasheq (list (cons old-se h3))))
         (hash-set! h1 new-neg h2)
-        (values result neg)])]
+        result])]
     [else
-     (define-values (result neg) (body-thunk))
+     (define result (body-thunk))
      (define h3 (make-hasheq (list (cons old-neg result))))
      (define h2 (make-hasheq (list (cons old-se h3))))
      (define h1 (make-hasheq (list (cons new-neg h2))))
      (hash-set! the-cache new-se h1)
-     (values result neg)]))
+     result]))
