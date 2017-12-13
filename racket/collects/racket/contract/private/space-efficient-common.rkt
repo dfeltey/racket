@@ -335,40 +335,54 @@
             (reverse neg-parties))])))
     (cond
       [checking-wrapper
-       (define-values (merged-pos merged-neg merged-fo _1 _2 _3 _4 _5)
+       (define-values (merged-pos merged-neg merged-fo _1 _2 _3 _4 _5 _6 _7 _8)
          (for/fold ([old-pos (car positive)]
                     [old-neg (car negative)]
                     [old-f-o (car first-order)]
                     [old-pos-neg (car pos-neg-parties)]
                     [old-neg-neg (car neg-neg-parties)]
-                    [seen-pos (hash (car positive) #t)]
-                    [seen-neg (hash (car negative) #t)]
-                    [seen-f-o (hash (car first-order) #t)])
+                    [last-pos (car positive)]
+                    [last-neg (car negative)]
+                    [last-f-o (car first-order)]
+                    [last-pos-neg (car pos-neg-parties)]
+                    [last-neg-neg (car neg-neg-parties)]
+                    [last-f-o-neg (car pos-neg-parties)])
                    ([new-pos (in-list (cdr positive))]
                     [new-neg (in-list (cdr negative))]
                     [new-f-o (in-list (cdr first-order))]
                     [new-pos-neg (in-list (cdr pos-neg-parties))]
                     [new-neg-neg (in-list (cdr neg-neg-parties))])
-           (define-values (right-pos right-pos-neg new-seen-pos)
-             (if (hash-ref seen-pos new-pos #f)
-                 (values old-pos old-pos-neg seen-pos)
-                 (values (merge-pos new-pos new-pos-neg old-pos old-pos-neg) #f (hash-set seen-pos new-pos #t))))
-           (define-values (right-neg right-neg-neg new-seen-neg)
-             (if (hash-ref seen-neg new-neg #f)
-                 (values old-neg old-neg-neg seen-neg)
-                 (values (merge-neg new-neg new-neg-neg old-neg old-neg-neg) #f (hash-set seen-neg new-neg #t))))
-           (define-values (right-f-o new-seen-f-o)
-             (if (hash-ref seen-f-o new-f-o #f)
-                 (values old-f-o seen-f-o)
-                 (values (merge-first-order new-f-o new-pos-neg old-f-o old-pos-neg) (hash-set seen-f-o new-f-o #t))))
+           (define-values (right-pos right-pos-neg seen-pos seen-pos-neg)
+             (if (and (eq? last-pos new-pos) (eq? last-pos-neg new-pos-neg))
+                 (values old-pos old-pos-neg last-pos last-pos-neg)
+                 (values (merge-pos new-pos new-pos-neg old-pos old-pos-neg)
+                         #f
+                         new-pos
+                         new-pos-neg)))
+           (define-values (right-neg right-neg-neg seen-neg seen-neg-neg)
+             (if (and (eq? last-neg new-neg) (eq? last-neg-neg new-neg-neg))
+                 (values old-neg old-neg-neg last-neg last-neg-neg)
+                 (values (merge-neg new-neg new-neg-neg old-neg old-neg-neg)
+                         #f
+                         new-neg
+                         new-neg-neg)))
+           (define-values (right-f-o seen-f-o seen-f-o-neg)
+             (if (and (eq? last-f-o new-f-o) (eq? last-f-o-neg new-pos-neg))
+                 (values old-f-o last-f-o last-f-o-neg)
+                 (values (merge-first-order new-f-o new-pos-neg old-f-o old-pos-neg)
+                         new-f-o
+                         new-pos-neg)))
            (values right-pos
                    right-neg
                    right-f-o
                    right-pos-neg
                    right-neg-neg
-                   new-seen-pos
-                   new-seen-neg
-                   new-seen-f-o)))
+                   seen-pos
+                   seen-neg
+                   seen-f-o
+                   seen-pos-neg
+                   seen-neg-neg
+                   seen-f-o-neg)))
        (define merged-ctc (multi-ho/c-latest-ctc s-e))
        (define merged-neg-blame neg-party)
        (define merged-blame (multi-ho/c-latest-blame s-e))

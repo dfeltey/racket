@@ -1402,4 +1402,46 @@
                (add-many-contracts 11 ctc1 (vector 'dont-care) 'inner-pos 'inner-neg) 'pos 'neg)])
       (vector-set! v 0 'foo))
    "neg")
+
+  (test/spec-failed
+   'collapse-keep-different-blame
+   '(let ()
+      (define blame-holder (contract (vectorof (vectorof positive?)) (vector (vector 1)) 'pos #f))
+      (define blame-holder2 (contract (vectorof (vectorof negative?)) (vector (vector 1)) 'pos #f))
+      (define pos-blame1 (value-blame blame-holder))
+      (define pos-blame2 (value-blame blame-holder2))
+      (define ctc (vectorof (vectorof positive?)))
+      (define ctc2 (vectorof (vectorof negative?)))
+      (define lnp (get/build-late-neg-projection ctc))
+      (define lnp2 (get/build-late-neg-projection ctc2))
+      (define ctc+blame (lnp pos-blame1))
+      (define ctc+blame2 (lnp2 pos-blame2))
+      (define v (vector (vector -1)))
+
+      (define cv1 (for/fold ([cv v]) ([_ (in-range 3)]) (ctc+blame cv 'neg1)))
+      (define cv2 (for/fold ([cv cv1]) ([_ (in-range 3)]) (ctc+blame2 cv 'neg2)))
+      (define cv3 (for/fold ([cv cv2]) ([_ (in-range 3)]) (ctc+blame cv 'neg3)))
+      (define cv4 (for/fold ([cv cv3]) ([_ (in-range 2)]) (ctc+blame2 cv 'neg4)))
+
+      (define iv (vector-ref cv4 0))
+      (vector-set! iv 0 -1))
+   "neg3")
+
+  (test/spec-failed
+   'collapse-keep-higher-order
+   '(let ()
+      (define blame-holder (contract (vectorof (vectorof positive?)) (vector (vector 1)) 'pos #f))
+      (define pos-blame1 (value-blame blame-holder))
+      (define ctc (vectorof (vectorof positive?)))
+      (define lnp (get/build-late-neg-projection ctc))
+      (define ctc+blame (lnp pos-blame1))
+      (define v (vector (vector 1)))
+
+      (define cv1 (for/fold ([cv v]) ([_ (in-range 4)]) (ctc+blame cv 'neg1)))
+      (define cv2 (for/fold ([cv cv1]) ([_ (in-range 4)]) (ctc+blame cv 'neg2)))
+      (define cv3 (for/fold ([cv cv2]) ([_ (in-range 3)]) (ctc+blame cv 'neg1)))
+
+      (define iv (vector-ref cv3 0))
+      (vector-set! iv 0 -1))
+   "neg1")
   )
