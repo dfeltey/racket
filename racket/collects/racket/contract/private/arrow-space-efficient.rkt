@@ -291,12 +291,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Space-efficient contract data structure management
 
-(define (build-s-e-arrow doms rng ctc blame chap? (maybe-focs #f))
+(define (build-s-e-arrow rng doms ctc blame chap? [maybe-focs #f] [maybe-neg-blame #f])
   (define focs
-    (or maybe-focs (list (arrow-first-order-check (length doms) blame #f (base->-method? ctc)))))
+    (or maybe-focs (list (arrow-first-order-check (length doms) blame maybe-neg-blame (base->-method? ctc)))))
   (if chap?
-      (chaperone-multi-> blame #f ctc doms rng focs)
-      (impersonator-multi-> blame #f ctc doms rng focs)))
+      (chaperone-multi-> blame maybe-neg-blame ctc doms rng focs)
+      (impersonator-multi-> blame maybe-neg-blame ctc doms rng focs)))
 
 ;; merge two multi->
 (define (arrow-try-merge new-multi new-neg old-multi old-neg)
@@ -309,15 +309,25 @@
         ;; if old and new don't have the same arity, then one of them will *have*
         ;; to fail its first order checks, so we're fine.
         ;; (we don't support optional arguments)
-        (for/list ([new (in-list (multi->-doms new-multi))]
+        (merge-list (multi->-doms old-multi) old-neg (multi->-doms new-multi) new-neg)
+        #;(for/list ([new (in-list (multi->-doms new-multi))]
                    [old (in-list (multi->-doms old-multi))])
-          (define merged (merge old old-neg new new-neg))
-          merged)
+          (merge old old-neg new new-neg))
         (merge (multi->-rng new-multi) new-neg (multi->-rng old-multi) old-neg)
-        (first-order-check-join
-         (add-f-o-neg-party (multi->-first-order-checks new-multi) new-neg)
-         (add-f-o-neg-party (multi->-first-order-checks old-multi) old-neg)
-         arrow-first-order-check-stronger?))))
+        (arrow-first-order-merge
+         (multi->-first-order-checks new-multi) new-neg
+         (multi->-first-order-checks old-multi) old-neg))))
+
+(define (merge-list news new-neg olds old-neg)
+  (for/list ([new (in-list news)]
+             [old (in-list olds)])
+    (merge new new-neg old old-neg)))
+
+(define (arrow-first-order-merge new new-neg old old-neg)
+  (first-order-check-join
+   (add-f-o-neg-party new new-neg)
+   (add-f-o-neg-party old old-neg)
+   arrow-first-order-check-stronger?))
 
 (define arrow-enter-space-efficient-mode/continue
   (make-enter-space-efficient-mode/continue
@@ -329,7 +339,15 @@
   (make-enter-space-efficient-mode/collapse
    make-unsafe-checking-wrapper
    add-space-efficient-arrow-chaperone
-   arrow-try-merge
+   build-s-e-arrow
+   merge
+   merge-list
+   arrow-first-order-merge
+   multi->-rng
+   multi->-doms
+   multi->-first-order-checks
+   (λ (chap?)
+     (if chap? chaperone-multi->? impersonator-multi->?))
    bail-to-regular-wrapper))
 
 (define arrow-enter-space-efficient-mode/direct

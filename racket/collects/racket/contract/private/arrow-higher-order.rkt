@@ -606,7 +606,7 @@
                 partial-kwd)))
     (define s-e-mergable
       (and has-s-e-support?
-           (build-s-e-arrow s-e-doms (car maybe-s-e-ranges) ctc orig-blame chaperone?)))
+           (build-s-e-arrow (car maybe-s-e-ranges) s-e-doms ctc orig-blame chaperone?)))
     (define the-args (append partial-doms
                              (if partial-rest (list partial-rest) '())
                              man-then-opt-partial-kwds

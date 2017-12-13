@@ -36,18 +36,18 @@
        (or (not f2-length)
            (and f1-length (= f1-length f2-length)))))
 
-(define (build-s-e-vector s-e-pos s-e-neg ctc blame chap? [maybe-focs #f])
-  (define focs (or maybe-focs (list (build-vector-first-order-checks ctc blame))))
+(define (build-s-e-vector s-e-pos s-e-neg ctc blame chap? [maybe-focs #f] [maybe-neg-blame #f])
+  (define focs (or maybe-focs (list (build-vector-first-order-checks ctc blame maybe-neg-blame))))
   (if chap?
-      (chaperone-multi-vector blame #f ctc focs s-e-pos s-e-neg)
-      (impersonator-multi-vector blame #f ctc focs s-e-pos s-e-neg)))
+      (chaperone-multi-vector blame maybe-neg-blame ctc focs s-e-pos s-e-neg)
+      (impersonator-multi-vector blame maybe-neg-blame ctc focs s-e-pos s-e-neg)))
 
-(define (build-vector-first-order-checks ctc blame)
+(define (build-vector-first-order-checks ctc blame neg)
   (cond
     [(base-vectorof? ctc)
      (vector-first-order-check
       (base-vectorof-immutable ctc)
-      #f
+      neg
       blame
       #f)]
     [(base-vector/c? ctc)
@@ -55,7 +55,7 @@
       (base-vector/c-immutable ctc)
       (length (base-vector/c-elems ctc))
       blame
-      #f)]))
+      neg)]))
 
 (define (add-f-o-neg-party focs neg-party)
   (for/list ([foc (in-list focs)])
@@ -65,6 +65,12 @@
      foc
      [missing-party (or missing-party neg-party)])))
 
+(define (vector-first-order-merge new new-neg old old-neg)
+  (first-order-check-join
+   (add-f-o-neg-party new new-neg)
+   (add-f-o-neg-party old old-neg)
+   vector-first-order-check-stronger?))
+
 (define (vector-try-merge new-multi new-neg old-multi old-neg)
   (define constructor (get-constructor new-multi old-multi))
   (and constructor
@@ -72,9 +78,9 @@
         (multi-ho/c-latest-blame new-multi)
         (or (multi-ho/c-missing-party new-multi) new-neg)
         (multi-ho/c-latest-ctc new-multi)
-        (first-order-check-join (add-f-o-neg-party (multi-vector-first-order new-multi) new-neg)
-                                (add-f-o-neg-party (multi-vector-first-order old-multi) old-neg)
-                                vector-first-order-check-stronger?)
+        (vector-first-order-merge
+         (multi-vector-first-order new-multi) new-neg
+         (multi-vector-first-order old-multi) old-neg)
         (merge* (multi-vector-ref-ctcs new-multi)
                 new-neg
                 (multi-vector-ref-ctcs old-multi)
@@ -221,7 +227,15 @@
   (make-enter-space-efficient-mode/collapse
    make-unsafe-checking-wrapper
    add-space-efficient-vector-chaperone
-   vector-try-merge
+   build-s-e-vector
+   merge*
+   merge*
+   vector-first-order-merge
+   multi-vector-ref-ctcs
+   multi-vector-set-ctcs
+   multi-vector-first-order
+   (λ (chap?)
+     (if chap? chaperone-multi-vector? impersonator-multi-vector?))
    bail-to-regular-wrapper))
 
 (define vector-enter-space-efficient-mode/direct
