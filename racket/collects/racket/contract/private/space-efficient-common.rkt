@@ -282,111 +282,32 @@
 (define (make-enter-space-efficient-mode/collapse
          make-unsafe-checking-wrapper
          add-s-e-chaperone
-         build
-         merge-pos
-         merge-neg
-         merge-first-order
-         get-positive
-         get-negative
-         get-first-order
-         get-can-merge?
+         try-merge
          bail)
   (λ (s-e val neg-party s-e-prop chap-not-imp?)
-    (define can-merge? (get-can-merge? chap-not-imp?))
-    (define new-pos (get-positive s-e))
-    (define new-neg (get-negative s-e))
-    (define new-f-o (get-first-order s-e))
-    ;; FIXME: should break from this loop if we see an s-e that
-    ;; doesn't answer #t to can-merge?
-    (define-values (checking-wrapper
-                    positive
-                    negative
-                    first-order
-                    pos-neg-parties
-                    neg-neg-parties)
-      (let loop ([s-e-prop s-e-prop]
-                 [positive (list new-pos)] ;; make sure this is last in the list
-                 [negative null]
-                 [first-order (list new-f-o)]
-                 [neg-parties (list neg-party)])
+    (define-values (merged-s-e checking-wrapper)
+      (let loop ([left s-e]
+                 [left-neg neg-party]
+                 [prop s-e-prop])
         (cond
-          [(space-efficient-count-property? s-e-prop)
-           (define s-e (space-efficient-property-s-e s-e-prop))
+          [left
+           (define right (space-efficient-property-s-e prop))
+           (define right-neg (space-efficient-property-neg-party prop))
+           (define prev (space-efficient-count-property-prev prop))
+           (define merged (try-merge left left-neg right right-neg))
            (cond
-             [(can-merge? s-e)
-              (define neg-party (space-efficient-property-neg-party s-e-prop))
-              (define prev (space-efficient-count-property-prev s-e-prop))
-              (define pos (get-positive s-e))
-              (define neg (get-negative s-e))
-              (define f-o (get-first-order s-e))
-              (loop prev
-                    (cons pos positive)
-                    (cons neg negative)
-                    (cons f-o first-order)
-                    (cons neg-party neg-parties))]
-             [else (values #f #f #f #f #f #f)])]
-          [else
-           (values
-            (make-unsafe-checking-wrapper val s-e-prop chap-not-imp?)
-            positive
-            (cons new-neg (reverse negative))
-            first-order
-            neg-parties
-            (reverse neg-parties))])))
+             ;; there is another contract underneath this one
+             [(space-efficient-count-property? prev)
+              (loop merged #f prev)]
+             ;; we've reached the bottom of the contract stack
+             [else
+              (define checking-wrapper
+                (make-unsafe-checking-wrapper val prev chap-not-imp?))
+              (values merged checking-wrapper)])]
+          ;; a merge failed, so we should return immediately
+          ;; indicating the failure
+          [else (values #f #f)])))
     (cond
-      [checking-wrapper
-       (define-values (merged-pos merged-neg merged-fo _1 _2 _3 _4 _5 _6 _7 _8)
-         (for/fold ([old-pos (car positive)]
-                    [old-neg (car negative)]
-                    [old-f-o (car first-order)]
-                    [old-pos-neg (car pos-neg-parties)]
-                    [old-neg-neg (car neg-neg-parties)]
-                    [last-pos (car positive)]
-                    [last-neg (car negative)]
-                    [last-f-o (car first-order)]
-                    [last-pos-neg (car pos-neg-parties)]
-                    [last-neg-neg (car neg-neg-parties)]
-                    [last-f-o-neg (car pos-neg-parties)])
-                   ([new-pos (in-list (cdr positive))]
-                    [new-neg (in-list (cdr negative))]
-                    [new-f-o (in-list (cdr first-order))]
-                    [new-pos-neg (in-list (cdr pos-neg-parties))]
-                    [new-neg-neg (in-list (cdr neg-neg-parties))])
-           (define-values (right-pos right-pos-neg seen-pos seen-pos-neg)
-             (if (and (eq? last-pos new-pos) (eq? last-pos-neg new-pos-neg))
-                 (values old-pos old-pos-neg last-pos last-pos-neg)
-                 (values (merge-pos new-pos new-pos-neg old-pos old-pos-neg)
-                         #f
-                         new-pos
-                         new-pos-neg)))
-           (define-values (right-neg right-neg-neg seen-neg seen-neg-neg)
-             (if (and (eq? last-neg new-neg) (eq? last-neg-neg new-neg-neg))
-                 (values old-neg old-neg-neg last-neg last-neg-neg)
-                 (values (merge-neg new-neg new-neg-neg old-neg old-neg-neg)
-                         #f
-                         new-neg
-                         new-neg-neg)))
-           (define-values (right-f-o seen-f-o seen-f-o-neg)
-             (if (and (eq? last-f-o new-f-o) (eq? last-f-o-neg new-pos-neg))
-                 (values old-f-o last-f-o last-f-o-neg)
-                 (values (merge-first-order new-f-o new-pos-neg old-f-o old-pos-neg)
-                         new-f-o
-                         new-pos-neg)))
-           (values right-pos
-                   right-neg
-                   right-f-o
-                   right-pos-neg
-                   right-neg-neg
-                   seen-pos
-                   seen-neg
-                   seen-f-o
-                   seen-pos-neg
-                   seen-neg-neg
-                   seen-f-o-neg)))
-       (define merged-ctc (multi-ho/c-latest-ctc s-e))
-       (define merged-neg-blame neg-party)
-       (define merged-blame (multi-ho/c-latest-blame s-e))
-
-       (define merged (build merged-pos merged-neg merged-ctc merged-blame chap-not-imp? merged-fo merged-neg-blame))
-       (add-s-e-chaperone merged s-e neg-party checking-wrapper chap-not-imp?)]
+      [merged-s-e
+       (add-s-e-chaperone merged-s-e s-e neg-party checking-wrapper chap-not-imp?)]
       [else (bail s-e val neg-party)])))

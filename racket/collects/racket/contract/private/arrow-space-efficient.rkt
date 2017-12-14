@@ -336,19 +336,11 @@
    bail-to-regular-wrapper))
 
 (define arrow-enter-space-efficient-mode/collapse
-  (make-enter-space-efficient-mode/collapse
-   make-unsafe-checking-wrapper
-   add-space-efficient-arrow-chaperone
-   build-s-e-arrow
-   merge
-   merge-list
-   arrow-first-order-merge
-   multi->-rng
-   multi->-doms
-   multi->-first-order-checks
-   (λ (chap?)
-     (if chap? chaperone-multi->? impersonator-multi->?))
-   bail-to-regular-wrapper))
+    (make-enter-space-efficient-mode/collapse
+     make-unsafe-checking-wrapper
+     add-space-efficient-arrow-chaperone
+     arrow-try-merge
+     bail-to-regular-wrapper))
 
 (define arrow-enter-space-efficient-mode/direct
   (make-enter-space-efficient-mode/direct

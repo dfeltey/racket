@@ -227,15 +227,7 @@
   (make-enter-space-efficient-mode/collapse
    make-unsafe-checking-wrapper
    add-space-efficient-vector-chaperone
-   build-s-e-vector
-   merge*
-   merge*
-   vector-first-order-merge
-   multi-vector-ref-ctcs
-   multi-vector-set-ctcs
-   multi-vector-first-order
-   (λ (chap?)
-     (if chap? chaperone-multi-vector? impersonator-multi-vector?))
+   vector-try-merge
    bail-to-regular-wrapper))
 
 (define vector-enter-space-efficient-mode/direct
