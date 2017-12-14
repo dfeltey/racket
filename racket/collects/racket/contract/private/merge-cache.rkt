@@ -14,7 +14,17 @@
 ;; if reach a threshold, throw away and start over
 ;; limit cache size to 10, and use some LRU policy (sort ...) (priority queue)
 ;; make define/merged-cache form to define caches in  the 3 places .. 
-(define MERGE-CACHE (make-thread-cell (make-hasheq)))
+(struct limit-cache (size table) #:mutable)
+(define LIMIT 10)
+(define (increment/clear-cache lc size)
+  (cond
+    [((add1 size) . > . LIMIT)
+     (set-limit-cache-size! lc 0)
+     (set-limit-cache-table! lc (make-weak-hasheq))]
+    [else
+     (set-limit-cache-size! lc (add1 size))]))
+
+(define MERGE-CACHE (make-thread-cell (limit-cache 0 (make-weak-hasheq))))
 
 (require (for-syntax racket/base))
 (define-syntax (define/merge-cache stx)
@@ -26,7 +36,9 @@
 
 (define (call-with-merge-cache new-se new-neg old-se old-neg body-thunk)
   (define the-cache (thread-cell-ref MERGE-CACHE))
-  (define h1 (hash-ref the-cache new-se #f))
+  (define size (limit-cache-size the-cache))
+  (define table (limit-cache-table the-cache))
+  (define h1 (hash-ref table new-se #f))
   (cond
     [h1
      (define h2 (hash-ref h1 new-neg #f))
@@ -37,26 +49,30 @@
           [h3
            (define cached-result (hash-ref h3 old-neg #f))
            (cond
-             [cached-result cached-result]
+             [(ephemeron-value cached-result) => values]
              [else
               (define result (body-thunk))
-              (hash-set! h3 old-neg result)
+              (hash-set! h3 old-neg (make-ephemeron old-neg result))
+              (increment/clear-cache the-cache size)
               result])]
           [else
            (define result (body-thunk))
-           (define h3 (make-hasheq (list (cons old-neg result))))
+           (define h3 (make-hasheq (list (cons old-neg (make-ephemeron old-neg result)))))
            (hash-set! h2 old-se h3)
+           (increment/clear-cache the-cache size)
            result])]
        [else
         (define result (body-thunk))
-        (define h3 (make-hasheq (list (cons old-neg result))))
+        (define h3 (make-hasheq (list (cons old-neg (make-ephemeron old-neg result)))))
         (define h2 (make-hasheq (list (cons old-se h3))))
         (hash-set! h1 new-neg h2)
+        (increment/clear-cache the-cache size)
         result])]
     [else
      (define result (body-thunk))
-     (define h3 (make-hasheq (list (cons old-neg result))))
+     (define h3 (make-hasheq (list (cons old-neg (make-ephemeron old-neg result)))))
      (define h2 (make-hasheq (list (cons old-se h3))))
      (define h1 (make-hasheq (list (cons new-neg h2))))
-     (hash-set! the-cache new-se h1)
+     (hash-set! table new-se h1)
+     (increment/clear-cache the-cache size)
      result]))
