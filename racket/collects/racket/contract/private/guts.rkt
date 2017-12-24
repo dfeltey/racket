@@ -169,7 +169,7 @@
      (get-prop:contracted v)]
     [(has-impersonator-prop:contracted? v)
      (get-impersonator-prop:contracted v)]
-    [(get-space-efficient-property v)
+    [(get-impersonator-prop:space-efficient v #f)
      =>
      (λ (p)
        (multi-ho/c-latest-ctc (space-efficient-property-s-e p)))]
@@ -188,7 +188,7 @@
        (get-prop:blame v)]
       [(has-impersonator-prop:blame? v)
        (get-impersonator-prop:blame v)]
-      [(get-space-efficient-property v)
+      [(get-impersonator-prop:space-efficient v #f)
        =>
        (λ (p)
          (define s-e (space-efficient-property-s-e p))

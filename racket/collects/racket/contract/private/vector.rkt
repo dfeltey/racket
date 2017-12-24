@@ -176,7 +176,7 @@
           (check-vectorof elem-ctc immutable val blame neg-party #f #t)
           (define immutable-non-chaperone?
             (and (immutable? val) (not (chaperone? val))))
-          (define old-s-e-prop (get-space-efficient-property val))
+          (define old-s-e-prop (get-impersonator-prop:space-efficient val #f))
           (define safe-for-s-e?
             (if old-s-e-prop
                 (and (space-efficient-property? old-s-e-prop)
@@ -426,7 +426,7 @@
         (build-s-e-vector elem-s-e-poss elem-s-e-negs ctc blame chap-not-imp?))
       (define late-neg-proj
         (λ (val neg-party)
-          (define old-s-e-prop (get-space-efficient-property val))
+          (define old-s-e-prop (get-impersonator-prop:space-efficient val #f))
           (define safe-for-s-e
             (if old-s-e-prop
                 (and (space-efficient-property? old-s-e-prop)

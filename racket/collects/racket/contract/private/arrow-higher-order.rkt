@@ -618,7 +618,7 @@
               (if partial-rest (list partial-rest) '())))
     (define blame-party-info (arrow:get-blame-party-info orig-blame))
     (define (successfully-got-the-right-kind-of-function val neg-party)
-      (define old-s-e-prop (get-space-efficient-property val))
+      (define old-s-e-prop (get-impersonator-prop:space-efficient val #f))
       (define safe-for-s-e?
         (and has-s-e-support?
              (if old-s-e-prop

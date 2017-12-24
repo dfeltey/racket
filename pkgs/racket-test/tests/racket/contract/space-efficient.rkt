@@ -92,7 +92,7 @@
         (error "has-num-contracts?: wrong num of range contracts"))))
   (contract-eval '(define (space-efficient? val)
                     (and (has-impersonator-prop:space-efficient? val)
-                         (let ([prop (get-space-efficient-property val)])
+                         (let ([prop (get-impersonator-prop:space-efficient val #f)])
                            (and (space-efficient-wrapper-property? prop)
                                 (eq? val (space-efficient-property-ref prop)))))))
 
@@ -201,7 +201,7 @@
 
   (contract-eval
    '(define (double-wrapped? x)
-      (define prop (get-space-efficient-property x))
+      (define prop (get-impersonator-prop:space-efficient x #f))
       (and
        (space-efficient-wrapper-property? prop)
        (and (has-impersonator-prop:space-efficient?
@@ -209,8 +209,9 @@
             ;; this is annoying because of how unsafe-chaperones ...
             ;; work in relation to impersonator-properties
             (space-efficient-wrapper-property?
-             (get-space-efficient-property
-              (space-efficient-wrapper-property-checking-wrapper prop)))))))
+             (get-impersonator-prop:space-efficient
+              (space-efficient-wrapper-property-checking-wrapper prop)
+              #f))))))
 
   (test-false
    'space-efficient-wrap1

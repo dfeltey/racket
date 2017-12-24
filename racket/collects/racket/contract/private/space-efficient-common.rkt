@@ -15,7 +15,6 @@
          space-efficient-contract?
          merge
          space-efficient-guard
-         get-space-efficient-property
          first-order-check-join
          log-space-efficient-value-bailout-info
          log-space-efficient-contract-bailout-info
@@ -30,7 +29,6 @@
            multi-leaf/c-proj-list
            space-efficient-property-s-e
            space-efficient-property-ref
-           get-space-efficient-property
            has-impersonator-prop:space-efficient?
            get-impersonator-prop:space-efficient
            space-efficient-wrapper-property?
@@ -255,10 +253,6 @@
 ;;     the space-efficient interposition functions
 ;;    when this property is attached to a value there is also a
 ;;    impersonator-prop:merged property holding a (cons/c space-efficient? neg-party)
-
-(define (get-space-efficient-property val)
-  (and (has-impersonator-prop:space-efficient? val)
-       (get-impersonator-prop:space-efficient val)))
 
 (define (make-enter-space-efficient-mode/direct
          make-checking-wrapper

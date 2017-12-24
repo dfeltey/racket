@@ -116,7 +116,7 @@
 (define (vector-space-efficient-guard s-e val neg-party)
   (do-vector-first-order-checks s-e val neg-party)
   (define chap-not-imp? (chaperone-multi-vector? s-e))
-  (define prop (get-space-efficient-property val))
+  (define prop (get-impersonator-prop:space-efficient val #f))
   (define safe-for-s-e?
     (if prop
         (and (space-efficient-property? prop)
