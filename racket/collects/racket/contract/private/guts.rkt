@@ -25,6 +25,7 @@
          
          contract-stronger?
          list-contract?
+         can-cache-contract?
          
          contract-first-order
          contract-first-order-passes?
@@ -245,6 +246,10 @@
 (define (list-contract? raw-c)
   (define c (coerce-contract/f raw-c))
   (and c (contract-struct-list-contract? c)))
+
+(define (can-cache-contract? raw-c)
+  (define c (coerce-contract/f raw-c))
+  (and c (contract-struct-can-cache? c)))
 
 ;; contract-stronger? : contract contract -> boolean
 ;; indicates if one contract is stronger (ie, likes fewer values) than another
@@ -581,7 +586,8 @@
          (and (predicate-contract? that)
               (predicate-contract-sane? that)
               ((predicate-contract-pred that) this-val))))
-   #:list-contract? (λ (c) (null? (eq-contract-val c)))))
+   #:list-contract? (λ (c) (null? (eq-contract-val c)))
+   #:can-cache? (λ (c) #t)))
 
 (define false/c-contract (make-eq-contract #f #f))
 (define true/c-contract (make-eq-contract #t #t))
@@ -603,7 +609,8 @@
    #:generate
    (λ (ctc) 
      (define v (equal-contract-val ctc))
-     (λ (fuel) (λ () v)))))
+     (λ (fuel) (λ () v)))
+   #:can-cache? (λ (c) #t)))
 
 (define-struct =-contract (val name)
   #:property prop:custom-write contract-custom-write-property-proc
@@ -653,7 +660,8 @@
                (if (= c v) c v)]
               [else
                ;; otherwise, just stick with the original number (80% of the time)
-               v]))])))))
+               v]))])))
+   #:can-cache? (λ (c) #t)))
 
 (define-struct char-in/c (low high)
   #:property prop:custom-write contract-custom-write-property-proc
@@ -690,7 +698,8 @@
      (define delta (+ (- high low) 1))
      (λ (fuel)
        (λ ()
-         (integer->char (+ low (random delta))))))))
+         (integer->char (+ low (random delta))))))
+   #:can-cache? (λ (c) #t)))
 
 (define-struct regexp/c (reg name)
   #:property prop:custom-write contract-custom-write-property-proc
@@ -705,7 +714,8 @@
    #:name (λ (ctc) (regexp/c-reg ctc))
    #:stronger
    (λ (this that)
-      (and (regexp/c? that) (equal? (regexp/c-reg this) (regexp/c-reg that))))))
+      (and (regexp/c? that) (equal? (regexp/c-reg this) (regexp/c-reg that))))
+   #:can-cache? (λ (c) #t)))
 
 ;; sane? : boolean -- indicates if we know that the predicate is well behaved
 ;; (for now, basically amounts to trusting primitive procedures)
@@ -742,7 +752,8 @@
                         (and built-in-generator
                              (λ () (built-in-generator fuel))))])))
    #:list-contract? (λ (ctc) (or (equal? (predicate-contract-pred ctc) null?)
-                                 (equal? (predicate-contract-pred ctc) empty?)))))
+                                 (equal? (predicate-contract-pred ctc) empty?)))
+   #:can-cache? (λ (ctc) (predicate-contract-sane? ctc))))
 
 (define (raise-predicate-blame-error-failure blame v neg-party predicate-name)
   (raise-blame-error blame v #:missing-party neg-party
