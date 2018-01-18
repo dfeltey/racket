@@ -233,7 +233,7 @@
          (define tree/c
            (recursive-contract
             (or/c integer? (vector/c tree/c integer? tree/c))
-            #:can-cache?))
+            #:can-cache))
          tree/c)
        5
        'p
@@ -246,7 +246,7 @@
          (define tree/c
            (recursive-contract
             (or/c integer? (vector/c tree/c (λ (x) #t) tree/c))
-            #:can-cache?))
+            #:can-cache))
          tree/c)
        5
        'p

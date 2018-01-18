@@ -133,10 +133,10 @@
                                   (list #'kwd)))
             (set! extra-delay? #'kwd)
             (loop #'rest)]
-           [(#:can-cache?)
+           [(#:can-cache)
             (when can-cache?
               (raise-syntax-error 'recursive-contract
-                                  "#:can-cache? keyword appeared twice"
+                                  "#:can-cache keyword appeared twice"
                                   stx
                                   can-cache?
                                   (list #'kwd)))
@@ -183,7 +183,7 @@
                       #'#:impersonator
                       (syntax-case stx ()
                         [(_ arg . more) #'more]))]
-    [(_ arg #:can-cache? . more)
+    [(_ arg #:can-cache . more)
      (parse-type/kwds #'arg
                       #'#:impersonator
                       (syntax-case stx ()
