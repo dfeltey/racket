@@ -984,6 +984,26 @@
       (and (equal? this-name that-name)
            (contract-stronger? this-ctc that-ctc)))))
 
+(define (class/c-can-cache? ctc)
+  (define ictc (class/c-internal ctc))
+  (define (check-internal ctcs)
+    (for/and ([ctc (in-list ctcs)])
+      (can-cache-contract? ctc)))
+  (define (check-external ctcs)
+    (for/and ([ctc (in-list ctcs)])
+      (or (not ctc) (can-cache-contract? ctc))))
+  (and (check-external (class/c-method-contracts ctc))
+       (check-external (class/c-field-contracts ctc))
+       (check-external (class/c-init-contracts ctc))
+       (check-external (class/c-absents ctc))
+       (check-internal (internal-class/c-inherit-contracts ictc))
+       (check-internal (internal-class/c-inherit-field-contracts ictc))
+       (check-internal (internal-class/c-super-contracts ictc))
+       (check-internal (internal-class/c-inner-contracts ictc))
+       (check-internal (internal-class/c-override-contracts ictc))
+       (check-internal (internal-class/c-augment-contracts ictc))
+       (check-internal (internal-class/c-augride-contracts ictc))))
+
 (define-struct class/c 
   (methods method-contracts fields field-contracts inits init-contracts
    absents absent-fields 
@@ -993,6 +1013,7 @@
   #:property prop:contract
   (build-contract-property
    #:late-neg-projection class/c-late-neg-proj
+   #:can-cache? class/c-can-cache?
    #:name build-class/c-name
    #:stronger class/c-stronger
    #:first-order

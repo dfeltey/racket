@@ -226,6 +226,17 @@
    [(->m integer? integer?) #t]
    [(->i #:can-cache ([x integer?][y (x) integer?]) any) #t]
    [(->i ([x integer?][y (x) integer?]) any) #f]
+
+   [(class/c) #t]
+   [(class/c (field f)) #t]
+   [(class/c (field [f integer?])) #t]
+   [(class/c (field [f (λ (x) #t)])) #f]
+   [(class/c m) #t]
+   [(class/c [m (-> any/c integer?)]) #t]
+   [(class/c [m (-> any/c (λ (x) #f))]) #f]
+   [(class/c (override m)) #t]
+   [(class/c (override [m (-> any/c integer?)])) #t]
+   [(class/c (override [m (-> any/c (λ (x) #f))])) #f]
    )
 
   (test/spec-passed
