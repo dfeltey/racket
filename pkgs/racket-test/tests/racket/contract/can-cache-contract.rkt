@@ -237,6 +237,20 @@
    [(class/c (override m)) #t]
    [(class/c (override [m (-> any/c integer?)])) #t]
    [(class/c (override [m (-> any/c (λ (x) #f))])) #f]
+
+   [(object/c) #t]
+   [(object/c m) #t]
+   [(object/c [m (-> integer? integer?)]) #t]
+   [(object/c [m (-> integer? (λ (x) #t))]) #f]
+   [(object/c (field f)) #t]
+   [(object/c (field [f (-> integer? integer?)])) #t]
+   [(object/c (field [f (λ (x) #t)])) #f]
+   [(dynamic-object/c (list 'm) (list (-> integer? integer?)) (list) (list)) #t]
+   [(dynamic-object/c (list 'm) (list (-> (λ (x) #f) integer?)) (list) (list)) #f]
+   [(dynamic-object/c (list) (list) (list 'f) (list (-> integer? integer?))) #t]
+   [(dynamic-object/c (list) (list) (list 'f) (list (-> (λ (x) #f) integer?))) #f]
+   [(instanceof/c (class/c)) #t]
+   [(instanceof/c (class/c (field [f (λ (x) #t)]))) #f]
    )
 
   (test/spec-passed

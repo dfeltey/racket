@@ -1443,6 +1443,7 @@
    (λ (ctc)
      (build-compound-type-name 'instanceof/c (base-instanceof/c-class-ctc ctc)))
    #:first-order instanceof/c-first-order
+   #:can-cache? (λ (c) (can-cache-contract? (base-instanceof/c-class-ctc c)))
    #:stronger instanceof/c-stronger))
 
 (define (instanceof/c cctc)
@@ -1551,6 +1552,12 @@
                     any/c
                     that-ctc)))))))
 
+(define (object/c-can-cache? ctc)
+  (and (for/and ([mtd (in-list (base-object/c-method-contracts ctc))])
+         (or (just-check-existence? mtd) (can-cache-contract? mtd)))
+       (for/and ([fld (in-list (base-object/c-field-contracts ctc))])
+         (or (just-check-existence? fld) (can-cache-contract? fld)))))
+
 (define-struct base-object/c (methods method-contracts fields field-contracts)
   #:property prop:custom-write custom-write-property-proc
   #:property prop:contract
@@ -1563,6 +1570,7 @@
                                (base-object/c-method-contracts ctc)
                                (base-object/c-fields ctc)
                                (base-object/c-field-contracts ctc)))
+   #:can-cache? object/c-can-cache?
    #:first-order object/c-first-order
    #:stronger object/c-stronger))
 
