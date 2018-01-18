@@ -1554,7 +1554,17 @@
    #:generate ->-generate
    #:exercise ->-exercise
    #:val-first-projection val-first-proj
-   #:space-efficient-late-neg-projection space-efficient-late-neg-proj))
+   #:space-efficient-late-neg-projection space-efficient-late-neg-proj
+   #:can-cache? ->-can-cache?))
+
+(define (->-can-cache? ctc)
+  (and (not (base->-pre? ctc))
+       (not (base->-post? ctc))
+       (for/and ([c (in-list (base->-doms ctc))])
+         (can-cache-contract? c))
+       (for/and ([c (in-list (or (base->-rngs ctc) '()))])
+         (can-cache-contract? c))
+       (can-cache-contract? (base->-rest ctc))))
 
 (define (->-stronger this that)
   (and (base->? that)

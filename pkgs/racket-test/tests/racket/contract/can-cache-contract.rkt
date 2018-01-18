@@ -5,7 +5,8 @@
                      (only-in racket/syntax format-symbol)))
 
 (parameterize ([current-contract-namespace
-                (make-basic-contract-namespace 'racket/list 'racket/undefined)])
+                (make-basic-contract-namespace 'racket/list 'racket/undefined
+                                               'racket/class)])
 
   (define-syntax (test-cache stx)
     (syntax-case stx ()
@@ -213,6 +214,16 @@
    [(suggest/c (vectorof integer?) "suggestion" "message") #t]
    [(suggest/c (λ (x) #t) "suggestion" "message") #f]
    [(suggest/c (vectorof (λ (x) #t)) "suggestion" "message") #f]
+
+   [(-> integer? integer?) #t]
+   [(-> integer? (λ (x) #t)) #f]
+   [(-> (λ (x) #t) integer?) #f]
+   [(-> integer? any) #t]
+   [(-> integer? (values integer? integer?)) #t]
+   [(->* (integer?) (integer?) (values integer?)) #t]
+   [(->* (integer?) (integer?) #:pre (= 1 2) (values integer?)) #f]
+   [(->* (integer?) (integer?) (values integer?) #:post (= 2 3)) #f]
+   [(->m integer? integer?) #t]
    )
 
   (test/spec-passed
