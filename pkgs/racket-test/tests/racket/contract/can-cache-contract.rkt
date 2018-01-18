@@ -251,6 +251,11 @@
    [(dynamic-object/c (list) (list) (list 'f) (list (-> (λ (x) #f) integer?))) #f]
    [(instanceof/c (class/c)) #t]
    [(instanceof/c (class/c (field [f (λ (x) #t)]))) #f]
+
+   [(let ()
+      (struct foo ())
+      foo?)
+    #t]
    )
 
   (test/spec-passed

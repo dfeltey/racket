@@ -416,7 +416,8 @@
                                      name)
                                  x
                                  #f
-                                 (memq x the-known-good-contracts))])]
+                                 (or (struct-predicate-procedure? x)
+                                     (memq x the-known-good-contracts)))])]
     [(null? x)
      (unless list/c-empty
        (error 'coerce-contract/f::list/c-empty "too soon!"))
