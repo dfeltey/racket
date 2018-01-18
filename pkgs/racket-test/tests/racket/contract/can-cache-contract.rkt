@@ -224,6 +224,8 @@
    [(->* (integer?) (integer?) #:pre (= 1 2) (values integer?)) #f]
    [(->* (integer?) (integer?) (values integer?) #:post (= 2 3)) #f]
    [(->m integer? integer?) #t]
+   [(->i #:can-cache ([x integer?][y (x) integer?]) any) #t]
+   [(->i ([x integer?][y (x) integer?]) any) #f]
    )
 
   (test/spec-passed
@@ -254,6 +256,53 @@
      (λ (x)
        (and (exn:fail? x)
             (regexp-match #rx"can-cache-contract[?]" (exn-message x)))))
+
+  (contract-error-test
+   '->i-no-cache.1
+   '((contract
+      (->i #:can-cache ([x (λ (x) #t)]) any)
+      (λ (x) 1)
+      'pos
+      'neg)
+     11)
+   (λ (x)
+     (and (exn:fail? x)
+          (regexp-match #rx"can-cache-contract[?]" (exn-message x)))))
+  (contract-error-test
+   '->i-no-cache.2
+   '((contract
+      (->i #:can-cache () [res (λ (x) #t)])
+      (λ () 1)
+      'pos
+      'neg))
+   (λ (x)
+     (and (exn:fail? x)
+          (regexp-match #rx"can-cache-contract[?]" (exn-message x)))))
+
+  (contract-error-test
+   '->i-no-cache.3
+   '((contract
+      (->i #:can-cache ([x integer?] [y (x) (λ (x) #t)]) any)
+      (λ (x y) 1)
+      'pos
+      'neg)
+     11 12)
+   (λ (x)
+     (and (exn:fail? x)
+          (regexp-match #rx"can-cache-contract[?]" (exn-message x)))))
+
+  (contract-error-test
+   '->i-no-cache.4
+   '((contract
+      (->i #:can-cache ([x integer?] [y (x) (list/c (λ (x) #t))]) any)
+      (λ (x y) 1)
+      'pos
+      'neg)
+     11 12)
+   (λ (x)
+     (and (exn:fail? x)
+          (regexp-match #rx"can-cache-contract[?]" (exn-message x)))))
+
   
   #;(test/pos-blame
      'test-contract-25

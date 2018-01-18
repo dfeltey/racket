@@ -161,7 +161,9 @@
   (test #t
         name
         (contract-eval #:test-case-name name
-                       `(with-handlers ((exn:fail? (λ (x) (and (,exn-ok? x) #t)))) ,exp))))
+                       `(with-handlers ((exn:fail? (λ (x) (and (,exn-ok? x) #t))))
+                          ,exp
+                          "NO EXN RAISED"))))
 
 (define (contract-syntax-error-test name exp [reg #rx""])
   (test #t
