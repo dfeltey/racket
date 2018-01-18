@@ -106,6 +106,9 @@
        [else #f])]
     [else #f]))
 
+(define (can-cache-box/c? c)
+  (and (can-cache-contract? (base-box/c-content-w c))
+       (can-cache-contract? (base-box/c-content-r c))))
 
 (define-struct (flat-box/c base-box/c) ()
   #:property prop:custom-write custom-write-property-proc
@@ -114,6 +117,7 @@
    #:name box/c-name
    #:first-order box/c-first-order
    #:stronger box/c-stronger
+   #:can-cache? can-cache-box/c?
    #:late-neg-projection
    (λ (ctc)
      (define content-ctc (get/build-late-neg-projection (base-box/c-content-w ctc)))
@@ -168,6 +172,7 @@
    #:name box/c-name
    #:first-order box/c-first-order
    #:stronger box/c-stronger
+   #:can-cache? can-cache-box/c?
    #:late-neg-projection (ho-late-neg-projection chaperone-box)))
 
 (define-struct (impersonator-box/c base-box/c) ()
@@ -177,6 +182,7 @@
    #:name box/c-name
    #:first-order box/c-first-order
    #:stronger box/c-stronger
+   #:can-cache? can-cache-box/c?
    #:late-neg-projection (ho-late-neg-projection impersonate-box)))
 
 (define-syntax (box/c stx)

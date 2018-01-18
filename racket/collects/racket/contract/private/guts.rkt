@@ -249,7 +249,7 @@
 
 (define (can-cache-contract? raw-c)
   (define c (coerce-contract/f raw-c))
-  (and c (contract-struct-can-cache? c)))
+  (and (or c (eq? c false/c-contract)) (contract-struct-can-cache? c) #t))
 
 ;; contract-stronger? : contract contract -> boolean
 ;; indicates if one contract is stronger (ie, likes fewer values) than another
@@ -753,7 +753,7 @@
                              (λ () (built-in-generator fuel))))])))
    #:list-contract? (λ (ctc) (or (equal? (predicate-contract-pred ctc) null?)
                                  (equal? (predicate-contract-pred ctc) empty?)))
-   #:can-cache? (λ (ctc) (predicate-contract-sane? ctc))))
+   #:can-cache? (λ (ctc) (and (predicate-contract-sane? ctc) #t))))
 
 (define (raise-predicate-blame-error-failure blame v neg-party predicate-name)
   (raise-blame-error blame v #:missing-party neg-party

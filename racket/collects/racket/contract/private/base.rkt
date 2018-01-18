@@ -94,6 +94,7 @@
   (define (parse-type/kwds arg type kwds)
     (define list-contract? #f)
     (define extra-delay? #f)
+    (define can-cache? #f)
     (define maker
       (case (syntax-e type)
         [(#:impersonator) #'impersonator-recursive-contract]
@@ -132,6 +133,15 @@
                                   (list #'kwd)))
             (set! extra-delay? #'kwd)
             (loop #'rest)]
+           [(#:can-cache?)
+            (when can-cache?
+              (raise-syntax-error 'recursive-contract
+                                  "#:can-cache? keyword appeared twice"
+                                  stx
+                                  can-cache?
+                                  (list #'kwd)))
+            (set! can-cache? #'kwd)
+            (loop #'rest)]
            [(#:impersonator)
             (raise-syntax-error 'recursive-contract
                                 "#:impersonator keyword must appear right after the expression (if at all)"
@@ -157,6 +167,7 @@
                (λ () #,arg)
                '#,(syntax-local-infer-name stx)
                #,(if list-contract? #'#t #'#f)
+               #,(if can-cache? #'#t #'#f)
                #,@(if (equal? (syntax-e type) '#:flat)
                       (list (if extra-delay? #'#t #'#f))
                       '())))
@@ -168,6 +179,11 @@
                       (syntax-case stx ()
                         [(_ arg . more) #'more]))]
     [(_ arg #:extra-delay . more)
+     (parse-type/kwds #'arg
+                      #'#:impersonator
+                      (syntax-case stx ()
+                        [(_ arg . more) #'more]))]
+    [(_ arg #:can-cache? . more)
      (parse-type/kwds #'arg
                       #'#:impersonator
                       (syntax-case stx ()
@@ -192,6 +208,9 @@
      (when (recursive-contract-list-contract? ctc)
        (unless (list-contract? forced-ctc)
          (raise-argument-error 'recursive-contract "list-contract?" forced-ctc)))
+     (when (recursive-contract-can-cache? ctc)
+       (unless (can-cache-contract? forced-ctc)
+         (raise-argument-error 'recursive-contract "can-cache-contract?" forced-ctc)))
      (set-recursive-contract-ctc! ctc forced-ctc)
      (when (and (pair? old-name) (pair? (cdr old-name)))
        ;; this guard will be #f when we are forcing this contract
@@ -270,7 +289,10 @@
        (force-recursive-contract ctc)
        (contract-random-generate/choose (recursive-contract-ctc ctc) (- fuel 1))])))
 
-(struct recursive-contract ([name #:mutable] [thunk #:mutable] [ctc #:mutable] list-contract?)
+(define (can-cache-recursive-contract? c)
+  (recursive-contract-can-cache? c))
+
+(struct recursive-contract ([name #:mutable] [thunk #:mutable] [ctc #:mutable] list-contract? can-cache?)
   #:property prop:recursive-contract (λ (this)
                                        (force-recursive-contract this)
                                        (recursive-contract-ctc this)))
@@ -284,7 +306,8 @@
    #:late-neg-projection flat-recursive-contract-late-neg-projection
    #:stronger recursive-contract-stronger
    #:generate recursive-contract-generate
-   #:list-contract? recursive-contract-list-contract?))
+   #:list-contract? recursive-contract-list-contract?
+   #:can-cache? can-cache-recursive-contract?))
 (struct chaperone-recursive-contract recursive-contract ()
   #:property prop:custom-write custom-write-property-proc
   #:property prop:chaperone-contract
@@ -294,7 +317,8 @@
    #:late-neg-projection recursive-contract-late-neg-projection
    #:stronger recursive-contract-stronger
    #:generate recursive-contract-generate
-   #:list-contract? recursive-contract-list-contract?))
+   #:list-contract? recursive-contract-list-contract?
+   #:can-cache? can-cache-recursive-contract?))
 (struct impersonator-recursive-contract recursive-contract ()
   #:property prop:custom-write custom-write-property-proc
   #:property prop:contract
@@ -304,4 +328,5 @@
    #:late-neg-projection recursive-contract-late-neg-projection
    #:stronger recursive-contract-stronger
    #:generate recursive-contract-generate
-   #:list-contract? recursive-contract-list-contract?))
+   #:list-contract? recursive-contract-list-contract?
+   #:can-cache? can-cache-recursive-contract?))

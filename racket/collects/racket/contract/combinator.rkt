@@ -56,6 +56,7 @@
  
  contract-stronger?
  list-contract?
+ can-cache-contract?
  
  contract-first-order
  contract-first-order-passes?
@@ -130,7 +131,8 @@
                     #:val-first-projection [val-first-projection #f]
                     #:projection [projection #f]
                     #:stronger [stronger #f]
-                    #:list-contract? [is-list-contract #f])
+                    #:list-contract? [is-list-contract #f]
+                    #:can-cache? [can-cache-contract? #f])
            (:make-chaperone-contract
             #:name name
             #:first-order first-order
@@ -143,7 +145,8 @@
             #:projection
             (maybe-add-wrapper add-projection-chaperone-check projection)
             #:stronger stronger
-            #:list-contract? is-list-contract))])
+            #:list-contract? is-list-contract
+            #:can-cache? can-cache-contract?))])
     make-chaperone-contract))
 
 (define -build-chaperone-contract-property
@@ -158,7 +161,8 @@
              #:stronger [stronger #f]
              #:generate [generate #f]
              #:exercise [exercise #f]
-             #:list-contract? [is-list-contract? (λ (c) #f)])
+             #:list-contract? [is-list-contract? (λ (c) #f)]
+             #:can-cache? [can-cache-contract? (λ (c) #f)])
       (:build-chaperone-contract-property
        #:name get-name
        #:first-order get-first-order
@@ -173,7 +177,8 @@
        #:stronger stronger
        #:generate generate
        #:exercise exercise
-       #:list-contract? is-list-contract?))
+       #:list-contract? is-list-contract?
+       #:can-cache? can-cache-contract?))
     build-chaperone-contract-property))
 
 (define (add-prop-space-efficient-late-neg-chaperone-check get-s-e-late-neg)
@@ -244,7 +249,8 @@
                     #:val-first-projection [val-first-projection #f]
                     #:projection [projection #f]
                     #:stronger [stronger #f]
-                    #:list-contract? [is-list-contract #f])
+                    #:list-contract? [is-list-contract #f]
+                    #:can-cache? [can-cache-contract? #f])
            (:make-flat-contract
             #:name name
             #:first-order first-order
@@ -253,7 +259,8 @@
             #:val-first-projection (force-val-first-eq val-first-projection)
             #:projection (force-projection-eq projection)
             #:stronger stronger
-            #:list-contract? is-list-contract))])
+            #:list-contract? is-list-contract
+            #:can-cache? can-cache-contract?))])
     make-flat-contract))
 
 (define -build-flat-contract-property
@@ -266,7 +273,8 @@
                     #:projection [projection #f]
                     #:stronger [stronger #f]
                     #:generate [generate (λ (ctc) (λ (fuel) #f))]
-                    #:list-contract? [is-list-contract (λ (c) #f)])
+                    #:list-contract? [is-list-contract (λ (c) #f)]
+                    #:can-cache? [can-cache-contract? (λ (c) #f)])
            (:build-flat-contract-property
             #:name name
             #:first-order first-order
@@ -280,7 +288,8 @@
             (and projection (λ (c) (force-projection-eq (projection c))))
             #:stronger stronger
             #:generate generate
-            #:list-contract? is-list-contract))])
+            #:list-contract? is-list-contract
+            #:can-cache? can-cache-contract?))])
     build-flat-contract-property))
 
 (define (force-late-neg-eq accepts-blame)

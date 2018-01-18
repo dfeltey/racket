@@ -121,6 +121,9 @@
              (contract-struct-stronger? that-elem this-elem))])]
     [else #f]))
 
+(define (can-cache-vectorof? c)
+  (can-cache-contract? (base-vectorof-elem c)))
+
 (define-struct (flat-vectorof base-vectorof) ()
   #:property prop:custom-write custom-write-property-proc
   #:property prop:flat-contract
@@ -138,7 +141,8 @@
                                (for ([x (in-vector val)])
                                  (vfp+blame x neg-party))
                                val)))
-   #:stronger vectorof-stronger))
+   #:stronger vectorof-stronger
+   #:can-cache? can-cache-vectorof?))
 
 (define (blame-add-element-of-context blame #:swap? [swap? #f])
   (blame-add-context blame "an element of" #:swap? swap?))
@@ -251,7 +255,8 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #t)))
+   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #t)
+   #:can-cache? can-cache-vectorof?))
 
 (define-struct (impersonator-vectorof base-vectorof) ()
   #:property prop:custom-write custom-write-property-proc
@@ -260,7 +265,8 @@
    #:name vectorof-name
    #:first-order vectorof-first-order
    #:stronger vectorof-stronger
-   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #f)))
+   #:space-efficient-late-neg-projection (vectorof-space-efficient-late-neg-ho-projection #f)
+   #:can-cache? can-cache-vectorof?))
 
 (define-syntax (wrap-vectorof stx)
   (syntax-case stx ()
@@ -374,6 +380,10 @@
        [else #f])]
     [else #f]))
 
+(define (can-cache-vector/c? c)
+  (for/and ([ctc (in-list (base-vector/c-elems c))])
+    (can-cache-contract? ctc)))
+
 (define-struct (flat-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc
   #:property prop:flat-contract
@@ -381,6 +391,7 @@
    #:name vector/c-name
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
+   #:can-cache? can-cache-vector/c?
    #:late-neg-projection
    (λ (ctc)
      (define elems (base-vector/c-elems ctc))
@@ -505,6 +516,7 @@
    #:name vector/c-name
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
+   #:can-cache? can-cache-vector/c?
    #:space-efficient-late-neg-projection (vector/c-space-efficient-late-neg-ho-projection #t)))
 
 (define-struct (impersonator-vector/c base-vector/c) ()
@@ -514,6 +526,7 @@
    #:name vector/c-name
    #:first-order vector/c-first-order
    #:stronger vector/c-stronger
+   #:can-cache? can-cache-vector/c?
    #:space-efficient-late-neg-projection (vector/c-space-efficient-late-neg-ho-projection #f)))
 
 (define-syntax (wrap-vector/c stx)

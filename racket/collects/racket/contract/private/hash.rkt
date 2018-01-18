@@ -154,6 +154,10 @@
       [(#f)
        (list '#:immutable #f)]))))
 
+(define (can-cache-hash/c? c)
+  (and (can-cache-contract? (base-hash/c-dom c))
+       (can-cache-contract? (base-hash/c-rng c))))
+
 (define-struct base-hash/c (dom rng immutable))
 
 (define (hash/c-stronger this that)
@@ -187,6 +191,7 @@
    #:name hash/c-name
    #:first-order hash/c-first-order
    #:stronger hash/c-stronger
+   #:can-cache? can-cache-hash/c?
    #:late-neg-projection
    (λ (ctc)
      (define dom-ctc (base-hash/c-dom ctc))
@@ -272,6 +277,7 @@
   #:property prop:chaperone-contract
   (build-chaperone-contract-property
    #:name hash/c-name
+   #:can-cache? can-cache-hash/c?
    #:first-order hash/c-first-order
    #:stronger hash/c-stronger
    #:late-neg-projection (ho-projection chaperone-hash)))
@@ -282,6 +288,7 @@
   #:property prop:contract
   (build-contract-property
    #:name hash/c-name
+   #:can-cache? can-cache-hash/c?
    #:first-order hash/c-first-order
    #:stronger hash/c-stronger
    #:late-neg-projection (ho-projection impersonate-hash)))
