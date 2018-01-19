@@ -151,6 +151,7 @@
   (define chaperone-or-impersonate-vector
     (if chap-not-imp? chaperone-vector impersonate-vector))
   (λ (ctc)
+    (define can-cache? (contract-struct-can-cache? ctc))
     (define elem-ctc (base-vectorof-elem ctc))
     (define flat-subcontract? (flat-contract-struct? elem-ctc))
     (define eager (base-vectorof-eager ctc))
@@ -411,6 +412,7 @@
 (define (vector/c-space-efficient-late-neg-ho-projection chap-not-imp?)
   (define vector-wrapper (if chap-not-imp? chaperone-vector impersonate-vector))
   (λ (ctc)
+    (define can-cache? (contract-struct-can-cache? ctc))
     (define elem-ctcs (base-vector/c-elems ctc))
     (define immutable (base-vector/c-immutable ctc))
     (define elems-length (length elem-ctcs))
