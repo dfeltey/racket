@@ -96,7 +96,10 @@
                            (and (space-efficient-wrapper-property? prop)
                                 (eq? val (space-efficient-property-ref prop)))))))
 
-  (contract-eval '(define pos (lambda (x) (and (integer? x) (>= x 0)))))
+  (contract-eval '(define pos (flat-named-contract
+                               'pos
+                               (lambda (x) (and (integer? x) (>= x 0)))
+                               #:can-cache? #t)))
   (contract-eval '(define pos->pos (-> pos pos)))
   (contract-eval '(define pos->pos->pos (-> pos->pos pos)))
 
@@ -105,14 +108,17 @@
       (add-many-contracts 11 pos->pos (lambda (x) (* x -2)) 'positive 'negative)))
   (contract-eval
    '(define f1 (add-many-contracts 11 pos->pos->pos
-                         (lambda (f)
-                           (unless (has-contract? f)
-                             (error "f1 should already be contracted"))
-                           ;; Check that the already contracted function only
-                           ;; has one contract
-                           (has-num-contracts? f 1 1)
-                           (f 1))
-                         'pos 'neg)))
+                         (flat-named-contract
+                          'c
+                          (lambda (f)
+                            (unless (has-contract? f)
+                              (error "f1 should already be contracted"))
+                            ;; Check that the already contracted function only
+                            ;; has one contract
+                            (has-num-contracts? f 1 1)
+                            (f 1))
+                          #:can-cache? #t)
+                          'pos 'neg)))
   (contract-eval
    '(define f2 (add-many-contracts 11 pos->pos->pos
                          (lambda (f)
@@ -314,6 +320,7 @@
    '(define c1 ; this is an impersonator contract
       (make-contract
        #:name 'c1
+       #:can-cache? #t
        #:val-first-projection
        (lambda (blame)
          (lambda (x)
@@ -325,6 +332,7 @@
    '(define c2 ; this is an chaperone contract
       (make-chaperone-contract
        #:name 'c2
+       #:can-cache? #t
        #:val-first-projection
        (lambda (blame)
          (lambda (x)
