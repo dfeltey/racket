@@ -152,6 +152,8 @@
     (if chap-not-imp? chaperone-vector impersonate-vector))
   (λ (ctc)
     (define can-cache? (contract-struct-can-cache? ctc))
+    (unless can-cache?
+      (log-space-efficient-cache-fail-info "~s" ctc))
     (define elem-ctc (base-vectorof-elem ctc))
     (define flat-subcontract? (flat-contract-struct? elem-ctc))
     (define eager (base-vectorof-eager ctc))
@@ -163,7 +165,7 @@
       (define-values (elem-pos-proj s-e-pos) (vfp pos-blame))
       (define-values (elem-neg-proj s-e-neg) (vfp neg-blame))
       (define s-e-vector
-        (build-s-e-vector s-e-pos s-e-neg ctc blame chap-not-imp?))
+        (and can-cache? (build-s-e-vector s-e-pos s-e-neg ctc blame chap-not-imp?)))
       (define checked-ref (λ (neg-party)
                             (define blame+neg-party (cons pos-blame neg-party))
                             (λ (vec i val)
@@ -183,10 +185,11 @@
             (and (immutable? val) (not (chaperone? val))))
           (define old-s-e-prop (get-impersonator-prop:space-efficient val #f))
           (define safe-for-s-e?
-            (if old-s-e-prop
-                (and (space-efficient-property? old-s-e-prop)
-                     (eq? (space-efficient-property-ref old-s-e-prop) val))
-                (not (impersonator? val))))
+            (and can-cache?
+                 (if old-s-e-prop
+                     (and (space-efficient-property? old-s-e-prop)
+                          (eq? (space-efficient-property-ref old-s-e-prop) val))
+                     (not (impersonator? val)))))
           (define wrapper-count
             (if (space-efficient-count-property? old-s-e-prop)
                 (space-efficient-count-property-count old-s-e-prop)
@@ -244,7 +247,9 @@
                 impersonator-prop:space-efficient s-e-prop))
              (set-space-efficient-property-ref! s-e-prop wrapped)
              wrapped])))
-      (values late-neg-proj s-e-vector))))
+      (values
+       late-neg-proj
+       (or s-e-vector (build-space-efficient-leaf late-neg-proj ctc blame))))))
 
 (define-values (prop:neg-blame-party prop:neg-blame-party? prop:neg-blame-party-get)
   (make-impersonator-property 'prop:neg-blame-party))
@@ -413,6 +418,8 @@
   (define vector-wrapper (if chap-not-imp? chaperone-vector impersonate-vector))
   (λ (ctc)
     (define can-cache? (contract-struct-can-cache? ctc))
+    (unless can-cache?
+      (log-space-efficient-cache-fail-info "~s" ctc))
     (define elem-ctcs (base-vector/c-elems ctc))
     (define immutable (base-vector/c-immutable ctc))
     (define elems-length (length elem-ctcs))
@@ -436,15 +443,16 @@
         (vector-set! elem-s-e-poss i elem-s-e-pos)
         (vector-set! elem-s-e-negs i elem-s-e-neg))
       (define s-e-vector
-        (build-s-e-vector elem-s-e-poss elem-s-e-negs ctc blame chap-not-imp?))
+        (and can-cache? (build-s-e-vector elem-s-e-poss elem-s-e-negs ctc blame chap-not-imp?)))
       (define late-neg-proj
         (λ (val neg-party)
           (define old-s-e-prop (get-impersonator-prop:space-efficient val #f))
           (define safe-for-s-e
-            (if old-s-e-prop
-                (and (space-efficient-property? old-s-e-prop)
-                     (eq? (space-efficient-property-ref old-s-e-prop) val))
-                (not (impersonator? val))))
+            (and can-cache?
+                 (if old-s-e-prop
+                     (and (space-efficient-property? old-s-e-prop)
+                          (eq? (space-efficient-property-ref old-s-e-prop) val))
+                     (not (impersonator? val)))))
           (define wrapper-count
             (if (space-efficient-count-property? old-s-e-prop)
                 (space-efficient-count-property-count old-s-e-prop)
@@ -509,7 +517,9 @@
                 impersonator-prop:space-efficient s-e-prop))
              (set-space-efficient-property-ref! s-e-prop wrapped)
              wrapped])))
-      (values late-neg-proj s-e-vector))))
+      (values
+       late-neg-proj
+       (or s-e-vector (build-space-efficient-leaf late-neg-proj ctc blame))))))
 
 (define-struct (chaperone-vector/c base-vector/c) ()
   #:property prop:custom-write custom-write-property-proc

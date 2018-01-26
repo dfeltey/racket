@@ -18,6 +18,7 @@
          first-order-check-join
          log-space-efficient-value-bailout-info
          log-space-efficient-contract-bailout-info
+         log-space-efficient-cache-fail-info
          make-enter-space-efficient-mode/continue
          make-enter-space-efficient-mode/collapse
          make-enter-space-efficient-mode/direct
@@ -43,7 +44,7 @@
 (define-logger space-efficient-value-bailout)
 (define-logger space-efficient-contract-bailout)
 (define-logger space-efficient-merging)
-
+(define-logger space-efficient-cache-fail)
 
 (define SPACE-EFFICIENT-LIMIT 10)
 
