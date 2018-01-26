@@ -545,9 +545,7 @@
                  plus-one-arity-function chaperone-constructor method?
                  late-neg?)
   (define has-s-e-support?
-    (and (let ([ans (contract-struct-can-cache? ctc)])
-           (unless ans (log-space-efficient-cache-fail-info "~s" ctc))
-           ans)
+    (and (contract-struct-can-cache? ctc)
          (->-contract-has-space-efficient-support? ctc)))
   (define chaperone? (not is-impersonator?))
   (define optionals-length (- (length doms) min-arity))

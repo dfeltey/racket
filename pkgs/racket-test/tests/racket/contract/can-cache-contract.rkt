@@ -36,6 +36,7 @@
    [number? #t]
    [any/c #t]
    [none/c #t]
+   [empty? #t]
    [(or/c integer? string?) #t]
    [(or/c integer? (λ (x) #t) string?) #f]
    [(first-or/c integer? string?) #t]
