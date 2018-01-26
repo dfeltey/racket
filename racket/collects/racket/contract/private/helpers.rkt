@@ -13,7 +13,7 @@
 
 (require setup/main-collects
          racket/struct-info
-         (for-template racket/base (only-in racket/list empty?)))
+         (for-template racket/base))
 
 (define (update-loc stx loc)
   (datum->syntax stx (syntax-e stx) loc))
@@ -234,7 +234,6 @@
          (date? . #t)
          (directory-exists? . #t)
          (double-flonum? . #t)
-         (empty? . #t)
          (eof-object? . #t)
          (ephemeron? . #t)
          (even? . #t)
