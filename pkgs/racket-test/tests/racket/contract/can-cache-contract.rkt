@@ -6,7 +6,7 @@
 
 (parameterize ([current-contract-namespace
                 (make-basic-contract-namespace 'racket/list 'racket/undefined
-                                               'racket/class)])
+                                               'racket/class 'racket/sequence)])
 
   (define-syntax (test-cache stx)
     (syntax-case stx ()
