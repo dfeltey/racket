@@ -571,6 +571,50 @@
                 '(contract (and/c integer? positive?)
                            5.9
                            'pos 'neg))
+
+  (context-test
+   '("the x argument of" "an element of")
+   '(let ()
+      (define (contract* n c v pos neg)
+        (for/fold ([cv v])
+                  ([_ (in-range n)])
+          (contract c cv pos neg)))
+      (define c1 (vectorof (->i ([x integer?]) [_ integer?])))
+      (define c2 (vectorof (->i ([y (not/c string?)]) [_ any/c])))
+      (define vec
+        (contract
+         c1
+         (contract
+          c2
+          (contract* 11 c1 (vector (λ (x) x)) 'p 'n)
+          'p
+          'n)
+         'p
+         'n))
+      (define f (vector-ref vec 0))
+      (f "bad")))
+
+  (context-test
+   '("the x argument of" "an element of")
+   '(let ()
+      (define (contract* n c v pos neg)
+        (for/fold ([cv v])
+                  ([_ (in-range n)])
+          (contract c cv pos neg)))
+      (define c1 (vectorof (->i ([x integer?]) [_ integer?])))
+      (define c2 (vectorof (->i ([y (not/c string?)]) [_ any/c])))
+      (define vec
+        (contract
+         c1
+         (contract
+          c2
+          (contract c1 (vector (λ (x) x)) 'p 'n)
+          'p
+          'n)
+         'p
+         'n))
+      (define f (vector-ref vec 0))
+      (f "bad")))
   
   (let* ([blame-pos (contract-eval '(make-blame (srcloc #f #f #f #f #f)
                                                 #f

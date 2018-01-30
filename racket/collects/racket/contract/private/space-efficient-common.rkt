@@ -135,25 +135,12 @@
   (for/or ([e (in-list contract-list)])
     (implies e c)))
 
-(define (leaf-implied-by-one? contract-list blame-list missing-party-list neg
-                              new-ctc new-blame new-missing-party new-neg)
-  (define blame-pos (or (blame-positive new-blame) new-missing-party new-neg))
-  (define blame-neg (or (blame-negative new-blame) new-missing-party new-neg))
+(define (leaf-implied-by-one? contract-list new-ctc)
   (and new-ctc
-       (for/or ([old-ctc (in-list contract-list)]
-                [old-blame (in-list blame-list)]
-                [old-missing-party (in-list missing-party-list)])
+       (for/or ([old-ctc (in-list contract-list)])
          (and old-ctc
-              (cond
-                [(flat-contract-struct? new-ctc)
-                 (contract-struct-stronger? old-ctc new-ctc)]
-                [else
-                 (define old-blame-pos (or (blame-positive old-blame) old-missing-party neg))
-                 (define old-blame-neg (or (blame-negative old-blame) old-missing-party neg))
-                 (and (contract-struct-stronger? old-ctc new-ctc)
-                      (contract-struct-stronger? new-ctc old-ctc)
-                      (equal? old-blame-pos blame-pos)
-                      (equal? old-blame-neg blame-neg))])))))
+              (flat-contract-struct? new-ctc)
+              (contract-struct-stronger? old-ctc new-ctc)))))
 
 ;; join two multi-leaf contracts
 (define (join-multi-leaf/c new-multi new-neg old-multi old-neg)
@@ -171,9 +158,7 @@
                               [new-flat (in-list new-flat-list)]
                               [new-blame (in-list new-blame-list)]
                               [new-missing-party (in-list new-missing-party-list)]
-                              #:when (not (leaf-implied-by-one?
-                                           old-flat-list old-blame-list old-missing-party-list old-neg
-                                           new-flat new-blame new-missing-party new-neg)))
+                              #:when (not (leaf-implied-by-one? old-flat-list new-flat)))
       (values new-proj new-flat new-blame (or new-missing-party new-neg))))
   (multi-leaf/c (fast-append old-proj-list not-implied-projs)
                 (fast-append old-flat-list not-implied-flats)
