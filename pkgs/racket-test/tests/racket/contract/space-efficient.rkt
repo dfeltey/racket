@@ -874,4 +874,60 @@
            [cf (contract ctc2 (add-many-contracts 11 ctc1 f 'inner-pos 'inner-neg) 'pos 'neg)])
       (cf 'foo))
    "neg")
+
+  (test/spec-passed/result
+   'calculate-drops-1
+   '(let* ([ctc1 (coerce-contract/f integer?)]
+           [ctc2 (coerce-contract/f string?)]
+           [ctcs (list ctc1 ctc2 ctc1 ctc2 ctc1)])
+      (calculate-drops ctcs))
+   '(2))
+
+  (test/spec-passed/result
+   'calculate-drops-2
+   '(let* ([ctc1 (coerce-contract/f integer?)]
+           [ctcs (list ctc1 ctc1 ctc1 ctc1 ctc1)])
+      (calculate-drops ctcs))
+   '(3 2 1))
+
+  (test/spec-passed/result
+   'calculate-drops-2
+   '(let* ([ctc1 (coerce-contract/f (object/c))]
+           [ctcs (list ctc1 ctc1 ctc1 ctc1 ctc1)])
+      (calculate-drops ctcs))
+   '())
+
+  (test/spec-passed/result
+   'calculate-drops-3
+   '(let* ([ctc1 (coerce-contract/f integer?)]
+           [ctc2 (coerce-contract/f string?)]
+           [ctcs (list ctc1 ctc2 ctc1 ctc2 ctc1)])
+      (calculate-drops ctcs))
+   '(2))
+
+  (test/spec-passed/result
+   'calculate-drops-4
+   '(let* ([c1 (coerce-contract/f integer?)]
+           [c2 (coerce-contract/f (vectorof integer?))]
+           [c3 (coerce-contract/f (-> integer? integer?))]
+           [ctcs (list c1 c2 c3 c2 c3 c1 c3 c2 c1)])
+      (calculate-drops ctcs))
+   '(5 3 4))
+
+  (test/spec-passed/result
+   'calculate-drops-5
+   '(let* ([c1 (coerce-contract/f integer?)]
+           [c2 (coerce-contract/f (vectorof integer?))]
+           [c3 (coerce-contract/f (-> integer? integer?))]
+           [c4 (coerce-contract/f (object/c))]
+           [ctcs (list c1 c2 c3 c4 c4 c2 c3 c1 c3 c2 c4 c1 c4)])
+      (calculate-drops ctcs))
+   '(7 5 6))
+
+  (test/spec-passed/result
+   'calculate-drops-6
+   '(let* ([c1 (coerce-contract/f integer?)]
+           [ctcs (list c1 c1 c1 c1 c1 c1 c1 c1 c1)])
+      (calculate-drops ctcs))
+   '(7 6 5 4 3 2 1))
   )

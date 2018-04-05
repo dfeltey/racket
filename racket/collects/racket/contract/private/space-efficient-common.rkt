@@ -33,7 +33,8 @@
            has-impersonator-prop:space-efficient?
            get-impersonator-prop:space-efficient
            space-efficient-wrapper-property?
-           space-efficient-wrapper-property-checking-wrapper))
+           space-efficient-wrapper-property-checking-wrapper
+           calculate-drops))
 
 ;; object contracts need to propagate properties across procedure->method
 (module+ properties
@@ -160,15 +161,56 @@
                               [new-missing-party (in-list new-missing-party-list)]
                               #:when (not (leaf-implied-by-one? old-flat-list new-flat)))
       (values new-proj new-flat new-blame (or new-missing-party new-neg))))
-  (multi-leaf/c (fast-append old-proj-list not-implied-projs)
-                (fast-append old-flat-list not-implied-flats)
-                (fast-append old-blame-list not-implied-blames)
-                (fast-append old-missing-party-list not-implied-missing-parties)))
+  (define res-flats  (fast-append old-flat-list not-implied-flats))
+  (define res-blames (fast-append old-blame-list not-implied-blames))
+  (define res-missings (fast-append old-missing-party-list not-implied-missing-parties))
+  (define res-projs (fast-append old-proj-list not-implied-projs))
+  (define-values (pruned-projs pruned-flats pruned-blames pruned-missings)
+    (prune res-projs res-flats res-blames res-missings))
+  (multi-leaf/c pruned-projs pruned-flats pruned-blames pruned-missings))
 
 (define (add-missing-parties missing-parties new-neg-party)
   (for/list ([neg-party (in-list missing-parties)])
     (or neg-party new-neg-party)))
 
+(define (calculate-drops flats)
+  (define-values (to-drop _1 _2)
+       (for/fold ([indices '()]
+                  [seen (hasheq)]
+                  [maybe-drop (hasheq)])
+                 ([flat (in-list flats)]
+                  [i (in-naturals)])
+         (cond
+           [(or (flat-contract-struct? flat) (chaperone-contract-struct? flat))
+            (cond
+              [(hash-ref seen flat #f)
+               (define maybe-index (hash-ref maybe-drop flat #f))
+               (cond
+                 [maybe-index
+                  (define new-maybe-drop (hash-set maybe-drop flat i))
+                  (values (cons maybe-index indices) seen new-maybe-drop)]
+                 [else
+                  (define new-maybe-drop (hash-set maybe-drop flat i))
+                  (values indices seen new-maybe-drop)])]
+              [else
+               (define new-seen (hash-set seen flat #t))
+               (values indices new-seen maybe-drop)])]
+           [else
+            (values indices seen maybe-drop)])))
+  to-drop)
+
+(define (prune projs flats blames missings)
+  (cond
+    [((length flats) . <= . 10)
+     (define to-drop (calculate-drops flats))
+     (for/lists (_1 _2 _3 _4) ([proj (in-list projs)]
+                               [flat (in-list flats)]
+                               [blame (in-list blames)]
+                               [missing (in-list missings)]
+                               [i (in-naturals)]
+                               #:when (not (memv i to-drop)))
+       (values proj flat blame missing))]
+    [else (values projs flats blames missings)]))
 
 ;; A specialized version of append that will immediately return if either
 ;; argument is empty
